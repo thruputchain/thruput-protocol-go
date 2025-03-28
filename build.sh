@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 X_FILES=$(ls -1 protocol/*.x | tr '\n' ' ')
 PKG_NAME="proto"
 
