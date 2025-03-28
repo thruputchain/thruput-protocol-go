@@ -13,11 +13,30 @@ var _ context.Context
 // Data types defined in XDR file
 //
 
-type Coordinator1 interface {
-	Null()
-	Intro_db(DbCard) IntroDbResult
-	Intro_executor(ExecutorCard) IntroExecutorResult
-	List_db() ListDbResult
+// ServerAddress is an IP (or hostname) and port address, separated by a colon.
+type ServerAddress = string
+
+// UPID is a globally unique process identifier (function of start time, place
+// and randomness)
+type UPID = [8]byte
+
+// CoordinatorCard uniquely describes a coordinator instance.
+type CoordinatorCard struct {
+	Upid UPID
+}
+
+// ExecutorCard uniquely describes an executor instance.
+type ExecutorCard struct {
+	Upid UPID
+	Address ServerAddress
+}
+
+// DbCard uniquely describes a database shard instance and its initial state.
+type DbCard struct {
+	Upid UPID
+	Block_height uint32
+	Shard_count uint32
+	Address ServerAddress
 }
 
 type IntroDbResult struct {
@@ -39,31 +58,12 @@ type ListDbResult struct {
 	Shards []DbCard
 }
 
-// CoordinatorCard uniquely describes a coordinator instance.
-type CoordinatorCard struct {
-	Upid UPID
+type Coordinator1 interface {
+	Null()
+	Intro_db(DbCard) IntroDbResult
+	Intro_executor(ExecutorCard) IntroExecutorResult
+	List_db() ListDbResult
 }
-
-// DbCard uniquely describes a database shard instance and its initial state.
-type DbCard struct {
-	Upid UPID
-	Block_height uint32
-	Shard_count uint32
-	Address ServerAddress
-}
-
-// ExecutorCard uniquely describes an executor instance.
-type ExecutorCard struct {
-	Upid UPID
-	Address ServerAddress
-}
-
-// ServerAddress is an IP (or hostname) and port address, separated by a colon.
-type ServerAddress = string
-
-// UPID is a globally unique process identifier (function of start time, place
-// and randomness)
-type UPID = [8]byte
 
 type Uint128_xdr struct {
 	Highbits uint64
@@ -158,6 +158,169 @@ type AddressAndKey struct {
 // Helper types and generated marshaling functions
 //
 
+type XdrType_ServerAddress struct {
+	XdrString
+}
+func XDR_ServerAddress(v *ServerAddress) XdrType_ServerAddress {
+	return XdrType_ServerAddress{XdrString{v, 0xffffffff}}
+}
+func (XdrType_ServerAddress) XdrTypeName() string { return "ServerAddress" }
+func (v XdrType_ServerAddress) XdrUnwrap() XdrType { return v.XdrString }
+type _XdrArray_8_opaque [8]byte
+func (v *_XdrArray_8_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_8_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_8_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_8_opaque) XdrPointer() interface{} { return (*[8]byte)(v) }
+func (v *_XdrArray_8_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_8_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_8_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_8_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 8 // Force error if not const or doesn't fit
+	return bound
+}
+type XdrType_UPID struct {
+	*_XdrArray_8_opaque
+}
+func XDR_UPID(v *UPID) XdrType_UPID {
+	return XdrType_UPID{(*_XdrArray_8_opaque)(v)}
+}
+func (XdrType_UPID) XdrTypeName() string { return "UPID" }
+func (v XdrType_UPID) XdrUnwrap() XdrType { return v._XdrArray_8_opaque }
+type XdrType_CoordinatorCard = *CoordinatorCard
+func (v *CoordinatorCard) XdrPointer() interface{} { return v }
+func (CoordinatorCard) XdrTypeName() string { return "CoordinatorCard" }
+func (v CoordinatorCard) XdrValue() interface{} { return v }
+func (v *CoordinatorCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *CoordinatorCard) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
+}
+func XDR_CoordinatorCard(v *CoordinatorCard) *CoordinatorCard { return v }
+type XdrType_ExecutorCard = *ExecutorCard
+func (v *ExecutorCard) XdrPointer() interface{} { return v }
+func (ExecutorCard) XdrTypeName() string { return "ExecutorCard" }
+func (v ExecutorCard) XdrValue() interface{} { return v }
+func (v *ExecutorCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ExecutorCard) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
+	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
+}
+func XDR_ExecutorCard(v *ExecutorCard) *ExecutorCard { return v }
+type XdrType_DbCard = *DbCard
+func (v *DbCard) XdrPointer() interface{} { return v }
+func (DbCard) XdrTypeName() string { return "DbCard" }
+func (v DbCard) XdrValue() interface{} { return v }
+func (v *DbCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DbCard) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
+	x.Marshal(x.Sprintf("%sblock_height", name), XDR_uint32(&v.Block_height))
+	x.Marshal(x.Sprintf("%sshard_count", name), XDR_uint32(&v.Shard_count))
+	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
+}
+func XDR_DbCard(v *DbCard) *DbCard { return v }
+type XdrType_IntroDbResult = *IntroDbResult
+func (v *IntroDbResult) XdrPointer() interface{} { return v }
+func (IntroDbResult) XdrTypeName() string { return "IntroDbResult" }
+func (v IntroDbResult) XdrValue() interface{} { return v }
+func (v *IntroDbResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *IntroDbResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
+}
+func XDR_IntroDbResult(v *IntroDbResult) *IntroDbResult { return v }
+type XdrType_IntroExecutorResult = *IntroExecutorResult
+func (v *IntroExecutorResult) XdrPointer() interface{} { return v }
+func (IntroExecutorResult) XdrTypeName() string { return "IntroExecutorResult" }
+func (v IntroExecutorResult) XdrValue() interface{} { return v }
+func (v *IntroExecutorResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *IntroExecutorResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
+}
+func XDR_IntroExecutorResult(v *IntroExecutorResult) *IntroExecutorResult { return v }
+type _XdrVec_unbounded_DbCard []DbCard
+func (_XdrVec_unbounded_DbCard) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_DbCard) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_DbCard length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_DbCard length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_DbCard) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_DbCard) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]DbCard, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_DbCard) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_DbCard(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_DbCard) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_DbCard) XdrTypeName() string { return "DbCard<>" }
+func (v *_XdrVec_unbounded_DbCard) XdrPointer() interface{} { return (*[]DbCard)(v) }
+func (v _XdrVec_unbounded_DbCard) XdrValue() interface{} { return ([]DbCard)(v) }
+func (v *_XdrVec_unbounded_DbCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ListDbResult = *ListDbResult
+func (v *ListDbResult) XdrPointer() interface{} { return v }
+func (ListDbResult) XdrTypeName() string { return "ListDbResult" }
+func (v ListDbResult) XdrValue() interface{} { return v }
+func (v *ListDbResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ListDbResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
+	x.Marshal(x.Sprintf("%sis_ready", name), XDR_bool(&v.Is_ready))
+	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_DbCard)(&v.Shards))
+}
+func XDR_ListDbResult(v *ListDbResult) *ListDbResult { return v }
 
 type xdrProc_Null struct {
 	Arg *XdrVoid
@@ -402,169 +565,6 @@ func (c Coordinator1_Client) List_db() ListDbResult {
 	}
 	return *proc.Res
 }
-type XdrType_IntroDbResult = *IntroDbResult
-func (v *IntroDbResult) XdrPointer() interface{} { return v }
-func (IntroDbResult) XdrTypeName() string { return "IntroDbResult" }
-func (v IntroDbResult) XdrValue() interface{} { return v }
-func (v *IntroDbResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *IntroDbResult) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
-}
-func XDR_IntroDbResult(v *IntroDbResult) *IntroDbResult { return v }
-type XdrType_IntroExecutorResult = *IntroExecutorResult
-func (v *IntroExecutorResult) XdrPointer() interface{} { return v }
-func (IntroExecutorResult) XdrTypeName() string { return "IntroExecutorResult" }
-func (v IntroExecutorResult) XdrValue() interface{} { return v }
-func (v *IntroExecutorResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *IntroExecutorResult) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
-}
-func XDR_IntroExecutorResult(v *IntroExecutorResult) *IntroExecutorResult { return v }
-type _XdrVec_unbounded_DbCard []DbCard
-func (_XdrVec_unbounded_DbCard) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_DbCard) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_DbCard length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_DbCard length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_DbCard) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_DbCard) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]DbCard, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_DbCard) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_DbCard(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_DbCard) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_DbCard) XdrTypeName() string { return "DbCard<>" }
-func (v *_XdrVec_unbounded_DbCard) XdrPointer() interface{} { return (*[]DbCard)(v) }
-func (v _XdrVec_unbounded_DbCard) XdrValue() interface{} { return ([]DbCard)(v) }
-func (v *_XdrVec_unbounded_DbCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_ListDbResult = *ListDbResult
-func (v *ListDbResult) XdrPointer() interface{} { return v }
-func (ListDbResult) XdrTypeName() string { return "ListDbResult" }
-func (v ListDbResult) XdrValue() interface{} { return v }
-func (v *ListDbResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ListDbResult) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
-	x.Marshal(x.Sprintf("%sis_ready", name), XDR_bool(&v.Is_ready))
-	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_DbCard)(&v.Shards))
-}
-func XDR_ListDbResult(v *ListDbResult) *ListDbResult { return v }
-type XdrType_CoordinatorCard = *CoordinatorCard
-func (v *CoordinatorCard) XdrPointer() interface{} { return v }
-func (CoordinatorCard) XdrTypeName() string { return "CoordinatorCard" }
-func (v CoordinatorCard) XdrValue() interface{} { return v }
-func (v *CoordinatorCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *CoordinatorCard) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
-}
-func XDR_CoordinatorCard(v *CoordinatorCard) *CoordinatorCard { return v }
-type XdrType_DbCard = *DbCard
-func (v *DbCard) XdrPointer() interface{} { return v }
-func (DbCard) XdrTypeName() string { return "DbCard" }
-func (v DbCard) XdrValue() interface{} { return v }
-func (v *DbCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DbCard) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
-	x.Marshal(x.Sprintf("%sblock_height", name), XDR_uint32(&v.Block_height))
-	x.Marshal(x.Sprintf("%sshard_count", name), XDR_uint32(&v.Shard_count))
-	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
-}
-func XDR_DbCard(v *DbCard) *DbCard { return v }
-type XdrType_ExecutorCard = *ExecutorCard
-func (v *ExecutorCard) XdrPointer() interface{} { return v }
-func (ExecutorCard) XdrTypeName() string { return "ExecutorCard" }
-func (v ExecutorCard) XdrValue() interface{} { return v }
-func (v *ExecutorCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ExecutorCard) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
-	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
-}
-func XDR_ExecutorCard(v *ExecutorCard) *ExecutorCard { return v }
-type XdrType_ServerAddress struct {
-	XdrString
-}
-func XDR_ServerAddress(v *ServerAddress) XdrType_ServerAddress {
-	return XdrType_ServerAddress{XdrString{v, 0xffffffff}}
-}
-func (XdrType_ServerAddress) XdrTypeName() string { return "ServerAddress" }
-func (v XdrType_ServerAddress) XdrUnwrap() XdrType { return v.XdrString }
-type _XdrArray_8_opaque [8]byte
-func (v *_XdrArray_8_opaque) GetByteSlice() []byte { return v[:] }
-func (v *_XdrArray_8_opaque) XdrTypeName() string { return "opaque[]" }
-func (v *_XdrArray_8_opaque) XdrValue() interface{} { return v[:] }
-func (v *_XdrArray_8_opaque) XdrPointer() interface{} { return (*[8]byte)(v) }
-func (v *_XdrArray_8_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *_XdrArray_8_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
-func (v *_XdrArray_8_opaque) Scan(ss fmt.ScanState, c rune) error {
-	return XdrArrayOpaqueScan(v[:], ss, c)
-}
-func (_XdrArray_8_opaque) XdrArraySize() uint32 {
-	const bound uint32 = 8 // Force error if not const or doesn't fit
-	return bound
-}
-type XdrType_UPID struct {
-	*_XdrArray_8_opaque
-}
-func XDR_UPID(v *UPID) XdrType_UPID {
-	return XdrType_UPID{(*_XdrArray_8_opaque)(v)}
-}
-func (XdrType_UPID) XdrTypeName() string { return "UPID" }
-func (v XdrType_UPID) XdrUnwrap() XdrType { return v._XdrArray_8_opaque }
 type XdrType_Uint128_xdr = *Uint128_xdr
 func (v *Uint128_xdr) XdrPointer() interface{} { return v }
 func (Uint128_xdr) XdrTypeName() string { return "Uint128_xdr" }
