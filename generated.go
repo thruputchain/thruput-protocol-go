@@ -44,8 +44,8 @@ type CoordinatorCard struct {
 	Upid UPID
 }
 
-// ExecutorCard uniquely describes an executor instance.
-type ExecutorCard struct {
+// ExecCard uniquely describes an executor instance.
+type ExecCard struct {
 	Protocol Protocol
 	Upid UPID
 	Address ServerAddress
@@ -75,7 +75,7 @@ type IntroExecResult struct {
 type Coordinator1 interface {
 	Coordinator_null()
 	Coordinator_intro_shard(ShardCard) IntroShardResult
-	Coordinator_intro_exec(ExecutorCard) IntroExecResult
+	Coordinator_intro_exec(ExecCard) IntroExecResult
 }
 
 type ValidatorID = [16]byte
@@ -397,12 +397,12 @@ func (v *CoordinatorCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
 }
 func XDR_CoordinatorCard(v *CoordinatorCard) *CoordinatorCard { return v }
-type XdrType_ExecutorCard = *ExecutorCard
-func (v *ExecutorCard) XdrPointer() interface{} { return v }
-func (ExecutorCard) XdrTypeName() string { return "ExecutorCard" }
-func (v ExecutorCard) XdrValue() interface{} { return v }
-func (v *ExecutorCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ExecutorCard) XdrRecurse(x XDR, name string) {
+type XdrType_ExecCard = *ExecCard
+func (v *ExecCard) XdrPointer() interface{} { return v }
+func (ExecCard) XdrTypeName() string { return "ExecCard" }
+func (v ExecCard) XdrValue() interface{} { return v }
+func (v *ExecCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ExecCard) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
@@ -410,7 +410,7 @@ func (v *ExecutorCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
 	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
 }
-func XDR_ExecutorCard(v *ExecutorCard) *ExecutorCard { return v }
+func XDR_ExecCard(v *ExecCard) *ExecCard { return v }
 type XdrType_ShardCard = *ShardCard
 func (v *ShardCard) XdrPointer() interface{} { return v }
 func (ShardCard) XdrTypeName() string { return "ShardCard" }
@@ -591,7 +591,7 @@ func (p *xdrSrvProc_Coordinator_intro_shard) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Coordinator_intro_shard{} // XXX
 
 type xdrProc_Coordinator_intro_exec struct {
-	Arg *ExecutorCard
+	Arg *ExecCard
 	Res *IntroExecResult
 }
 func (xdrProc_Coordinator_intro_exec) Prog() uint32 { return 1055850753 }
@@ -602,9 +602,9 @@ func (xdrProc_Coordinator_intro_exec) VersName() string { return "Coordinator1" 
 func (xdrProc_Coordinator_intro_exec) ProcName() string { return "coordinator_intro_exec" }
 func (p *xdrProc_Coordinator_intro_exec) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(ExecutorCard)
+		p.Arg = new(ExecCard)
 	}
-	return XDR_ExecutorCard(p.Arg)
+	return XDR_ExecCard(p.Arg)
 }
 func (p *xdrProc_Coordinator_intro_exec) GetRes() XdrType {
 	if p.Res == nil {
@@ -690,7 +690,7 @@ func (c Coordinator1_Client) Coordinator_intro_shard(a1 ShardCard) IntroShardRes
 	}
 	return *proc.Res
 }
-func (c Coordinator1_Client) Coordinator_intro_exec(a1 ExecutorCard) IntroExecResult {
+func (c Coordinator1_Client) Coordinator_intro_exec(a1 ExecCard) IntroExecResult {
 	var proc xdrProc_Coordinator_intro_exec
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
