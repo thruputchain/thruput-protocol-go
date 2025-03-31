@@ -72,15 +72,6 @@ type IntroExecutorResult struct {
 	Shards []DbCard
 }
 
-type ListDbResult struct {
-	// cc holds the identity of the coordinator that responded
-	Cc CoordinatorCard
-	// is_ready indicates whether the db cluster is ready to use
-	Is_ready bool
-	// shards describes a complete db cluster
-	Shards []DbCard
-}
-
 type Coordinator1 interface {
 	Coordinator_null()
 	Coordinator_intro_db(DbCard) IntroDbResult
@@ -516,20 +507,6 @@ func (v *IntroExecutorResult) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_DbCard)(&v.Shards))
 }
 func XDR_IntroExecutorResult(v *IntroExecutorResult) *IntroExecutorResult { return v }
-type XdrType_ListDbResult = *ListDbResult
-func (v *ListDbResult) XdrPointer() interface{} { return v }
-func (ListDbResult) XdrTypeName() string { return "ListDbResult" }
-func (v ListDbResult) XdrValue() interface{} { return v }
-func (v *ListDbResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ListDbResult) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
-	x.Marshal(x.Sprintf("%sis_ready", name), XDR_bool(&v.Is_ready))
-	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_DbCard)(&v.Shards))
-}
-func XDR_ListDbResult(v *ListDbResult) *ListDbResult { return v }
 
 type xdrProc_Coordinator_null struct {
 	Arg *XdrVoid
