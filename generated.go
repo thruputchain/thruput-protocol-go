@@ -51,8 +51,8 @@ type ExecutorCard struct {
 	Address ServerAddress
 }
 
-// DbCard uniquely describes a database shard instance and its initial state.
-type DbCard struct {
+// ShardCard uniquely describes a database shard instance and its initial state.
+type ShardCard struct {
 	Protocol Protocol
 	Upid UPID
 	Block_height BlockHeight
@@ -60,22 +60,22 @@ type DbCard struct {
 	Address ServerAddress
 }
 
-type IntroDbResult struct {
+type IntroShardResult struct {
 	// cc holds the identity of the coordinator that responded
 	Cc CoordinatorCard
 }
 
-type IntroExecutorResult struct {
+type IntroExecResult struct {
 	// cc holds the identity of the coordinator that responded
 	Cc CoordinatorCard
 	// shards describes a ready db cluster
-	Shards []DbCard
+	Shards []ShardCard
 }
 
 type Coordinator1 interface {
 	Coordinator_null()
-	Coordinator_intro_db(DbCard) IntroDbResult
-	Coordinator_intro_executor(ExecutorCard) IntroExecutorResult
+	Coordinator_intro_shard(ShardCard) IntroShardResult
+	Coordinator_intro_exec(ExecutorCard) IntroExecResult
 }
 
 type ValidatorID = [16]byte
@@ -411,12 +411,12 @@ func (v *ExecutorCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
 }
 func XDR_ExecutorCard(v *ExecutorCard) *ExecutorCard { return v }
-type XdrType_DbCard = *DbCard
-func (v *DbCard) XdrPointer() interface{} { return v }
-func (DbCard) XdrTypeName() string { return "DbCard" }
-func (v DbCard) XdrValue() interface{} { return v }
-func (v *DbCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DbCard) XdrRecurse(x XDR, name string) {
+type XdrType_ShardCard = *ShardCard
+func (v *ShardCard) XdrPointer() interface{} { return v }
+func (ShardCard) XdrTypeName() string { return "ShardCard" }
+func (v ShardCard) XdrValue() interface{} { return v }
+func (v *ShardCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ShardCard) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
@@ -426,33 +426,33 @@ func (v *DbCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sshard_count", name), XDR_uint32(&v.Shard_count))
 	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
 }
-func XDR_DbCard(v *DbCard) *DbCard { return v }
-type XdrType_IntroDbResult = *IntroDbResult
-func (v *IntroDbResult) XdrPointer() interface{} { return v }
-func (IntroDbResult) XdrTypeName() string { return "IntroDbResult" }
-func (v IntroDbResult) XdrValue() interface{} { return v }
-func (v *IntroDbResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *IntroDbResult) XdrRecurse(x XDR, name string) {
+func XDR_ShardCard(v *ShardCard) *ShardCard { return v }
+type XdrType_IntroShardResult = *IntroShardResult
+func (v *IntroShardResult) XdrPointer() interface{} { return v }
+func (IntroShardResult) XdrTypeName() string { return "IntroShardResult" }
+func (v IntroShardResult) XdrValue() interface{} { return v }
+func (v *IntroShardResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *IntroShardResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
 }
-func XDR_IntroDbResult(v *IntroDbResult) *IntroDbResult { return v }
-type _XdrVec_unbounded_DbCard []DbCard
-func (_XdrVec_unbounded_DbCard) XdrBound() uint32 {
+func XDR_IntroShardResult(v *IntroShardResult) *IntroShardResult { return v }
+type _XdrVec_unbounded_ShardCard []ShardCard
+func (_XdrVec_unbounded_ShardCard) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_DbCard) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_ShardCard) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_DbCard length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_ShardCard length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_DbCard length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_ShardCard length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_DbCard) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_DbCard) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_ShardCard) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_ShardCard) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -469,44 +469,44 @@ func (v *_XdrVec_unbounded_DbCard) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]DbCard, int(length), newcap)
+	nv := make([]ShardCard, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_DbCard) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_ShardCard) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_DbCard(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_ShardCard(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_DbCard) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_ShardCard) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_DbCard) XdrTypeName() string { return "DbCard<>" }
-func (v *_XdrVec_unbounded_DbCard) XdrPointer() interface{} { return (*[]DbCard)(v) }
-func (v _XdrVec_unbounded_DbCard) XdrValue() interface{} { return ([]DbCard)(v) }
-func (v *_XdrVec_unbounded_DbCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_IntroExecutorResult = *IntroExecutorResult
-func (v *IntroExecutorResult) XdrPointer() interface{} { return v }
-func (IntroExecutorResult) XdrTypeName() string { return "IntroExecutorResult" }
-func (v IntroExecutorResult) XdrValue() interface{} { return v }
-func (v *IntroExecutorResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *IntroExecutorResult) XdrRecurse(x XDR, name string) {
+func (_XdrVec_unbounded_ShardCard) XdrTypeName() string { return "ShardCard<>" }
+func (v *_XdrVec_unbounded_ShardCard) XdrPointer() interface{} { return (*[]ShardCard)(v) }
+func (v _XdrVec_unbounded_ShardCard) XdrValue() interface{} { return ([]ShardCard)(v) }
+func (v *_XdrVec_unbounded_ShardCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_IntroExecResult = *IntroExecResult
+func (v *IntroExecResult) XdrPointer() interface{} { return v }
+func (IntroExecResult) XdrTypeName() string { return "IntroExecResult" }
+func (v IntroExecResult) XdrValue() interface{} { return v }
+func (v *IntroExecResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *IntroExecResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%scc", name), XDR_CoordinatorCard(&v.Cc))
-	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_DbCard)(&v.Shards))
+	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_ShardCard)(&v.Shards))
 }
-func XDR_IntroExecutorResult(v *IntroExecutorResult) *IntroExecutorResult { return v }
+func XDR_IntroExecResult(v *IntroExecResult) *IntroExecResult { return v }
 
 type xdrProc_Coordinator_null struct {
 	Arg *XdrVoid
@@ -548,89 +548,89 @@ func (p *xdrSrvProc_Coordinator_null) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Coordinator_null{} // XXX
 
-type xdrProc_Coordinator_intro_db struct {
-	Arg *DbCard
-	Res *IntroDbResult
+type xdrProc_Coordinator_intro_shard struct {
+	Arg *ShardCard
+	Res *IntroShardResult
 }
-func (xdrProc_Coordinator_intro_db) Prog() uint32 { return 1055850753 }
-func (xdrProc_Coordinator_intro_db) Vers() uint32 { return 1 }
-func (xdrProc_Coordinator_intro_db) Proc() uint32 { return 1 }
-func (xdrProc_Coordinator_intro_db) ProgName() string { return "Coordinator" }
-func (xdrProc_Coordinator_intro_db) VersName() string { return "Coordinator1" }
-func (xdrProc_Coordinator_intro_db) ProcName() string { return "coordinator_intro_db" }
-func (p *xdrProc_Coordinator_intro_db) GetArg() XdrType {
+func (xdrProc_Coordinator_intro_shard) Prog() uint32 { return 1055850753 }
+func (xdrProc_Coordinator_intro_shard) Vers() uint32 { return 1 }
+func (xdrProc_Coordinator_intro_shard) Proc() uint32 { return 1 }
+func (xdrProc_Coordinator_intro_shard) ProgName() string { return "Coordinator" }
+func (xdrProc_Coordinator_intro_shard) VersName() string { return "Coordinator1" }
+func (xdrProc_Coordinator_intro_shard) ProcName() string { return "coordinator_intro_shard" }
+func (p *xdrProc_Coordinator_intro_shard) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(DbCard)
+		p.Arg = new(ShardCard)
 	}
-	return XDR_DbCard(p.Arg)
+	return XDR_ShardCard(p.Arg)
 }
-func (p *xdrProc_Coordinator_intro_db) GetRes() XdrType {
+func (p *xdrProc_Coordinator_intro_shard) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(IntroDbResult)
+		p.Res = new(IntroShardResult)
 	}
-	return XDR_IntroDbResult(p.Res)
+	return XDR_IntroShardResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Coordinator_intro_db{} // XXX
+var _ XdrProc = &xdrProc_Coordinator_intro_shard{} // XXX
 
-type xdrSrvProc_Coordinator_intro_db struct {
-	xdrProc_Coordinator_intro_db
+type xdrSrvProc_Coordinator_intro_shard struct {
+	xdrProc_Coordinator_intro_shard
 	Srv Coordinator1
 }
-func (p *xdrSrvProc_Coordinator_intro_db) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Coordinator_intro_shard) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) Coordinator1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 }
-func (p *xdrSrvProc_Coordinator_intro_db) Do() {
-	r := p.Srv.Coordinator_intro_db(*p.Arg)
+func (p *xdrSrvProc_Coordinator_intro_shard) Do() {
+	r := p.Srv.Coordinator_intro_shard(*p.Arg)
 	p.Res = &r
 
 }
-var _ XdrSrvProc = &xdrSrvProc_Coordinator_intro_db{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Coordinator_intro_shard{} // XXX
 
-type xdrProc_Coordinator_intro_executor struct {
+type xdrProc_Coordinator_intro_exec struct {
 	Arg *ExecutorCard
-	Res *IntroExecutorResult
+	Res *IntroExecResult
 }
-func (xdrProc_Coordinator_intro_executor) Prog() uint32 { return 1055850753 }
-func (xdrProc_Coordinator_intro_executor) Vers() uint32 { return 1 }
-func (xdrProc_Coordinator_intro_executor) Proc() uint32 { return 2 }
-func (xdrProc_Coordinator_intro_executor) ProgName() string { return "Coordinator" }
-func (xdrProc_Coordinator_intro_executor) VersName() string { return "Coordinator1" }
-func (xdrProc_Coordinator_intro_executor) ProcName() string { return "coordinator_intro_executor" }
-func (p *xdrProc_Coordinator_intro_executor) GetArg() XdrType {
+func (xdrProc_Coordinator_intro_exec) Prog() uint32 { return 1055850753 }
+func (xdrProc_Coordinator_intro_exec) Vers() uint32 { return 1 }
+func (xdrProc_Coordinator_intro_exec) Proc() uint32 { return 2 }
+func (xdrProc_Coordinator_intro_exec) ProgName() string { return "Coordinator" }
+func (xdrProc_Coordinator_intro_exec) VersName() string { return "Coordinator1" }
+func (xdrProc_Coordinator_intro_exec) ProcName() string { return "coordinator_intro_exec" }
+func (p *xdrProc_Coordinator_intro_exec) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(ExecutorCard)
 	}
 	return XDR_ExecutorCard(p.Arg)
 }
-func (p *xdrProc_Coordinator_intro_executor) GetRes() XdrType {
+func (p *xdrProc_Coordinator_intro_exec) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(IntroExecutorResult)
+		p.Res = new(IntroExecResult)
 	}
-	return XDR_IntroExecutorResult(p.Res)
+	return XDR_IntroExecResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Coordinator_intro_executor{} // XXX
+var _ XdrProc = &xdrProc_Coordinator_intro_exec{} // XXX
 
-type xdrSrvProc_Coordinator_intro_executor struct {
-	xdrProc_Coordinator_intro_executor
+type xdrSrvProc_Coordinator_intro_exec struct {
+	xdrProc_Coordinator_intro_exec
 	Srv Coordinator1
 }
-func (p *xdrSrvProc_Coordinator_intro_executor) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Coordinator_intro_exec) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) Coordinator1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 }
-func (p *xdrSrvProc_Coordinator_intro_executor) Do() {
-	r := p.Srv.Coordinator_intro_executor(*p.Arg)
+func (p *xdrSrvProc_Coordinator_intro_exec) Do() {
+	r := p.Srv.Coordinator_intro_exec(*p.Arg)
 	p.Res = &r
 
 }
-var _ XdrSrvProc = &xdrSrvProc_Coordinator_intro_executor{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Coordinator_intro_exec{} // XXX
 
 func init() {
 	XdrCatalog[1055850753<<32|1] = func(p uint32) XdrProc {
@@ -638,9 +638,9 @@ func init() {
 		case 0:
 			return &xdrProc_Coordinator_null{}
 		case 1:
-			return &xdrProc_Coordinator_intro_db{}
+			return &xdrProc_Coordinator_intro_shard{}
 		case 2:
-			return &xdrProc_Coordinator_intro_executor{}
+			return &xdrProc_Coordinator_intro_exec{}
 		}
 		return nil
 	}
@@ -657,10 +657,10 @@ func (s Coordinator1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // coordinator_null
 		return &xdrSrvProc_Coordinator_null{ Srv: s.Srv }
-	case 1:  // coordinator_intro_db
-		return &xdrSrvProc_Coordinator_intro_db{ Srv: s.Srv }
-	case 2:  // coordinator_intro_executor
-		return &xdrSrvProc_Coordinator_intro_executor{ Srv: s.Srv }
+	case 1:  // coordinator_intro_shard
+		return &xdrSrvProc_Coordinator_intro_shard{ Srv: s.Srv }
+	case 2:  // coordinator_intro_exec
+		return &xdrSrvProc_Coordinator_intro_exec{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -682,16 +682,16 @@ func (c Coordinator1_Client) Coordinator_null() {
 		panic(err)
 	}
 }
-func (c Coordinator1_Client) Coordinator_intro_db(a1 DbCard) IntroDbResult {
-	var proc xdrProc_Coordinator_intro_db
+func (c Coordinator1_Client) Coordinator_intro_shard(a1 ShardCard) IntroShardResult {
+	var proc xdrProc_Coordinator_intro_shard
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
 		panic(err)
 	}
 	return *proc.Res
 }
-func (c Coordinator1_Client) Coordinator_intro_executor(a1 ExecutorCard) IntroExecutorResult {
-	var proc xdrProc_Coordinator_intro_executor
+func (c Coordinator1_Client) Coordinator_intro_exec(a1 ExecutorCard) IntroExecResult {
+	var proc xdrProc_Coordinator_intro_exec
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
 		panic(err)
