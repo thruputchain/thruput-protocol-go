@@ -110,7 +110,6 @@ type ValidatorSecretKey = Ed25519SecretKey
 type ValidatorSignature = Ed25519Signature
 
 type ValidatorPublicInfo struct {
-	Id ValidatorID
 	Public_key ValidatorPublicKey
 	Address ServerAddress
 }
@@ -989,7 +988,6 @@ func (v *ValidatorPublicInfo) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sid", name), XDR_ValidatorID(&v.Id))
 	x.Marshal(x.Sprintf("%spublic_key", name), XDR_ValidatorPublicKey(&v.Public_key))
 	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
 }
