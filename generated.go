@@ -156,9 +156,13 @@ type ValidatorPrivateInfo struct {
 
 type QuorumSlice = []ValidatorPublicInfo
 
+type QuorumSlicesSnapshot struct {
+	Quorum_slices []QuorumSlice
+}
+
 type ValidatorQuorumSlicesSnapshot struct {
 	Validator_public_info ValidatorPublicInfo
-	Quorum_slices []QuorumSlice
+	Quorum_slices_snapshot QuorumSlicesSnapshot
 	// over quorum_slices_snapshot
 	Validator_signature Signature
 }
@@ -1612,6 +1616,18 @@ func XDR_QuorumSlice(v *QuorumSlice) XdrType_QuorumSlice {
 }
 func (XdrType_QuorumSlice) XdrTypeName() string { return "QuorumSlice" }
 func (v XdrType_QuorumSlice) XdrUnwrap() XdrType { return v._XdrVec_unbounded_ValidatorPublicInfo }
+type XdrType_QuorumSlicesSnapshot = *QuorumSlicesSnapshot
+func (v *QuorumSlicesSnapshot) XdrPointer() interface{} { return v }
+func (QuorumSlicesSnapshot) XdrTypeName() string { return "QuorumSlicesSnapshot" }
+func (v QuorumSlicesSnapshot) XdrValue() interface{} { return v }
+func (v *QuorumSlicesSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *QuorumSlicesSnapshot) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%squorum_slices", name), (*_XdrVec_unbounded_QuorumSlice)(&v.Quorum_slices))
+}
+func XDR_QuorumSlicesSnapshot(v *QuorumSlicesSnapshot) *QuorumSlicesSnapshot { return v }
 type XdrType_ValidatorQuorumSlicesSnapshot = *ValidatorQuorumSlicesSnapshot
 func (v *ValidatorQuorumSlicesSnapshot) XdrPointer() interface{} { return v }
 func (ValidatorQuorumSlicesSnapshot) XdrTypeName() string { return "ValidatorQuorumSlicesSnapshot" }
@@ -1622,7 +1638,7 @@ func (v *ValidatorQuorumSlicesSnapshot) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%svalidator_public_info", name), XDR_ValidatorPublicInfo(&v.Validator_public_info))
-	x.Marshal(x.Sprintf("%squorum_slices", name), (*_XdrVec_unbounded_QuorumSlice)(&v.Quorum_slices))
+	x.Marshal(x.Sprintf("%squorum_slices_snapshot", name), XDR_QuorumSlicesSnapshot(&v.Quorum_slices_snapshot))
 	x.Marshal(x.Sprintf("%svalidator_signature", name), XDR_Signature(&v.Validator_signature))
 }
 func XDR_ValidatorQuorumSlicesSnapshot(v *ValidatorQuorumSlicesSnapshot) *ValidatorQuorumSlicesSnapshot { return v }
