@@ -101,7 +101,7 @@ type Coordinator1 interface {
 	Coordinator_intro_exec(ExecCard) IntroExecResult
 }
 
-type ValidatorID = [16]byte
+type ValidatorID = [32]byte
 
 type ValidatorPublicKey = Ed25519PublicKey
 
@@ -934,28 +934,28 @@ func (c Coordinator1_Client) Coordinator_intro_exec(a1 ExecCard) IntroExecResult
 	}
 	return *proc.Res
 }
-type _XdrArray_16_opaque [16]byte
-func (v *_XdrArray_16_opaque) GetByteSlice() []byte { return v[:] }
-func (v *_XdrArray_16_opaque) XdrTypeName() string { return "opaque[]" }
-func (v *_XdrArray_16_opaque) XdrValue() interface{} { return v[:] }
-func (v *_XdrArray_16_opaque) XdrPointer() interface{} { return (*[16]byte)(v) }
-func (v *_XdrArray_16_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *_XdrArray_16_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
-func (v *_XdrArray_16_opaque) Scan(ss fmt.ScanState, c rune) error {
+type _XdrArray_32_opaque [32]byte
+func (v *_XdrArray_32_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_32_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_32_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_32_opaque) XdrPointer() interface{} { return (*[32]byte)(v) }
+func (v *_XdrArray_32_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_32_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_32_opaque) Scan(ss fmt.ScanState, c rune) error {
 	return XdrArrayOpaqueScan(v[:], ss, c)
 }
-func (_XdrArray_16_opaque) XdrArraySize() uint32 {
-	const bound uint32 = 16 // Force error if not const or doesn't fit
+func (_XdrArray_32_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 32 // Force error if not const or doesn't fit
 	return bound
 }
 type XdrType_ValidatorID struct {
-	*_XdrArray_16_opaque
+	*_XdrArray_32_opaque
 }
 func XDR_ValidatorID(v *ValidatorID) XdrType_ValidatorID {
-	return XdrType_ValidatorID{(*_XdrArray_16_opaque)(v)}
+	return XdrType_ValidatorID{(*_XdrArray_32_opaque)(v)}
 }
 func (XdrType_ValidatorID) XdrTypeName() string { return "ValidatorID" }
-func (v XdrType_ValidatorID) XdrUnwrap() XdrType { return v._XdrArray_16_opaque }
+func (v XdrType_ValidatorID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_ValidatorPublicKey struct {
 	XdrType_Ed25519PublicKey
 }
@@ -1980,20 +1980,6 @@ func XDR_Ed25519Signature(v *Ed25519Signature) XdrType_Ed25519Signature {
 }
 func (XdrType_Ed25519Signature) XdrTypeName() string { return "Ed25519Signature" }
 func (v XdrType_Ed25519Signature) XdrUnwrap() XdrType { return v._XdrArray_64_opaque }
-type _XdrArray_32_opaque [32]byte
-func (v *_XdrArray_32_opaque) GetByteSlice() []byte { return v[:] }
-func (v *_XdrArray_32_opaque) XdrTypeName() string { return "opaque[]" }
-func (v *_XdrArray_32_opaque) XdrValue() interface{} { return v[:] }
-func (v *_XdrArray_32_opaque) XdrPointer() interface{} { return (*[32]byte)(v) }
-func (v *_XdrArray_32_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *_XdrArray_32_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
-func (v *_XdrArray_32_opaque) Scan(ss fmt.ScanState, c rune) error {
-	return XdrArrayOpaqueScan(v[:], ss, c)
-}
-func (_XdrArray_32_opaque) XdrArraySize() uint32 {
-	const bound uint32 = 32 // Force error if not const or doesn't fit
-	return bound
-}
 type XdrType_Ed25519PublicKey struct {
 	*_XdrArray_32_opaque
 }
