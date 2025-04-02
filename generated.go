@@ -22,6 +22,7 @@ type MulticastTreeHash = SHA256Hash
 type MulticastMsgHash = SHA256Hash
 
 type MulticastTreeNode struct {
+	Node ValidatorPublicInfo
 	Children []MulticastTreeHash
 }
 
@@ -41,8 +42,18 @@ type MulticastMsg struct {
 }
 
 type DeliverArg struct {
+	// the node that made this call
+	Relayer ValidatorPublicInfo
 	Stripe MulticastStripe
 	Msg MulticastMsg
+}
+
+type ReconcileArg struct {
+	Xxx int32
+}
+
+type ReconcileResult struct {
+	Xxx int32
 }
 
 type ExpandMulticastTreeResult struct {
@@ -52,6 +63,7 @@ type ExpandMulticastTreeResult struct {
 type Broadcast1 interface {
 	Broadcast_null()
 	Broadcast_deliver(DeliverArg)
+	Broadcast_reconcile(ReconcileArg) ReconcileResult
 	Broadcast_expand_multicast_tree(MulticastTreeHash) ExpandMulticastTreeResult
 }
 
@@ -545,6 +557,7 @@ func (v *MulticastTreeNode) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%snode", name), XDR_ValidatorPublicInfo(&v.Node))
 	x.Marshal(x.Sprintf("%schildren", name), (*_XdrVec_unbounded_MulticastTreeHash)(&v.Children))
 }
 func XDR_MulticastTreeNode(v *MulticastTreeNode) *MulticastTreeNode { return v }
@@ -728,10 +741,35 @@ func (v *DeliverArg) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%srelayer", name), XDR_ValidatorPublicInfo(&v.Relayer))
 	x.Marshal(x.Sprintf("%sstripe", name), XDR_MulticastStripe(&v.Stripe))
 	x.Marshal(x.Sprintf("%smsg", name), XDR_MulticastMsg(&v.Msg))
 }
 func XDR_DeliverArg(v *DeliverArg) *DeliverArg { return v }
+type XdrType_ReconcileArg = *ReconcileArg
+func (v *ReconcileArg) XdrPointer() interface{} { return v }
+func (ReconcileArg) XdrTypeName() string { return "ReconcileArg" }
+func (v ReconcileArg) XdrValue() interface{} { return v }
+func (v *ReconcileArg) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ReconcileArg) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sxxx", name), XDR_int32(&v.Xxx))
+}
+func XDR_ReconcileArg(v *ReconcileArg) *ReconcileArg { return v }
+type XdrType_ReconcileResult = *ReconcileResult
+func (v *ReconcileResult) XdrPointer() interface{} { return v }
+func (ReconcileResult) XdrTypeName() string { return "ReconcileResult" }
+func (v ReconcileResult) XdrValue() interface{} { return v }
+func (v *ReconcileResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ReconcileResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sxxx", name), XDR_int32(&v.Xxx))
+}
+func XDR_ReconcileResult(v *ReconcileResult) *ReconcileResult { return v }
 type _XdrVec_unbounded_MulticastTreeNode []MulticastTreeNode
 func (_XdrVec_unbounded_MulticastTreeNode) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -880,13 +918,55 @@ func (p *xdrSrvProc_Broadcast_deliver) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_deliver{} // XXX
 
+type xdrProc_Broadcast_reconcile struct {
+	Arg *ReconcileArg
+	Res *ReconcileResult
+}
+func (xdrProc_Broadcast_reconcile) Prog() uint32 { return 2326270225 }
+func (xdrProc_Broadcast_reconcile) Vers() uint32 { return 1 }
+func (xdrProc_Broadcast_reconcile) Proc() uint32 { return 20 }
+func (xdrProc_Broadcast_reconcile) ProgName() string { return "Broadcast" }
+func (xdrProc_Broadcast_reconcile) VersName() string { return "Broadcast1" }
+func (xdrProc_Broadcast_reconcile) ProcName() string { return "broadcast_reconcile" }
+func (p *xdrProc_Broadcast_reconcile) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(ReconcileArg)
+	}
+	return XDR_ReconcileArg(p.Arg)
+}
+func (p *xdrProc_Broadcast_reconcile) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(ReconcileResult)
+	}
+	return XDR_ReconcileResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Broadcast_reconcile{} // XXX
+
+type xdrSrvProc_Broadcast_reconcile struct {
+	xdrProc_Broadcast_reconcile
+	Srv Broadcast1
+}
+func (p *xdrSrvProc_Broadcast_reconcile) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) Broadcast1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+}
+func (p *xdrSrvProc_Broadcast_reconcile) Do() {
+	r := p.Srv.Broadcast_reconcile(*p.Arg)
+	p.Res = &r
+
+}
+var _ XdrSrvProc = &xdrSrvProc_Broadcast_reconcile{} // XXX
+
 type xdrProc_Broadcast_expand_multicast_tree struct {
 	Arg *MulticastTreeHash
 	Res *ExpandMulticastTreeResult
 }
 func (xdrProc_Broadcast_expand_multicast_tree) Prog() uint32 { return 2326270225 }
 func (xdrProc_Broadcast_expand_multicast_tree) Vers() uint32 { return 1 }
-func (xdrProc_Broadcast_expand_multicast_tree) Proc() uint32 { return 20 }
+func (xdrProc_Broadcast_expand_multicast_tree) Proc() uint32 { return 30 }
 func (xdrProc_Broadcast_expand_multicast_tree) ProgName() string { return "Broadcast" }
 func (xdrProc_Broadcast_expand_multicast_tree) VersName() string { return "Broadcast1" }
 func (xdrProc_Broadcast_expand_multicast_tree) ProcName() string { return "broadcast_expand_multicast_tree" }
@@ -930,6 +1010,8 @@ func init() {
 		case 10:
 			return &xdrProc_Broadcast_deliver{}
 		case 20:
+			return &xdrProc_Broadcast_reconcile{}
+		case 30:
 			return &xdrProc_Broadcast_expand_multicast_tree{}
 		}
 		return nil
@@ -949,7 +1031,9 @@ func (s Broadcast1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Broadcast_null{ Srv: s.Srv }
 	case 10:  // broadcast_deliver
 		return &xdrSrvProc_Broadcast_deliver{ Srv: s.Srv }
-	case 20:  // broadcast_expand_multicast_tree
+	case 20:  // broadcast_reconcile
+		return &xdrSrvProc_Broadcast_reconcile{ Srv: s.Srv }
+	case 30:  // broadcast_expand_multicast_tree
 		return &xdrSrvProc_Broadcast_expand_multicast_tree{ Srv: s.Srv }
 	default:
 		return nil
@@ -978,6 +1062,14 @@ func (c Broadcast1_Client) Broadcast_deliver(a1 DeliverArg) {
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
 		panic(err)
 	}
+}
+func (c Broadcast1_Client) Broadcast_reconcile(a1 ReconcileArg) ReconcileResult {
+	var proc xdrProc_Broadcast_reconcile
+	proc.Arg = &a1
+	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
+		panic(err)
+	}
+	return *proc.Res
 }
 func (c Broadcast1_Client) Broadcast_expand_multicast_tree(a1 MulticastTreeHash) ExpandMulticastTreeResult {
 	var proc xdrProc_Broadcast_expand_multicast_tree
