@@ -157,6 +157,7 @@ type ValidatorPrivateInfo struct {
 type QuorumSlice = []ValidatorPublicInfo
 
 type QuorumSlicesSnapshot struct {
+	Timestamp Timestamp
 	Quorum_slices []QuorumSlice
 }
 
@@ -169,9 +170,13 @@ type ValidatorQuorumSlicesSnapshot struct {
 
 type ValidatorQuorumSlicesSnapshots = []ValidatorQuorumSlicesSnapshot
 
+type UpdateQuorumsResult struct {
+	Quorum_slices_snapshots ValidatorQuorumSlicesSnapshots
+}
+
 type Discovery1 interface {
 	Discovery_null()
-	Discovery_update(ValidatorQuorumSlicesSnapshots)
+	Discovery_update_quorums(ValidatorQuorumSlicesSnapshots) UpdateQuorumsResult
 }
 
 // Unique, non-persistent identifier for a block.
@@ -303,6 +308,10 @@ type Int128_xdr struct {
 	Highbits int64
 	Lowbits uint64
 }
+
+// int64_t, Unix time as nanoseconds elapsed since
+// January 1, 1970 UTC
+type Timestamp = int64
 
 // uint32_t
 type RuntimeMemoryOffset = uint32
@@ -1625,6 +1634,7 @@ func (v *QuorumSlicesSnapshot) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
 	x.Marshal(x.Sprintf("%squorum_slices", name), (*_XdrVec_unbounded_QuorumSlice)(&v.Quorum_slices))
 }
 func XDR_QuorumSlicesSnapshot(v *QuorumSlicesSnapshot) *QuorumSlicesSnapshot { return v }
@@ -1705,6 +1715,18 @@ func XDR_ValidatorQuorumSlicesSnapshots(v *ValidatorQuorumSlicesSnapshots) XdrTy
 }
 func (XdrType_ValidatorQuorumSlicesSnapshots) XdrTypeName() string { return "ValidatorQuorumSlicesSnapshots" }
 func (v XdrType_ValidatorQuorumSlicesSnapshots) XdrUnwrap() XdrType { return v._XdrVec_unbounded_ValidatorQuorumSlicesSnapshot }
+type XdrType_UpdateQuorumsResult = *UpdateQuorumsResult
+func (v *UpdateQuorumsResult) XdrPointer() interface{} { return v }
+func (UpdateQuorumsResult) XdrTypeName() string { return "UpdateQuorumsResult" }
+func (v UpdateQuorumsResult) XdrValue() interface{} { return v }
+func (v *UpdateQuorumsResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *UpdateQuorumsResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%squorum_slices_snapshots", name), XDR_ValidatorQuorumSlicesSnapshots(&v.Quorum_slices_snapshots))
+}
+func XDR_UpdateQuorumsResult(v *UpdateQuorumsResult) *UpdateQuorumsResult { return v }
 
 type xdrProc_Discovery_null struct {
 	Arg *XdrVoid
@@ -1746,45 +1768,47 @@ func (p *xdrSrvProc_Discovery_null) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Discovery_null{} // XXX
 
-type xdrProc_Discovery_update struct {
+type xdrProc_Discovery_update_quorums struct {
 	Arg *ValidatorQuorumSlicesSnapshots
-	Res *XdrVoid
+	Res *UpdateQuorumsResult
 }
-func (xdrProc_Discovery_update) Prog() uint32 { return 1055851781 }
-func (xdrProc_Discovery_update) Vers() uint32 { return 1 }
-func (xdrProc_Discovery_update) Proc() uint32 { return 10 }
-func (xdrProc_Discovery_update) ProgName() string { return "Discovery" }
-func (xdrProc_Discovery_update) VersName() string { return "Discovery1" }
-func (xdrProc_Discovery_update) ProcName() string { return "discovery_update" }
-func (p *xdrProc_Discovery_update) GetArg() XdrType {
+func (xdrProc_Discovery_update_quorums) Prog() uint32 { return 1055851781 }
+func (xdrProc_Discovery_update_quorums) Vers() uint32 { return 1 }
+func (xdrProc_Discovery_update_quorums) Proc() uint32 { return 10 }
+func (xdrProc_Discovery_update_quorums) ProgName() string { return "Discovery" }
+func (xdrProc_Discovery_update_quorums) VersName() string { return "Discovery1" }
+func (xdrProc_Discovery_update_quorums) ProcName() string { return "discovery_update_quorums" }
+func (p *xdrProc_Discovery_update_quorums) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(ValidatorQuorumSlicesSnapshots)
 	}
 	return XDR_ValidatorQuorumSlicesSnapshots(p.Arg)
 }
-func (p *xdrProc_Discovery_update) GetRes() XdrType {
+func (p *xdrProc_Discovery_update_quorums) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(UpdateQuorumsResult)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_UpdateQuorumsResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Discovery_update{} // XXX
+var _ XdrProc = &xdrProc_Discovery_update_quorums{} // XXX
 
-type xdrSrvProc_Discovery_update struct {
-	xdrProc_Discovery_update
+type xdrSrvProc_Discovery_update_quorums struct {
+	xdrProc_Discovery_update_quorums
 	Srv Discovery1
 }
-func (p *xdrSrvProc_Discovery_update) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Discovery_update_quorums) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) Discovery1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 }
-func (p *xdrSrvProc_Discovery_update) Do() {
-	p.Srv.Discovery_update(*p.Arg)
+func (p *xdrSrvProc_Discovery_update_quorums) Do() {
+	r := p.Srv.Discovery_update_quorums(*p.Arg)
+	p.Res = &r
+
 }
-var _ XdrSrvProc = &xdrSrvProc_Discovery_update{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Discovery_update_quorums{} // XXX
 
 func init() {
 	XdrCatalog[1055851781<<32|1] = func(p uint32) XdrProc {
@@ -1792,7 +1816,7 @@ func init() {
 		case 0:
 			return &xdrProc_Discovery_null{}
 		case 10:
-			return &xdrProc_Discovery_update{}
+			return &xdrProc_Discovery_update_quorums{}
 		}
 		return nil
 	}
@@ -1809,8 +1833,8 @@ func (s Discovery1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // discovery_null
 		return &xdrSrvProc_Discovery_null{ Srv: s.Srv }
-	case 10:  // discovery_update
-		return &xdrSrvProc_Discovery_update{ Srv: s.Srv }
+	case 10:  // discovery_update_quorums
+		return &xdrSrvProc_Discovery_update_quorums{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -1832,12 +1856,13 @@ func (c Discovery1_Client) Discovery_null() {
 		panic(err)
 	}
 }
-func (c Discovery1_Client) Discovery_update(a1 ValidatorQuorumSlicesSnapshots) {
-	var proc xdrProc_Discovery_update
+func (c Discovery1_Client) Discovery_update_quorums(a1 ValidatorQuorumSlicesSnapshots) UpdateQuorumsResult {
+	var proc xdrProc_Discovery_update_quorums
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
 		panic(err)
 	}
+	return *proc.Res
 }
 type XdrType_BlockID struct {
 	XdrType_uint64
@@ -2535,6 +2560,14 @@ func (v *Int128_xdr) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%slowbits", name), XDR_uint64(&v.Lowbits))
 }
 func XDR_Int128_xdr(v *Int128_xdr) *Int128_xdr { return v }
+type XdrType_Timestamp struct {
+	XdrType_int64
+}
+func XDR_Timestamp(v *Timestamp) XdrType_Timestamp {
+	return XdrType_Timestamp{XDR_int64(v)}
+}
+func (XdrType_Timestamp) XdrTypeName() string { return "Timestamp" }
+func (v XdrType_Timestamp) XdrUnwrap() XdrType { return v.XdrType_int64 }
 type XdrType_RuntimeMemoryOffset struct {
 	XdrType_uint32
 }
