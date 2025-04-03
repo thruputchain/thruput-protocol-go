@@ -30,6 +30,8 @@ type MulticastTreeNode struct {
 	Children []MulticastTreeHash
 }
 
+type MulticastTreeNodes = []MulticastTreeNode
+
 type BroadcastChannel struct {
 	Source_id ValidatorID
 	Channel_id BroadcastChannelID
@@ -58,7 +60,7 @@ type Delivery struct {
 	// Senders may optimistically choose to describe the entire multicast tree in
 	// the first message, in order to reduce the number of attempts (via
 	// `broadcast_expand` rpc) by downstream nodes to recover the multicast tree.
-	Tree *MulticastTreeNode
+	Tree *MulticastTreeNodes
 }
 
 type ReconcileMessages struct {
@@ -69,15 +71,11 @@ type ReconciledMessages struct {
 	Msgs []BroadcastMessage
 }
 
-type ExpandedMulticastTree struct {
-	Tree_nodes []MulticastTreeNode
-}
-
 type Broadcast1 interface {
 	Broadcast_null()
 	Broadcast_deliver(Delivery)
 	Broadcast_reconcile(ReconcileMessages) ReconciledMessages
-	Broadcast_expand(MulticastTreeHash) ExpandedMulticastTree
+	Broadcast_expand(MulticastTreeHash) MulticastTreeNodes
 }
 
 // Config holds the configuration of a validator.
@@ -590,6 +588,69 @@ func (v *MulticastTreeNode) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%schildren", name), (*_XdrVec_unbounded_MulticastTreeHash)(&v.Children))
 }
 func XDR_MulticastTreeNode(v *MulticastTreeNode) *MulticastTreeNode { return v }
+type _XdrVec_unbounded_MulticastTreeNode []MulticastTreeNode
+func (_XdrVec_unbounded_MulticastTreeNode) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_MulticastTreeNode) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_MulticastTreeNode length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_MulticastTreeNode length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_MulticastTreeNode) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_MulticastTreeNode) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]MulticastTreeNode, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_MulticastTreeNode) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_MulticastTreeNode(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_MulticastTreeNode) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_MulticastTreeNode) XdrTypeName() string { return "MulticastTreeNode<>" }
+func (v *_XdrVec_unbounded_MulticastTreeNode) XdrPointer() interface{} { return (*[]MulticastTreeNode)(v) }
+func (v _XdrVec_unbounded_MulticastTreeNode) XdrValue() interface{} { return ([]MulticastTreeNode)(v) }
+func (v *_XdrVec_unbounded_MulticastTreeNode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_MulticastTreeNodes struct {
+	*_XdrVec_unbounded_MulticastTreeNode
+}
+func XDR_MulticastTreeNodes(v *MulticastTreeNodes) XdrType_MulticastTreeNodes {
+	return XdrType_MulticastTreeNodes{(*_XdrVec_unbounded_MulticastTreeNode)(v)}
+}
+func (XdrType_MulticastTreeNodes) XdrTypeName() string { return "MulticastTreeNodes" }
+func (v XdrType_MulticastTreeNodes) XdrUnwrap() XdrType { return v._XdrVec_unbounded_MulticastTreeNode }
 type XdrType_BroadcastChannel = *BroadcastChannel
 func (v *BroadcastChannel) XdrPointer() interface{} { return v }
 func (BroadcastChannel) XdrTypeName() string { return "BroadcastChannel" }
@@ -703,17 +764,17 @@ func (v *BroadcastMessage) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spayload", name), XdrVecOpaque{&v.Payload, 0xffffffff})
 }
 func XDR_BroadcastMessage(v *BroadcastMessage) *BroadcastMessage { return v }
-type _XdrPtr_MulticastTreeNode struct {
-	p **MulticastTreeNode
+type _XdrPtr_MulticastTreeNodes struct {
+	p **MulticastTreeNodes
 }
-type _ptrflag_MulticastTreeNode _XdrPtr_MulticastTreeNode
-func (v _ptrflag_MulticastTreeNode) String() string {
+type _ptrflag_MulticastTreeNodes _XdrPtr_MulticastTreeNodes
+func (v _ptrflag_MulticastTreeNodes) String() string {
 	if *v.p == nil {
 		return "nil"
 	}
 	return "non-nil"
 }
-func (v _ptrflag_MulticastTreeNode) Scan(ss fmt.ScanState, r rune) error {
+func (v _ptrflag_MulticastTreeNodes) Scan(ss fmt.ScanState, r rune) error {
 	tok, err := ss.Token(true, func(c rune) bool {
 		return c == '-' || (c >= 'a' && c <= 'z')
 	})
@@ -726,54 +787,54 @@ func (v _ptrflag_MulticastTreeNode) Scan(ss fmt.ScanState, r rune) error {
 	case "non-nil":
 		v.SetU32(1)
 	default:
-		return XdrError("MulticastTreeNode flag should be \"nil\" or \"non-nil\"")
+		return XdrError("MulticastTreeNodes flag should be \"nil\" or \"non-nil\"")
 	}
 	return nil
 }
-func (v _ptrflag_MulticastTreeNode) GetU32() uint32 {
+func (v _ptrflag_MulticastTreeNodes) GetU32() uint32 {
 	if *v.p == nil {
 		return 0
 	}
 	return 1
 }
-func (v _ptrflag_MulticastTreeNode) SetU32(nv uint32) {
+func (v _ptrflag_MulticastTreeNodes) SetU32(nv uint32) {
 	switch nv {
 	case 0:
 		*v.p = nil
 	case 1:
 		if *v.p == nil {
-			*v.p = new(MulticastTreeNode)
+			*v.p = new(MulticastTreeNodes)
 		}
 	default:
-		XdrPanic("*MulticastTreeNode present flag value %d should be 0 or 1", nv)
+		XdrPanic("*MulticastTreeNodes present flag value %d should be 0 or 1", nv)
 	}
 }
-func (_ptrflag_MulticastTreeNode) XdrTypeName() string { return "MulticastTreeNode?" }
-func (v _ptrflag_MulticastTreeNode) XdrPointer() interface{} { return nil }
-func (v _ptrflag_MulticastTreeNode) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_MulticastTreeNode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_MulticastTreeNode) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_MulticastTreeNode) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_MulticastTreeNode) SetPresent(present bool) {
+func (_ptrflag_MulticastTreeNodes) XdrTypeName() string { return "MulticastTreeNodes?" }
+func (v _ptrflag_MulticastTreeNodes) XdrPointer() interface{} { return nil }
+func (v _ptrflag_MulticastTreeNodes) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_MulticastTreeNodes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_MulticastTreeNodes) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_MulticastTreeNodes) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_MulticastTreeNodes) SetPresent(present bool) {
 	if !present {
 		*v.p = nil
 	} else if *v.p == nil {
-		*v.p = new(MulticastTreeNode)
+		*v.p = new(MulticastTreeNodes)
 	}
 }
-func (v _XdrPtr_MulticastTreeNode) XdrMarshalValue(x XDR, name string) {
+func (v _XdrPtr_MulticastTreeNodes) XdrMarshalValue(x XDR, name string) {
 	if *v.p != nil {
-		XDR_MulticastTreeNode(*v.p).XdrMarshal(x, name)
+		XDR_MulticastTreeNodes(*v.p).XdrMarshal(x, name)
 	}
 }
-func (v _XdrPtr_MulticastTreeNode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_MulticastTreeNode) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_MulticastTreeNode(v))
+func (v _XdrPtr_MulticastTreeNodes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_MulticastTreeNodes) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_MulticastTreeNodes(v))
 	v.XdrMarshalValue(x, name)
 }
-func (_XdrPtr_MulticastTreeNode) XdrTypeName() string { return "MulticastTreeNode*" }
-func (v _XdrPtr_MulticastTreeNode) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_MulticastTreeNode) XdrValue() interface{} { return *v.p }
+func (_XdrPtr_MulticastTreeNodes) XdrTypeName() string { return "MulticastTreeNodes*" }
+func (v _XdrPtr_MulticastTreeNodes) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_MulticastTreeNodes) XdrValue() interface{} { return *v.p }
 type XdrType_Delivery = *Delivery
 func (v *Delivery) XdrPointer() interface{} { return v }
 func (Delivery) XdrTypeName() string { return "Delivery" }
@@ -785,7 +846,7 @@ func (v *Delivery) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%srelayer", name), XDR_ValidatorPublicInfo(&v.Relayer))
 	x.Marshal(x.Sprintf("%smsg", name), XDR_BroadcastMessage(&v.Msg))
-	x.Marshal(x.Sprintf("%stree", name), _XdrPtr_MulticastTreeNode{&v.Tree})
+	x.Marshal(x.Sprintf("%stree", name), _XdrPtr_MulticastTreeNodes{&v.Tree})
 }
 func XDR_Delivery(v *Delivery) *Delivery { return v }
 type _XdrVec_unbounded_BroadcastHeader []BroadcastHeader
@@ -922,73 +983,6 @@ func (v *ReconciledMessages) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%smsgs", name), (*_XdrVec_unbounded_BroadcastMessage)(&v.Msgs))
 }
 func XDR_ReconciledMessages(v *ReconciledMessages) *ReconciledMessages { return v }
-type _XdrVec_unbounded_MulticastTreeNode []MulticastTreeNode
-func (_XdrVec_unbounded_MulticastTreeNode) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_MulticastTreeNode) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_MulticastTreeNode length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_MulticastTreeNode length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_MulticastTreeNode) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_MulticastTreeNode) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]MulticastTreeNode, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_MulticastTreeNode) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_MulticastTreeNode(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_MulticastTreeNode) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_MulticastTreeNode) XdrTypeName() string { return "MulticastTreeNode<>" }
-func (v *_XdrVec_unbounded_MulticastTreeNode) XdrPointer() interface{} { return (*[]MulticastTreeNode)(v) }
-func (v _XdrVec_unbounded_MulticastTreeNode) XdrValue() interface{} { return ([]MulticastTreeNode)(v) }
-func (v *_XdrVec_unbounded_MulticastTreeNode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_ExpandedMulticastTree = *ExpandedMulticastTree
-func (v *ExpandedMulticastTree) XdrPointer() interface{} { return v }
-func (ExpandedMulticastTree) XdrTypeName() string { return "ExpandedMulticastTree" }
-func (v ExpandedMulticastTree) XdrValue() interface{} { return v }
-func (v *ExpandedMulticastTree) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ExpandedMulticastTree) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%stree_nodes", name), (*_XdrVec_unbounded_MulticastTreeNode)(&v.Tree_nodes))
-}
-func XDR_ExpandedMulticastTree(v *ExpandedMulticastTree) *ExpandedMulticastTree { return v }
 
 type xdrProc_Broadcast_null struct {
 	Arg *XdrVoid
@@ -1114,7 +1108,7 @@ var _ XdrSrvProc = &xdrSrvProc_Broadcast_reconcile{} // XXX
 
 type xdrProc_Broadcast_expand struct {
 	Arg *MulticastTreeHash
-	Res *ExpandedMulticastTree
+	Res *MulticastTreeNodes
 }
 func (xdrProc_Broadcast_expand) Prog() uint32 { return 2326270225 }
 func (xdrProc_Broadcast_expand) Vers() uint32 { return 1 }
@@ -1130,9 +1124,9 @@ func (p *xdrProc_Broadcast_expand) GetArg() XdrType {
 }
 func (p *xdrProc_Broadcast_expand) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(ExpandedMulticastTree)
+		p.Res = new(MulticastTreeNodes)
 	}
-	return XDR_ExpandedMulticastTree(p.Res)
+	return XDR_MulticastTreeNodes(p.Res)
 }
 var _ XdrProc = &xdrProc_Broadcast_expand{} // XXX
 
@@ -1223,7 +1217,7 @@ func (c Broadcast1_Client) Broadcast_reconcile(a1 ReconcileMessages) ReconciledM
 	}
 	return *proc.Res
 }
-func (c Broadcast1_Client) Broadcast_expand(a1 MulticastTreeHash) ExpandedMulticastTree {
+func (c Broadcast1_Client) Broadcast_expand(a1 MulticastTreeHash) MulticastTreeNodes {
 	var proc xdrProc_Broadcast_expand
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
