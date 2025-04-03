@@ -14,57 +14,65 @@ var _ context.Context
 //
 
 // unique id that determines the randomness
-type MulticastTreeID = [32]byte
+// in creating a channel's multicast tree
+type BroadcastChannelID = [32]byte
 
-// in creating the tree
 type MulticastTreeHash = SHA256Hash
 
-type MulticastMsgHash = SHA256Hash
+type BroadcastMessageHash = SHA256Hash
 
 type MulticastTreeNode struct {
 	Node ValidatorPublicInfo
 	Children []MulticastTreeHash
 }
 
-type MulticastStripe struct {
-	Source_validator_id ValidatorID
-	Tree_id MulticastTreeID
+type BroadcastChannel struct {
+	Source_id ValidatorID
+	Channel_id BroadcastChannelID
 	Tree_hash MulticastTreeHash
-	// sender may optimistically describe the tree in the first message
-	Tree_root *MulticastTreeNode
 }
 
-type MulticastMsg struct {
-	Seq_no uint32
+type BroadcastHeader struct {
+	Channel BroadcastChannel
+	Seqno uint32
+	// prev_msg is the hash of the previous BroadcastMessage, or nil if this is
+	// the first message.
+	Prev_msg *BroadcastMessageHash
+}
+
+type BroadcastMessage struct {
+	Header BroadcastHeader
 	Payload []byte
-	// XXX: hash the stripe data as a first msg?
-	Prev_hash *MulticastMsgHash
 }
 
-type DeliverArg struct {
-	// the node that made this call
+type Delivery struct {
+	// relayer is the identity of the node that made this call to
+	// `broadcast_deliver`
 	Relayer ValidatorPublicInfo
-	Stripe MulticastStripe
-	Msg MulticastMsg
+	Msg BroadcastMessage
+	// Senders may optimistically choose to describe the entire multicast tree in
+	// the first message, in order to reduce the number of attempts (via
+	// `broadcast_expand` rpc) by downstream nodes to recover the multicast tree.
+	Tree *MulticastTreeNode
 }
 
-type ReconcileArg struct {
-	Xxx int32
+type ReconcileMessages struct {
+	Missing_msgs []BroadcastHeader
 }
 
-type ReconcileResult struct {
-	Xxx int32
+type ReconciledMessages struct {
+	Msgs []BroadcastMessage
 }
 
-type ExpandMulticastTreeResult struct {
+type ExpandedMulticastTree struct {
 	Tree_nodes []MulticastTreeNode
 }
 
 type Broadcast1 interface {
 	Broadcast_null()
-	Broadcast_deliver(DeliverArg)
-	Broadcast_reconcile(ReconcileArg) ReconcileResult
-	Broadcast_expand_multicast_tree(MulticastTreeHash) ExpandMulticastTreeResult
+	Broadcast_deliver(Delivery)
+	Broadcast_reconcile(ReconcileMessages) ReconciledMessages
+	Broadcast_expand(MulticastTreeHash) ExpandedMulticastTree
 }
 
 // Config holds the configuration of a validator.
@@ -469,14 +477,14 @@ func (_XdrArray_32_opaque) XdrArraySize() uint32 {
 	const bound uint32 = 32 // Force error if not const or doesn't fit
 	return bound
 }
-type XdrType_MulticastTreeID struct {
+type XdrType_BroadcastChannelID struct {
 	*_XdrArray_32_opaque
 }
-func XDR_MulticastTreeID(v *MulticastTreeID) XdrType_MulticastTreeID {
-	return XdrType_MulticastTreeID{(*_XdrArray_32_opaque)(v)}
+func XDR_BroadcastChannelID(v *BroadcastChannelID) XdrType_BroadcastChannelID {
+	return XdrType_BroadcastChannelID{(*_XdrArray_32_opaque)(v)}
 }
-func (XdrType_MulticastTreeID) XdrTypeName() string { return "MulticastTreeID" }
-func (v XdrType_MulticastTreeID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+func (XdrType_BroadcastChannelID) XdrTypeName() string { return "BroadcastChannelID" }
+func (v XdrType_BroadcastChannelID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_MulticastTreeHash struct {
 	XdrType_SHA256Hash
 }
@@ -485,14 +493,14 @@ func XDR_MulticastTreeHash(v *MulticastTreeHash) XdrType_MulticastTreeHash {
 }
 func (XdrType_MulticastTreeHash) XdrTypeName() string { return "MulticastTreeHash" }
 func (v XdrType_MulticastTreeHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
-type XdrType_MulticastMsgHash struct {
+type XdrType_BroadcastMessageHash struct {
 	XdrType_SHA256Hash
 }
-func XDR_MulticastMsgHash(v *MulticastMsgHash) XdrType_MulticastMsgHash {
-	return XdrType_MulticastMsgHash{XDR_SHA256Hash(v)}
+func XDR_BroadcastMessageHash(v *BroadcastMessageHash) XdrType_BroadcastMessageHash {
+	return XdrType_BroadcastMessageHash{XDR_SHA256Hash(v)}
 }
-func (XdrType_MulticastMsgHash) XdrTypeName() string { return "MulticastMsgHash" }
-func (v XdrType_MulticastMsgHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+func (XdrType_BroadcastMessageHash) XdrTypeName() string { return "BroadcastMessageHash" }
+func (v XdrType_BroadcastMessageHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrVec_unbounded_MulticastTreeHash []MulticastTreeHash
 func (_XdrVec_unbounded_MulticastTreeHash) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -561,6 +569,118 @@ func (v *MulticastTreeNode) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%schildren", name), (*_XdrVec_unbounded_MulticastTreeHash)(&v.Children))
 }
 func XDR_MulticastTreeNode(v *MulticastTreeNode) *MulticastTreeNode { return v }
+type XdrType_BroadcastChannel = *BroadcastChannel
+func (v *BroadcastChannel) XdrPointer() interface{} { return v }
+func (BroadcastChannel) XdrTypeName() string { return "BroadcastChannel" }
+func (v BroadcastChannel) XdrValue() interface{} { return v }
+func (v *BroadcastChannel) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BroadcastChannel) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssource_id", name), XDR_ValidatorID(&v.Source_id))
+	x.Marshal(x.Sprintf("%schannel_id", name), XDR_BroadcastChannelID(&v.Channel_id))
+	x.Marshal(x.Sprintf("%stree_hash", name), XDR_MulticastTreeHash(&v.Tree_hash))
+}
+func XDR_BroadcastChannel(v *BroadcastChannel) *BroadcastChannel { return v }
+type _XdrPtr_BroadcastMessageHash struct {
+	p **BroadcastMessageHash
+}
+type _ptrflag_BroadcastMessageHash _XdrPtr_BroadcastMessageHash
+func (v _ptrflag_BroadcastMessageHash) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_BroadcastMessageHash) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("BroadcastMessageHash flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_BroadcastMessageHash) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_BroadcastMessageHash) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(BroadcastMessageHash)
+		}
+	default:
+		XdrPanic("*BroadcastMessageHash present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_BroadcastMessageHash) XdrTypeName() string { return "BroadcastMessageHash?" }
+func (v _ptrflag_BroadcastMessageHash) XdrPointer() interface{} { return nil }
+func (v _ptrflag_BroadcastMessageHash) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_BroadcastMessageHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_BroadcastMessageHash) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_BroadcastMessageHash) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_BroadcastMessageHash) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(BroadcastMessageHash)
+	}
+}
+func (v _XdrPtr_BroadcastMessageHash) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_BroadcastMessageHash(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_BroadcastMessageHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_BroadcastMessageHash) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_BroadcastMessageHash(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_BroadcastMessageHash) XdrTypeName() string { return "BroadcastMessageHash*" }
+func (v _XdrPtr_BroadcastMessageHash) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_BroadcastMessageHash) XdrValue() interface{} { return *v.p }
+type XdrType_BroadcastHeader = *BroadcastHeader
+func (v *BroadcastHeader) XdrPointer() interface{} { return v }
+func (BroadcastHeader) XdrTypeName() string { return "BroadcastHeader" }
+func (v BroadcastHeader) XdrValue() interface{} { return v }
+func (v *BroadcastHeader) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BroadcastHeader) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%schannel", name), XDR_BroadcastChannel(&v.Channel))
+	x.Marshal(x.Sprintf("%sseqno", name), XDR_uint32(&v.Seqno))
+	x.Marshal(x.Sprintf("%sprev_msg", name), _XdrPtr_BroadcastMessageHash{&v.Prev_msg})
+}
+func XDR_BroadcastHeader(v *BroadcastHeader) *BroadcastHeader { return v }
+type XdrType_BroadcastMessage = *BroadcastMessage
+func (v *BroadcastMessage) XdrPointer() interface{} { return v }
+func (BroadcastMessage) XdrTypeName() string { return "BroadcastMessage" }
+func (v BroadcastMessage) XdrValue() interface{} { return v }
+func (v *BroadcastMessage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BroadcastMessage) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sheader", name), XDR_BroadcastHeader(&v.Header))
+	x.Marshal(x.Sprintf("%spayload", name), XdrVecOpaque{&v.Payload, 0xffffffff})
+}
+func XDR_BroadcastMessage(v *BroadcastMessage) *BroadcastMessage { return v }
 type _XdrPtr_MulticastTreeNode struct {
 	p **MulticastTreeNode
 }
@@ -632,144 +752,154 @@ func (v _XdrPtr_MulticastTreeNode) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_MulticastTreeNode) XdrTypeName() string { return "MulticastTreeNode*" }
 func (v _XdrPtr_MulticastTreeNode) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_MulticastTreeNode) XdrValue() interface{} { return *v.p }
-type XdrType_MulticastStripe = *MulticastStripe
-func (v *MulticastStripe) XdrPointer() interface{} { return v }
-func (MulticastStripe) XdrTypeName() string { return "MulticastStripe" }
-func (v MulticastStripe) XdrValue() interface{} { return v }
-func (v *MulticastStripe) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *MulticastStripe) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%ssource_validator_id", name), XDR_ValidatorID(&v.Source_validator_id))
-	x.Marshal(x.Sprintf("%stree_id", name), XDR_MulticastTreeID(&v.Tree_id))
-	x.Marshal(x.Sprintf("%stree_hash", name), XDR_MulticastTreeHash(&v.Tree_hash))
-	x.Marshal(x.Sprintf("%stree_root", name), _XdrPtr_MulticastTreeNode{&v.Tree_root})
-}
-func XDR_MulticastStripe(v *MulticastStripe) *MulticastStripe { return v }
-type _XdrPtr_MulticastMsgHash struct {
-	p **MulticastMsgHash
-}
-type _ptrflag_MulticastMsgHash _XdrPtr_MulticastMsgHash
-func (v _ptrflag_MulticastMsgHash) String() string {
-	if *v.p == nil {
-		return "nil"
-	}
-	return "non-nil"
-}
-func (v _ptrflag_MulticastMsgHash) Scan(ss fmt.ScanState, r rune) error {
-	tok, err := ss.Token(true, func(c rune) bool {
-		return c == '-' || (c >= 'a' && c <= 'z')
-	})
-	if err != nil {
-		return err
-	}
-	switch string(tok) {
-	case "nil":
-		v.SetU32(0)
-	case "non-nil":
-		v.SetU32(1)
-	default:
-		return XdrError("MulticastMsgHash flag should be \"nil\" or \"non-nil\"")
-	}
-	return nil
-}
-func (v _ptrflag_MulticastMsgHash) GetU32() uint32 {
-	if *v.p == nil {
-		return 0
-	}
-	return 1
-}
-func (v _ptrflag_MulticastMsgHash) SetU32(nv uint32) {
-	switch nv {
-	case 0:
-		*v.p = nil
-	case 1:
-		if *v.p == nil {
-			*v.p = new(MulticastMsgHash)
-		}
-	default:
-		XdrPanic("*MulticastMsgHash present flag value %d should be 0 or 1", nv)
-	}
-}
-func (_ptrflag_MulticastMsgHash) XdrTypeName() string { return "MulticastMsgHash?" }
-func (v _ptrflag_MulticastMsgHash) XdrPointer() interface{} { return nil }
-func (v _ptrflag_MulticastMsgHash) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_MulticastMsgHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_MulticastMsgHash) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_MulticastMsgHash) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_MulticastMsgHash) SetPresent(present bool) {
-	if !present {
-		*v.p = nil
-	} else if *v.p == nil {
-		*v.p = new(MulticastMsgHash)
-	}
-}
-func (v _XdrPtr_MulticastMsgHash) XdrMarshalValue(x XDR, name string) {
-	if *v.p != nil {
-		XDR_MulticastMsgHash(*v.p).XdrMarshal(x, name)
-	}
-}
-func (v _XdrPtr_MulticastMsgHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_MulticastMsgHash) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_MulticastMsgHash(v))
-	v.XdrMarshalValue(x, name)
-}
-func (_XdrPtr_MulticastMsgHash) XdrTypeName() string { return "MulticastMsgHash*" }
-func (v _XdrPtr_MulticastMsgHash) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_MulticastMsgHash) XdrValue() interface{} { return *v.p }
-type XdrType_MulticastMsg = *MulticastMsg
-func (v *MulticastMsg) XdrPointer() interface{} { return v }
-func (MulticastMsg) XdrTypeName() string { return "MulticastMsg" }
-func (v MulticastMsg) XdrValue() interface{} { return v }
-func (v *MulticastMsg) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *MulticastMsg) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sseq_no", name), XDR_uint32(&v.Seq_no))
-	x.Marshal(x.Sprintf("%spayload", name), XdrVecOpaque{&v.Payload, 0xffffffff})
-	x.Marshal(x.Sprintf("%sprev_hash", name), _XdrPtr_MulticastMsgHash{&v.Prev_hash})
-}
-func XDR_MulticastMsg(v *MulticastMsg) *MulticastMsg { return v }
-type XdrType_DeliverArg = *DeliverArg
-func (v *DeliverArg) XdrPointer() interface{} { return v }
-func (DeliverArg) XdrTypeName() string { return "DeliverArg" }
-func (v DeliverArg) XdrValue() interface{} { return v }
-func (v *DeliverArg) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DeliverArg) XdrRecurse(x XDR, name string) {
+type XdrType_Delivery = *Delivery
+func (v *Delivery) XdrPointer() interface{} { return v }
+func (Delivery) XdrTypeName() string { return "Delivery" }
+func (v Delivery) XdrValue() interface{} { return v }
+func (v *Delivery) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Delivery) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%srelayer", name), XDR_ValidatorPublicInfo(&v.Relayer))
-	x.Marshal(x.Sprintf("%sstripe", name), XDR_MulticastStripe(&v.Stripe))
-	x.Marshal(x.Sprintf("%smsg", name), XDR_MulticastMsg(&v.Msg))
+	x.Marshal(x.Sprintf("%smsg", name), XDR_BroadcastMessage(&v.Msg))
+	x.Marshal(x.Sprintf("%stree", name), _XdrPtr_MulticastTreeNode{&v.Tree})
 }
-func XDR_DeliverArg(v *DeliverArg) *DeliverArg { return v }
-type XdrType_ReconcileArg = *ReconcileArg
-func (v *ReconcileArg) XdrPointer() interface{} { return v }
-func (ReconcileArg) XdrTypeName() string { return "ReconcileArg" }
-func (v ReconcileArg) XdrValue() interface{} { return v }
-func (v *ReconcileArg) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ReconcileArg) XdrRecurse(x XDR, name string) {
+func XDR_Delivery(v *Delivery) *Delivery { return v }
+type _XdrVec_unbounded_BroadcastHeader []BroadcastHeader
+func (_XdrVec_unbounded_BroadcastHeader) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_BroadcastHeader) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_BroadcastHeader length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_BroadcastHeader length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_BroadcastHeader) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_BroadcastHeader) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]BroadcastHeader, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_BroadcastHeader) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_BroadcastHeader(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_BroadcastHeader) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_BroadcastHeader) XdrTypeName() string { return "BroadcastHeader<>" }
+func (v *_XdrVec_unbounded_BroadcastHeader) XdrPointer() interface{} { return (*[]BroadcastHeader)(v) }
+func (v _XdrVec_unbounded_BroadcastHeader) XdrValue() interface{} { return ([]BroadcastHeader)(v) }
+func (v *_XdrVec_unbounded_BroadcastHeader) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ReconcileMessages = *ReconcileMessages
+func (v *ReconcileMessages) XdrPointer() interface{} { return v }
+func (ReconcileMessages) XdrTypeName() string { return "ReconcileMessages" }
+func (v ReconcileMessages) XdrValue() interface{} { return v }
+func (v *ReconcileMessages) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ReconcileMessages) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sxxx", name), XDR_int32(&v.Xxx))
+	x.Marshal(x.Sprintf("%smissing_msgs", name), (*_XdrVec_unbounded_BroadcastHeader)(&v.Missing_msgs))
 }
-func XDR_ReconcileArg(v *ReconcileArg) *ReconcileArg { return v }
-type XdrType_ReconcileResult = *ReconcileResult
-func (v *ReconcileResult) XdrPointer() interface{} { return v }
-func (ReconcileResult) XdrTypeName() string { return "ReconcileResult" }
-func (v ReconcileResult) XdrValue() interface{} { return v }
-func (v *ReconcileResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ReconcileResult) XdrRecurse(x XDR, name string) {
+func XDR_ReconcileMessages(v *ReconcileMessages) *ReconcileMessages { return v }
+type _XdrVec_unbounded_BroadcastMessage []BroadcastMessage
+func (_XdrVec_unbounded_BroadcastMessage) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_BroadcastMessage) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_BroadcastMessage length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_BroadcastMessage length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_BroadcastMessage) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_BroadcastMessage) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]BroadcastMessage, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_BroadcastMessage) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_BroadcastMessage(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_BroadcastMessage) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_BroadcastMessage) XdrTypeName() string { return "BroadcastMessage<>" }
+func (v *_XdrVec_unbounded_BroadcastMessage) XdrPointer() interface{} { return (*[]BroadcastMessage)(v) }
+func (v _XdrVec_unbounded_BroadcastMessage) XdrValue() interface{} { return ([]BroadcastMessage)(v) }
+func (v *_XdrVec_unbounded_BroadcastMessage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ReconciledMessages = *ReconciledMessages
+func (v *ReconciledMessages) XdrPointer() interface{} { return v }
+func (ReconciledMessages) XdrTypeName() string { return "ReconciledMessages" }
+func (v ReconciledMessages) XdrValue() interface{} { return v }
+func (v *ReconciledMessages) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ReconciledMessages) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sxxx", name), XDR_int32(&v.Xxx))
+	x.Marshal(x.Sprintf("%smsgs", name), (*_XdrVec_unbounded_BroadcastMessage)(&v.Msgs))
 }
-func XDR_ReconcileResult(v *ReconcileResult) *ReconcileResult { return v }
+func XDR_ReconciledMessages(v *ReconciledMessages) *ReconciledMessages { return v }
 type _XdrVec_unbounded_MulticastTreeNode []MulticastTreeNode
 func (_XdrVec_unbounded_MulticastTreeNode) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -825,18 +955,18 @@ func (_XdrVec_unbounded_MulticastTreeNode) XdrTypeName() string { return "Multic
 func (v *_XdrVec_unbounded_MulticastTreeNode) XdrPointer() interface{} { return (*[]MulticastTreeNode)(v) }
 func (v _XdrVec_unbounded_MulticastTreeNode) XdrValue() interface{} { return ([]MulticastTreeNode)(v) }
 func (v *_XdrVec_unbounded_MulticastTreeNode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_ExpandMulticastTreeResult = *ExpandMulticastTreeResult
-func (v *ExpandMulticastTreeResult) XdrPointer() interface{} { return v }
-func (ExpandMulticastTreeResult) XdrTypeName() string { return "ExpandMulticastTreeResult" }
-func (v ExpandMulticastTreeResult) XdrValue() interface{} { return v }
-func (v *ExpandMulticastTreeResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ExpandMulticastTreeResult) XdrRecurse(x XDR, name string) {
+type XdrType_ExpandedMulticastTree = *ExpandedMulticastTree
+func (v *ExpandedMulticastTree) XdrPointer() interface{} { return v }
+func (ExpandedMulticastTree) XdrTypeName() string { return "ExpandedMulticastTree" }
+func (v ExpandedMulticastTree) XdrValue() interface{} { return v }
+func (v *ExpandedMulticastTree) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ExpandedMulticastTree) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stree_nodes", name), (*_XdrVec_unbounded_MulticastTreeNode)(&v.Tree_nodes))
 }
-func XDR_ExpandMulticastTreeResult(v *ExpandMulticastTreeResult) *ExpandMulticastTreeResult { return v }
+func XDR_ExpandedMulticastTree(v *ExpandedMulticastTree) *ExpandedMulticastTree { return v }
 
 type xdrProc_Broadcast_null struct {
 	Arg *XdrVoid
@@ -879,7 +1009,7 @@ func (p *xdrSrvProc_Broadcast_null) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_null{} // XXX
 
 type xdrProc_Broadcast_deliver struct {
-	Arg *DeliverArg
+	Arg *Delivery
 	Res *XdrVoid
 }
 func (xdrProc_Broadcast_deliver) Prog() uint32 { return 2326270225 }
@@ -890,9 +1020,9 @@ func (xdrProc_Broadcast_deliver) VersName() string { return "Broadcast1" }
 func (xdrProc_Broadcast_deliver) ProcName() string { return "broadcast_deliver" }
 func (p *xdrProc_Broadcast_deliver) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(DeliverArg)
+		p.Arg = new(Delivery)
 	}
-	return XDR_DeliverArg(p.Arg)
+	return XDR_Delivery(p.Arg)
 }
 func (p *xdrProc_Broadcast_deliver) GetRes() XdrType {
 	if p.Res == nil {
@@ -919,8 +1049,8 @@ func (p *xdrSrvProc_Broadcast_deliver) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_deliver{} // XXX
 
 type xdrProc_Broadcast_reconcile struct {
-	Arg *ReconcileArg
-	Res *ReconcileResult
+	Arg *ReconcileMessages
+	Res *ReconciledMessages
 }
 func (xdrProc_Broadcast_reconcile) Prog() uint32 { return 2326270225 }
 func (xdrProc_Broadcast_reconcile) Vers() uint32 { return 1 }
@@ -930,15 +1060,15 @@ func (xdrProc_Broadcast_reconcile) VersName() string { return "Broadcast1" }
 func (xdrProc_Broadcast_reconcile) ProcName() string { return "broadcast_reconcile" }
 func (p *xdrProc_Broadcast_reconcile) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(ReconcileArg)
+		p.Arg = new(ReconcileMessages)
 	}
-	return XDR_ReconcileArg(p.Arg)
+	return XDR_ReconcileMessages(p.Arg)
 }
 func (p *xdrProc_Broadcast_reconcile) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(ReconcileResult)
+		p.Res = new(ReconciledMessages)
 	}
-	return XDR_ReconcileResult(p.Res)
+	return XDR_ReconciledMessages(p.Res)
 }
 var _ XdrProc = &xdrProc_Broadcast_reconcile{} // XXX
 
@@ -960,47 +1090,47 @@ func (p *xdrSrvProc_Broadcast_reconcile) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_reconcile{} // XXX
 
-type xdrProc_Broadcast_expand_multicast_tree struct {
+type xdrProc_Broadcast_expand struct {
 	Arg *MulticastTreeHash
-	Res *ExpandMulticastTreeResult
+	Res *ExpandedMulticastTree
 }
-func (xdrProc_Broadcast_expand_multicast_tree) Prog() uint32 { return 2326270225 }
-func (xdrProc_Broadcast_expand_multicast_tree) Vers() uint32 { return 1 }
-func (xdrProc_Broadcast_expand_multicast_tree) Proc() uint32 { return 30 }
-func (xdrProc_Broadcast_expand_multicast_tree) ProgName() string { return "Broadcast" }
-func (xdrProc_Broadcast_expand_multicast_tree) VersName() string { return "Broadcast1" }
-func (xdrProc_Broadcast_expand_multicast_tree) ProcName() string { return "broadcast_expand_multicast_tree" }
-func (p *xdrProc_Broadcast_expand_multicast_tree) GetArg() XdrType {
+func (xdrProc_Broadcast_expand) Prog() uint32 { return 2326270225 }
+func (xdrProc_Broadcast_expand) Vers() uint32 { return 1 }
+func (xdrProc_Broadcast_expand) Proc() uint32 { return 30 }
+func (xdrProc_Broadcast_expand) ProgName() string { return "Broadcast" }
+func (xdrProc_Broadcast_expand) VersName() string { return "Broadcast1" }
+func (xdrProc_Broadcast_expand) ProcName() string { return "broadcast_expand" }
+func (p *xdrProc_Broadcast_expand) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(MulticastTreeHash)
 	}
 	return XDR_MulticastTreeHash(p.Arg)
 }
-func (p *xdrProc_Broadcast_expand_multicast_tree) GetRes() XdrType {
+func (p *xdrProc_Broadcast_expand) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(ExpandMulticastTreeResult)
+		p.Res = new(ExpandedMulticastTree)
 	}
-	return XDR_ExpandMulticastTreeResult(p.Res)
+	return XDR_ExpandedMulticastTree(p.Res)
 }
-var _ XdrProc = &xdrProc_Broadcast_expand_multicast_tree{} // XXX
+var _ XdrProc = &xdrProc_Broadcast_expand{} // XXX
 
-type xdrSrvProc_Broadcast_expand_multicast_tree struct {
-	xdrProc_Broadcast_expand_multicast_tree
+type xdrSrvProc_Broadcast_expand struct {
+	xdrProc_Broadcast_expand
 	Srv Broadcast1
 }
-func (p *xdrSrvProc_Broadcast_expand_multicast_tree) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Broadcast_expand) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) Broadcast1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 }
-func (p *xdrSrvProc_Broadcast_expand_multicast_tree) Do() {
-	r := p.Srv.Broadcast_expand_multicast_tree(*p.Arg)
+func (p *xdrSrvProc_Broadcast_expand) Do() {
+	r := p.Srv.Broadcast_expand(*p.Arg)
 	p.Res = &r
 
 }
-var _ XdrSrvProc = &xdrSrvProc_Broadcast_expand_multicast_tree{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Broadcast_expand{} // XXX
 
 func init() {
 	XdrCatalog[2326270225<<32|1] = func(p uint32) XdrProc {
@@ -1012,7 +1142,7 @@ func init() {
 		case 20:
 			return &xdrProc_Broadcast_reconcile{}
 		case 30:
-			return &xdrProc_Broadcast_expand_multicast_tree{}
+			return &xdrProc_Broadcast_expand{}
 		}
 		return nil
 	}
@@ -1033,8 +1163,8 @@ func (s Broadcast1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Broadcast_deliver{ Srv: s.Srv }
 	case 20:  // broadcast_reconcile
 		return &xdrSrvProc_Broadcast_reconcile{ Srv: s.Srv }
-	case 30:  // broadcast_expand_multicast_tree
-		return &xdrSrvProc_Broadcast_expand_multicast_tree{ Srv: s.Srv }
+	case 30:  // broadcast_expand
+		return &xdrSrvProc_Broadcast_expand{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -1056,14 +1186,14 @@ func (c Broadcast1_Client) Broadcast_null() {
 		panic(err)
 	}
 }
-func (c Broadcast1_Client) Broadcast_deliver(a1 DeliverArg) {
+func (c Broadcast1_Client) Broadcast_deliver(a1 Delivery) {
 	var proc xdrProc_Broadcast_deliver
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
 		panic(err)
 	}
 }
-func (c Broadcast1_Client) Broadcast_reconcile(a1 ReconcileArg) ReconcileResult {
+func (c Broadcast1_Client) Broadcast_reconcile(a1 ReconcileMessages) ReconciledMessages {
 	var proc xdrProc_Broadcast_reconcile
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
@@ -1071,8 +1201,8 @@ func (c Broadcast1_Client) Broadcast_reconcile(a1 ReconcileArg) ReconcileResult 
 	}
 	return *proc.Res
 }
-func (c Broadcast1_Client) Broadcast_expand_multicast_tree(a1 MulticastTreeHash) ExpandMulticastTreeResult {
-	var proc xdrProc_Broadcast_expand_multicast_tree
+func (c Broadcast1_Client) Broadcast_expand(a1 MulticastTreeHash) ExpandedMulticastTree {
+	var proc xdrProc_Broadcast_expand
 	proc.Arg = &a1
 	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
 		panic(err)
