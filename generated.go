@@ -19,6 +19,8 @@ type BroadcastChannelID = [32]byte
 
 type BroadcastEpoch = uint64
 
+type SeqNo = uint32
+
 type MulticastTreeHash = SHA256Hash
 
 type BroadcastMessageHash = SHA256Hash
@@ -37,7 +39,7 @@ type BroadcastChannel struct {
 
 type BroadcastHeader struct {
 	Channel BroadcastChannel
-	Seqno uint32
+	Seqno SeqNo
 	// prev_msg is the hash of the previous BroadcastMessage, or nil if this is
 	// the first message.
 	Prev_msg *BroadcastMessageHash
@@ -496,6 +498,14 @@ func XDR_BroadcastEpoch(v *BroadcastEpoch) XdrType_BroadcastEpoch {
 }
 func (XdrType_BroadcastEpoch) XdrTypeName() string { return "BroadcastEpoch" }
 func (v XdrType_BroadcastEpoch) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+type XdrType_SeqNo struct {
+	XdrType_uint32
+}
+func XDR_SeqNo(v *SeqNo) XdrType_SeqNo {
+	return XdrType_SeqNo{XDR_uint32(v)}
+}
+func (XdrType_SeqNo) XdrTypeName() string { return "SeqNo" }
+func (v XdrType_SeqNo) XdrUnwrap() XdrType { return v.XdrType_uint32 }
 type XdrType_MulticastTreeHash struct {
 	XdrType_SHA256Hash
 }
@@ -676,7 +686,7 @@ func (v *BroadcastHeader) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%schannel", name), XDR_BroadcastChannel(&v.Channel))
-	x.Marshal(x.Sprintf("%sseqno", name), XDR_uint32(&v.Seqno))
+	x.Marshal(x.Sprintf("%sseqno", name), XDR_SeqNo(&v.Seqno))
 	x.Marshal(x.Sprintf("%sprev_msg", name), _XdrPtr_BroadcastMessageHash{&v.Prev_msg})
 }
 func XDR_BroadcastHeader(v *BroadcastHeader) *BroadcastHeader { return v }
