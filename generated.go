@@ -17,6 +17,8 @@ var _ context.Context
 // in creating a channel's multicast tree
 type BroadcastChannelID = [32]byte
 
+type BroadcastEpoch = uint64
+
 type MulticastTreeHash = SHA256Hash
 
 type BroadcastMessageHash = SHA256Hash
@@ -29,6 +31,7 @@ type MulticastTreeNode struct {
 type BroadcastChannel struct {
 	Source_id ValidatorID
 	Channel_id BroadcastChannelID
+	Epoch BroadcastEpoch
 	Tree_hash MulticastTreeHash
 }
 
@@ -485,6 +488,14 @@ func XDR_BroadcastChannelID(v *BroadcastChannelID) XdrType_BroadcastChannelID {
 }
 func (XdrType_BroadcastChannelID) XdrTypeName() string { return "BroadcastChannelID" }
 func (v XdrType_BroadcastChannelID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+type XdrType_BroadcastEpoch struct {
+	XdrType_uint64
+}
+func XDR_BroadcastEpoch(v *BroadcastEpoch) XdrType_BroadcastEpoch {
+	return XdrType_BroadcastEpoch{XDR_uint64(v)}
+}
+func (XdrType_BroadcastEpoch) XdrTypeName() string { return "BroadcastEpoch" }
+func (v XdrType_BroadcastEpoch) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type XdrType_MulticastTreeHash struct {
 	XdrType_SHA256Hash
 }
@@ -580,6 +591,7 @@ func (v *BroadcastChannel) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%ssource_id", name), XDR_ValidatorID(&v.Source_id))
 	x.Marshal(x.Sprintf("%schannel_id", name), XDR_BroadcastChannelID(&v.Channel_id))
+	x.Marshal(x.Sprintf("%sepoch", name), XDR_BroadcastEpoch(&v.Epoch))
 	x.Marshal(x.Sprintf("%stree_hash", name), XDR_MulticastTreeHash(&v.Tree_hash))
 }
 func XDR_BroadcastChannel(v *BroadcastChannel) *BroadcastChannel { return v }
