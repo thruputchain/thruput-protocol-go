@@ -53,6 +53,7 @@ type BroadcastMessage struct {
 }
 
 type Delivery struct {
+	// XXX: relayer and message have to be signed together by the relayer.
 	// relayer is the identity of the node that made this call to
 	// `broadcast_deliver`
 	Relayer ValidatorPublicInfo
@@ -60,7 +61,7 @@ type Delivery struct {
 	// Senders may optimistically choose to describe the entire multicast tree in
 	// the first message, in order to reduce the number of attempts (via
 	// `broadcast_expand` rpc) by downstream nodes to recover the multicast tree.
-	Tree *MulticastTreeNodes
+	Tree_nodes *MulticastTreeNodes
 }
 
 type ReconcileMessages struct {
@@ -846,7 +847,7 @@ func (v *Delivery) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%srelayer", name), XDR_ValidatorPublicInfo(&v.Relayer))
 	x.Marshal(x.Sprintf("%smsg", name), XDR_BroadcastMessage(&v.Msg))
-	x.Marshal(x.Sprintf("%stree", name), _XdrPtr_MulticastTreeNodes{&v.Tree})
+	x.Marshal(x.Sprintf("%stree_nodes", name), _XdrPtr_MulticastTreeNodes{&v.Tree_nodes})
 }
 func XDR_Delivery(v *Delivery) *Delivery { return v }
 type _XdrVec_unbounded_BroadcastHeader []BroadcastHeader
