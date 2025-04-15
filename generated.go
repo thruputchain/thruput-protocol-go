@@ -30,6 +30,8 @@ type MulticastTreeNode struct {
 
 type MulticastTreeNodes = []MulticastTreeNode
 
+// BroadcastChannel is a fixed-width structure, so it can be used conveniently
+// as a key in golang maps.
 type BroadcastChannel struct {
 	Source_id ValidatorID
 	Channel_id BroadcastChannelID
@@ -37,6 +39,11 @@ type BroadcastChannel struct {
 }
 
 type BroadcastHeader struct {
+	Source ValidatorPublicInfo
+	// The source validator signs the channel to bind together its own identity
+	// with the tree hash. This prevents malicious non-source nodes from changing
+	// the tree.
+	Source_signature Signature
 	Channel BroadcastChannel
 	Seqno SeqNo
 	// prev_msg is the hash of the previous BroadcastMessage, or nil if this is
@@ -50,7 +57,6 @@ type BroadcastMessage struct {
 }
 
 type Delivery struct {
-	// XXX: relayer and message have to be signed together by the relayer.
 	// relayer is the identity of the node that made this call to
 	// `broadcast_deliver`
 	Relayer ValidatorPublicInfo
@@ -735,6 +741,8 @@ func (v *BroadcastHeader) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%ssource", name), XDR_ValidatorPublicInfo(&v.Source))
+	x.Marshal(x.Sprintf("%ssource_signature", name), XDR_Signature(&v.Source_signature))
 	x.Marshal(x.Sprintf("%schannel", name), XDR_BroadcastChannel(&v.Channel))
 	x.Marshal(x.Sprintf("%sseqno", name), XDR_SeqNo(&v.Seqno))
 	x.Marshal(x.Sprintf("%sprev_msg", name), _XdrPtr_BroadcastMessageHash{&v.Prev_msg})
