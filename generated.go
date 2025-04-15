@@ -58,7 +58,8 @@ type BroadcastMessage struct {
 
 type Delivery struct {
 	// relayer is the identity of the node that made this call to
-	// `broadcast_deliver`
+	// `broadcast_deliver`. Receiving nodes call into the relayer, if they need to
+	// recover the multicast tree.
 	Relayer ValidatorPublicInfo
 	Msg BroadcastMessage
 	// Senders may optimistically choose to describe the entire multicast tree in
@@ -68,7 +69,8 @@ type Delivery struct {
 }
 
 type ReconcileMessages struct {
-	Missing_msgs []BroadcastHeader
+	Channel BroadcastChannel
+	Msg_hashes []BroadcastMessageHash
 }
 
 type ReconciledMessages struct {
@@ -846,20 +848,20 @@ func (v *Delivery) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stree_nodes", name), _XdrPtr_MulticastTreeNodes{&v.Tree_nodes})
 }
 func XDR_Delivery(v *Delivery) *Delivery { return v }
-type _XdrVec_unbounded_BroadcastHeader []BroadcastHeader
-func (_XdrVec_unbounded_BroadcastHeader) XdrBound() uint32 {
+type _XdrVec_unbounded_BroadcastMessageHash []BroadcastMessageHash
+func (_XdrVec_unbounded_BroadcastMessageHash) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_BroadcastHeader) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_BroadcastMessageHash) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_BroadcastHeader length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_BroadcastMessageHash length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_BroadcastHeader length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_BroadcastMessageHash length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_BroadcastHeader) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_BroadcastHeader) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_BroadcastMessageHash) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_BroadcastMessageHash) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -876,31 +878,31 @@ func (v *_XdrVec_unbounded_BroadcastHeader) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]BroadcastHeader, int(length), newcap)
+	nv := make([]BroadcastMessageHash, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_BroadcastHeader) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_BroadcastMessageHash) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_BroadcastHeader(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_BroadcastMessageHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_BroadcastHeader) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_BroadcastMessageHash) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_BroadcastHeader) XdrTypeName() string { return "BroadcastHeader<>" }
-func (v *_XdrVec_unbounded_BroadcastHeader) XdrPointer() interface{} { return (*[]BroadcastHeader)(v) }
-func (v _XdrVec_unbounded_BroadcastHeader) XdrValue() interface{} { return ([]BroadcastHeader)(v) }
-func (v *_XdrVec_unbounded_BroadcastHeader) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_XdrVec_unbounded_BroadcastMessageHash) XdrTypeName() string { return "BroadcastMessageHash<>" }
+func (v *_XdrVec_unbounded_BroadcastMessageHash) XdrPointer() interface{} { return (*[]BroadcastMessageHash)(v) }
+func (v _XdrVec_unbounded_BroadcastMessageHash) XdrValue() interface{} { return ([]BroadcastMessageHash)(v) }
+func (v *_XdrVec_unbounded_BroadcastMessageHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_ReconcileMessages = *ReconcileMessages
 func (v *ReconcileMessages) XdrPointer() interface{} { return v }
 func (ReconcileMessages) XdrTypeName() string { return "ReconcileMessages" }
@@ -910,7 +912,8 @@ func (v *ReconcileMessages) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%smissing_msgs", name), (*_XdrVec_unbounded_BroadcastHeader)(&v.Missing_msgs))
+	x.Marshal(x.Sprintf("%schannel", name), XDR_BroadcastChannel(&v.Channel))
+	x.Marshal(x.Sprintf("%smsg_hashes", name), (*_XdrVec_unbounded_BroadcastMessageHash)(&v.Msg_hashes))
 }
 func XDR_ReconcileMessages(v *ReconcileMessages) *ReconcileMessages { return v }
 type _XdrVec_unbounded_BroadcastMessage []BroadcastMessage
