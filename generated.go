@@ -78,10 +78,10 @@ type ReconciledMessages struct {
 }
 
 type Broadcast1 interface {
-	Broadcast_null()
-	Broadcast_deliver(Delivery)
-	Broadcast_reconcile(ReconcileMessages) ReconciledMessages
-	Broadcast_expand(MulticastTreeHash) MulticastTreeNodes
+	Broadcast_null(context.Context, ) error
+	Broadcast_deliver(context.Context, Delivery) error
+	Broadcast_reconcile(context.Context, ReconcileMessages) (ReconciledMessages, error)
+	Broadcast_expand(context.Context, MulticastTreeHash) (MulticastTreeNodes, error)
 }
 
 // Config holds the configuration of a validator.
@@ -167,9 +167,9 @@ type IntroExecResult struct {
 }
 
 type Coordinator1 interface {
-	Coordinator_null()
-	Coordinator_intro_shard(ShardCard) IntroShardResult
-	Coordinator_intro_exec(ExecCard) IntroExecResult
+	Coordinator_null(context.Context, ) error
+	Coordinator_intro_shard(context.Context, ShardCard) (IntroShardResult, error)
+	Coordinator_intro_exec(context.Context, ExecCard) (IntroExecResult, error)
 }
 
 type ExpectedStorageItem struct {
@@ -203,10 +203,10 @@ type ExpectedDeployment struct {
 }
 
 type DatabaseSnapshotReadInterfaceV1 interface {
-	Db_snapshot_read_null()
-	Get_snapshot_item(BlockID, AddressAndKey) ExpectedStorageItem
-	Get_contract(BlockID, SHA256Hash) ExpectedContract
-	Get_deployment(BlockID, ContractAddress) ExpectedDeployment
+	Db_snapshot_read_null(context.Context, ) error
+	Get_snapshot_item(context.Context, BlockID, AddressAndKey) (ExpectedStorageItem, error)
+	Get_contract(context.Context, BlockID, SHA256Hash) (ExpectedContract, error)
+	Get_deployment(context.Context, BlockID, ContractAddress) (ExpectedDeployment, error)
 }
 
 type ValidatorID = [32]byte
@@ -246,8 +246,8 @@ type UpdateQuorumsResult struct {
 }
 
 type Discovery1 interface {
-	Discovery_null()
-	Discovery_update_quorums(ValidatorQuorumSlicesSnapshots) UpdateQuorumsResult
+	Discovery_null(context.Context, ) error
+	Discovery_update_quorums(context.Context, ValidatorQuorumSlicesSnapshots) (UpdateQuorumsResult, error)
 }
 
 // Unique, non-persistent identifier for a block.
@@ -281,8 +281,8 @@ const (
 )
 
 type Shard1 interface {
-	Shard_null()
-	Shard_restore(BlockHeight) ShardResult
+	Shard_null(context.Context, ) error
+	Shard_restore(context.Context, BlockHeight) (ShardResult, error)
 }
 
 type StorageItemType int32
@@ -1011,6 +1011,7 @@ var _ XdrProc = &xdrProc_Broadcast_null{} // XXX
 type xdrSrvProc_Broadcast_null struct {
 	xdrProc_Broadcast_null
 	Srv Broadcast1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Broadcast_null) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -1018,9 +1019,13 @@ func (p *xdrSrvProc_Broadcast_null) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Broadcast_null) Do() {
-	p.Srv.Broadcast_null()
+	err := p.Srv.Broadcast_null(p.Ctx, )
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_null{} // XXX
 
@@ -1051,6 +1056,7 @@ var _ XdrProc = &xdrProc_Broadcast_deliver{} // XXX
 type xdrSrvProc_Broadcast_deliver struct {
 	xdrProc_Broadcast_deliver
 	Srv Broadcast1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Broadcast_deliver) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -1058,9 +1064,13 @@ func (p *xdrSrvProc_Broadcast_deliver) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Broadcast_deliver) Do() {
-	p.Srv.Broadcast_deliver(*p.Arg)
+	err := p.Srv.Broadcast_deliver(p.Ctx, *p.Arg)
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_deliver{} // XXX
 
@@ -1091,6 +1101,7 @@ var _ XdrProc = &xdrProc_Broadcast_reconcile{} // XXX
 type xdrSrvProc_Broadcast_reconcile struct {
 	xdrProc_Broadcast_reconcile
 	Srv Broadcast1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Broadcast_reconcile) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -1098,11 +1109,15 @@ func (p *xdrSrvProc_Broadcast_reconcile) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Broadcast_reconcile) Do() {
-	r := p.Srv.Broadcast_reconcile(*p.Arg)
+	r, err := p.Srv.Broadcast_reconcile(p.Ctx, *p.Arg)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_reconcile{} // XXX
 
@@ -1133,6 +1148,7 @@ var _ XdrProc = &xdrProc_Broadcast_expand{} // XXX
 type xdrSrvProc_Broadcast_expand struct {
 	xdrProc_Broadcast_expand
 	Srv Broadcast1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Broadcast_expand) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -1140,11 +1156,15 @@ func (p *xdrSrvProc_Broadcast_expand) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Broadcast_expand) Do() {
-	r := p.Srv.Broadcast_expand(*p.Arg)
+	r, err := p.Srv.Broadcast_expand(p.Ctx, *p.Arg)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Broadcast_expand{} // XXX
 
@@ -1196,34 +1216,36 @@ func (c Broadcast1_Client) WithContext(ctx context.Context) Broadcast1 {
 	c.Ctx = ctx
 	return c
 }
-func (c Broadcast1_Client) Broadcast_null() {
+func (c Broadcast1_Client) Broadcast_null(ctx context.Context, ) error {
 	var proc xdrProc_Broadcast_null
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
 	}
+	return nil
 }
-func (c Broadcast1_Client) Broadcast_deliver(a1 Delivery) {
+func (c Broadcast1_Client) Broadcast_deliver(ctx context.Context, a1 Delivery) error {
 	var proc xdrProc_Broadcast_deliver
 	proc.Arg = &a1
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
 	}
+	return nil
 }
-func (c Broadcast1_Client) Broadcast_reconcile(a1 ReconcileMessages) ReconciledMessages {
+func (c Broadcast1_Client) Broadcast_reconcile(ctx context.Context, a1 ReconcileMessages) (r ReconciledMessages, _ error) {
 	var proc xdrProc_Broadcast_reconcile
 	proc.Arg = &a1
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
-func (c Broadcast1_Client) Broadcast_expand(a1 MulticastTreeHash) MulticastTreeNodes {
+func (c Broadcast1_Client) Broadcast_expand(ctx context.Context, a1 MulticastTreeHash) (r MulticastTreeNodes, _ error) {
 	var proc xdrProc_Broadcast_expand
 	proc.Arg = &a1
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
 type _XdrVec_unbounded_QuorumSlice []QuorumSlice
 func (_XdrVec_unbounded_QuorumSlice) XdrBound() uint32 {
@@ -1662,6 +1684,7 @@ var _ XdrProc = &xdrProc_Coordinator_null{} // XXX
 type xdrSrvProc_Coordinator_null struct {
 	xdrProc_Coordinator_null
 	Srv Coordinator1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Coordinator_null) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -1669,9 +1692,13 @@ func (p *xdrSrvProc_Coordinator_null) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Coordinator_null) Do() {
-	p.Srv.Coordinator_null()
+	err := p.Srv.Coordinator_null(p.Ctx, )
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Coordinator_null{} // XXX
 
@@ -1702,6 +1729,7 @@ var _ XdrProc = &xdrProc_Coordinator_intro_shard{} // XXX
 type xdrSrvProc_Coordinator_intro_shard struct {
 	xdrProc_Coordinator_intro_shard
 	Srv Coordinator1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Coordinator_intro_shard) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -1709,11 +1737,15 @@ func (p *xdrSrvProc_Coordinator_intro_shard) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Coordinator_intro_shard) Do() {
-	r := p.Srv.Coordinator_intro_shard(*p.Arg)
+	r, err := p.Srv.Coordinator_intro_shard(p.Ctx, *p.Arg)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Coordinator_intro_shard{} // XXX
 
@@ -1744,6 +1776,7 @@ var _ XdrProc = &xdrProc_Coordinator_intro_exec{} // XXX
 type xdrSrvProc_Coordinator_intro_exec struct {
 	xdrProc_Coordinator_intro_exec
 	Srv Coordinator1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Coordinator_intro_exec) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -1751,11 +1784,15 @@ func (p *xdrSrvProc_Coordinator_intro_exec) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Coordinator_intro_exec) Do() {
-	r := p.Srv.Coordinator_intro_exec(*p.Arg)
+	r, err := p.Srv.Coordinator_intro_exec(p.Ctx, *p.Arg)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Coordinator_intro_exec{} // XXX
 
@@ -1803,27 +1840,28 @@ func (c Coordinator1_Client) WithContext(ctx context.Context) Coordinator1 {
 	c.Ctx = ctx
 	return c
 }
-func (c Coordinator1_Client) Coordinator_null() {
+func (c Coordinator1_Client) Coordinator_null(ctx context.Context, ) error {
 	var proc xdrProc_Coordinator_null
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
 	}
+	return nil
 }
-func (c Coordinator1_Client) Coordinator_intro_shard(a1 ShardCard) IntroShardResult {
+func (c Coordinator1_Client) Coordinator_intro_shard(ctx context.Context, a1 ShardCard) (r IntroShardResult, _ error) {
 	var proc xdrProc_Coordinator_intro_shard
 	proc.Arg = &a1
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
-func (c Coordinator1_Client) Coordinator_intro_exec(a1 ExecCard) IntroExecResult {
+func (c Coordinator1_Client) Coordinator_intro_exec(ctx context.Context, a1 ExecCard) (r IntroExecResult, _ error) {
 	var proc xdrProc_Coordinator_intro_exec
 	proc.Arg = &a1
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
 func (_ ExpectedStorageItem) XdrValidTags() map[int32]bool {
 	return nil
@@ -2039,6 +2077,7 @@ var _ XdrProc = &xdrProc_Db_snapshot_read_null{} // XXX
 type xdrSrvProc_Db_snapshot_read_null struct {
 	xdrProc_Db_snapshot_read_null
 	Srv DatabaseSnapshotReadInterfaceV1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Db_snapshot_read_null) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2046,9 +2085,13 @@ func (p *xdrSrvProc_Db_snapshot_read_null) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Db_snapshot_read_null) Do() {
-	p.Srv.Db_snapshot_read_null()
+	err := p.Srv.Db_snapshot_read_null(p.Ctx, )
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Db_snapshot_read_null{} // XXX
 
@@ -2099,6 +2142,7 @@ var _ XdrProc = &xdrProc_Get_snapshot_item{} // XXX
 type xdrSrvProc_Get_snapshot_item struct {
 	xdrProc_Get_snapshot_item
 	Srv DatabaseSnapshotReadInterfaceV1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Get_snapshot_item) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2106,11 +2150,15 @@ func (p *xdrSrvProc_Get_snapshot_item) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Get_snapshot_item) Do() {
-	r := p.Srv.Get_snapshot_item(*p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Get_snapshot_item(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_snapshot_item{} // XXX
 
@@ -2161,6 +2209,7 @@ var _ XdrProc = &xdrProc_Get_contract{} // XXX
 type xdrSrvProc_Get_contract struct {
 	xdrProc_Get_contract
 	Srv DatabaseSnapshotReadInterfaceV1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Get_contract) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2168,11 +2217,15 @@ func (p *xdrSrvProc_Get_contract) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Get_contract) Do() {
-	r := p.Srv.Get_contract(*p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Get_contract(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_contract{} // XXX
 
@@ -2223,6 +2276,7 @@ var _ XdrProc = &xdrProc_Get_deployment{} // XXX
 type xdrSrvProc_Get_deployment struct {
 	xdrProc_Get_deployment
 	Srv DatabaseSnapshotReadInterfaceV1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Get_deployment) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2230,11 +2284,15 @@ func (p *xdrSrvProc_Get_deployment) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Get_deployment) Do() {
-	r := p.Srv.Get_deployment(*p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Get_deployment(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_deployment{} // XXX
 
@@ -2286,41 +2344,42 @@ func (c DatabaseSnapshotReadInterfaceV1_Client) WithContext(ctx context.Context)
 	c.Ctx = ctx
 	return c
 }
-func (c DatabaseSnapshotReadInterfaceV1_Client) Db_snapshot_read_null() {
+func (c DatabaseSnapshotReadInterfaceV1_Client) Db_snapshot_read_null(ctx context.Context, ) error {
 	var proc xdrProc_Db_snapshot_read_null
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
 	}
+	return nil
 }
-func (c DatabaseSnapshotReadInterfaceV1_Client) Get_snapshot_item(a1 BlockID, a2 AddressAndKey) ExpectedStorageItem {
+func (c DatabaseSnapshotReadInterfaceV1_Client) Get_snapshot_item(ctx context.Context, a1 BlockID, a2 AddressAndKey) (r ExpectedStorageItem, _ error) {
 	var proc xdrProc_Get_snapshot_item
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
-func (c DatabaseSnapshotReadInterfaceV1_Client) Get_contract(a1 BlockID, a2 SHA256Hash) ExpectedContract {
+func (c DatabaseSnapshotReadInterfaceV1_Client) Get_contract(ctx context.Context, a1 BlockID, a2 SHA256Hash) (r ExpectedContract, _ error) {
 	var proc xdrProc_Get_contract
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
-func (c DatabaseSnapshotReadInterfaceV1_Client) Get_deployment(a1 BlockID, a2 ContractAddress) ExpectedDeployment {
+func (c DatabaseSnapshotReadInterfaceV1_Client) Get_deployment(ctx context.Context, a1 BlockID, a2 ContractAddress) (r ExpectedDeployment, _ error) {
 	var proc xdrProc_Get_deployment
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
 type XdrType_ValidatorID struct {
 	*_XdrArray_32_opaque
@@ -2565,6 +2624,7 @@ var _ XdrProc = &xdrProc_Discovery_null{} // XXX
 type xdrSrvProc_Discovery_null struct {
 	xdrProc_Discovery_null
 	Srv Discovery1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Discovery_null) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2572,9 +2632,13 @@ func (p *xdrSrvProc_Discovery_null) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Discovery_null) Do() {
-	p.Srv.Discovery_null()
+	err := p.Srv.Discovery_null(p.Ctx, )
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Discovery_null{} // XXX
 
@@ -2605,6 +2669,7 @@ var _ XdrProc = &xdrProc_Discovery_update_quorums{} // XXX
 type xdrSrvProc_Discovery_update_quorums struct {
 	xdrProc_Discovery_update_quorums
 	Srv Discovery1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Discovery_update_quorums) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2612,11 +2677,15 @@ func (p *xdrSrvProc_Discovery_update_quorums) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Discovery_update_quorums) Do() {
-	r := p.Srv.Discovery_update_quorums(*p.Arg)
+	r, err := p.Srv.Discovery_update_quorums(p.Ctx, *p.Arg)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Discovery_update_quorums{} // XXX
 
@@ -2660,19 +2729,20 @@ func (c Discovery1_Client) WithContext(ctx context.Context) Discovery1 {
 	c.Ctx = ctx
 	return c
 }
-func (c Discovery1_Client) Discovery_null() {
+func (c Discovery1_Client) Discovery_null(ctx context.Context, ) error {
 	var proc xdrProc_Discovery_null
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
 	}
+	return nil
 }
-func (c Discovery1_Client) Discovery_update_quorums(a1 ValidatorQuorumSlicesSnapshots) UpdateQuorumsResult {
+func (c Discovery1_Client) Discovery_update_quorums(ctx context.Context, a1 ValidatorQuorumSlicesSnapshots) (r UpdateQuorumsResult, _ error) {
 	var proc xdrProc_Discovery_update_quorums
 	proc.Arg = &a1
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
 type XdrType_BlockID struct {
 	XdrType_uint64
@@ -2806,6 +2876,7 @@ var _ XdrProc = &xdrProc_Shard_null{} // XXX
 type xdrSrvProc_Shard_null struct {
 	xdrProc_Shard_null
 	Srv Shard1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Shard_null) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2813,9 +2884,13 @@ func (p *xdrSrvProc_Shard_null) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Shard_null) Do() {
-	p.Srv.Shard_null()
+	err := p.Srv.Shard_null(p.Ctx, )
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Shard_null{} // XXX
 
@@ -2846,6 +2921,7 @@ var _ XdrProc = &xdrProc_Shard_restore{} // XXX
 type xdrSrvProc_Shard_restore struct {
 	xdrProc_Shard_restore
 	Srv Shard1
+	Ctx context.Context
 }
 func (p *xdrSrvProc_Shard_restore) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
@@ -2853,11 +2929,15 @@ func (p *xdrSrvProc_Shard_restore) SetContext(ctx context.Context) {
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
+	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Shard_restore) Do() {
-	r := p.Srv.Shard_restore(*p.Arg)
+	r, err := p.Srv.Shard_restore(p.Ctx, *p.Arg)
 	p.Res = &r
 
+	if err != nil {
+		panic(err)
+	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Shard_restore{} // XXX
 
@@ -2901,19 +2981,20 @@ func (c Shard1_Client) WithContext(ctx context.Context) Shard1 {
 	c.Ctx = ctx
 	return c
 }
-func (c Shard1_Client) Shard_null() {
+func (c Shard1_Client) Shard_null(ctx context.Context, ) error {
 	var proc xdrProc_Shard_null
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
 	}
+	return nil
 }
-func (c Shard1_Client) Shard_restore(a1 BlockHeight) ShardResult {
+func (c Shard1_Client) Shard_restore(ctx context.Context, a1 BlockHeight) (r ShardResult, _ error) {
 	var proc xdrProc_Shard_restore
 	proc.Arg = &a1
-	if err := c.Send.SendCall(c.Ctx, &proc); err != nil {
-		panic(err)
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
 	}
-	return *proc.Res
+	return *proc.Res, nil
 }
 var _XdrNames_StorageItemType = map[int32]string{
 	int32(KBytestring): "kBytestring",
