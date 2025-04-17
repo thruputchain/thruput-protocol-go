@@ -84,8 +84,8 @@ type Broadcast1 interface {
 	Broadcast_expand(context.Context, MulticastTreeHash) (MulticastTreeNodes, error)
 }
 
-// Config holds the configuration of a validator.
-type Config struct {
+// ValidatorConfig holds the network configuration of a validator.
+type ValidatorConfig struct {
 	Private_info ValidatorPrivateInfo
 	Quorum_set QuorumSet
 	Known_validators []ValidatorPublicInfo
@@ -1316,12 +1316,12 @@ func (_XdrVec_unbounded_ValidatorPublicInfo) XdrTypeName() string { return "Vali
 func (v *_XdrVec_unbounded_ValidatorPublicInfo) XdrPointer() interface{} { return (*[]ValidatorPublicInfo)(v) }
 func (v _XdrVec_unbounded_ValidatorPublicInfo) XdrValue() interface{} { return ([]ValidatorPublicInfo)(v) }
 func (v *_XdrVec_unbounded_ValidatorPublicInfo) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_Config = *Config
-func (v *Config) XdrPointer() interface{} { return v }
-func (Config) XdrTypeName() string { return "Config" }
-func (v Config) XdrValue() interface{} { return v }
-func (v *Config) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *Config) XdrRecurse(x XDR, name string) {
+type XdrType_ValidatorConfig = *ValidatorConfig
+func (v *ValidatorConfig) XdrPointer() interface{} { return v }
+func (ValidatorConfig) XdrTypeName() string { return "ValidatorConfig" }
+func (v ValidatorConfig) XdrValue() interface{} { return v }
+func (v *ValidatorConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ValidatorConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
@@ -1329,7 +1329,7 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%squorum_set", name), XDR_QuorumSet(&v.Quorum_set))
 	x.Marshal(x.Sprintf("%sknown_validators", name), (*_XdrVec_unbounded_ValidatorPublicInfo)(&v.Known_validators))
 }
-func XDR_Config(v *Config) *Config { return v }
+func XDR_ValidatorConfig(v *ValidatorConfig) *ValidatorConfig { return v }
 type XdrType_ContractBlob struct {
 	XdrVecOpaque
 }
