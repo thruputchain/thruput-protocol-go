@@ -243,10 +243,8 @@ type SignedQuorumSetSnapshot struct {
 	Validator_signature Signature
 }
 
-type SignedQuorumSetSnapshots = []SignedQuorumSetSnapshot
-
 type KnownQuorumSets struct {
-	Signed_quorum_set_snapshots SignedQuorumSetSnapshots
+	Signed_quorum_set_snapshots []SignedQuorumSetSnapshot
 	Validators []ValidatorPublicInfo
 }
 
@@ -2643,14 +2641,6 @@ func (_XdrVec_unbounded_SignedQuorumSetSnapshot) XdrTypeName() string { return "
 func (v *_XdrVec_unbounded_SignedQuorumSetSnapshot) XdrPointer() interface{} { return (*[]SignedQuorumSetSnapshot)(v) }
 func (v _XdrVec_unbounded_SignedQuorumSetSnapshot) XdrValue() interface{} { return ([]SignedQuorumSetSnapshot)(v) }
 func (v *_XdrVec_unbounded_SignedQuorumSetSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_SignedQuorumSetSnapshots struct {
-	*_XdrVec_unbounded_SignedQuorumSetSnapshot
-}
-func XDR_SignedQuorumSetSnapshots(v *SignedQuorumSetSnapshots) XdrType_SignedQuorumSetSnapshots {
-	return XdrType_SignedQuorumSetSnapshots{(*_XdrVec_unbounded_SignedQuorumSetSnapshot)(v)}
-}
-func (XdrType_SignedQuorumSetSnapshots) XdrTypeName() string { return "SignedQuorumSetSnapshots" }
-func (v XdrType_SignedQuorumSetSnapshots) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SignedQuorumSetSnapshot }
 type XdrType_KnownQuorumSets = *KnownQuorumSets
 func (v *KnownQuorumSets) XdrPointer() interface{} { return v }
 func (KnownQuorumSets) XdrTypeName() string { return "KnownQuorumSets" }
@@ -2660,7 +2650,7 @@ func (v *KnownQuorumSets) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%ssigned_quorum_set_snapshots", name), XDR_SignedQuorumSetSnapshots(&v.Signed_quorum_set_snapshots))
+	x.Marshal(x.Sprintf("%ssigned_quorum_set_snapshots", name), (*_XdrVec_unbounded_SignedQuorumSetSnapshot)(&v.Signed_quorum_set_snapshots))
 	x.Marshal(x.Sprintf("%svalidators", name), (*_XdrVec_unbounded_ValidatorPublicInfo)(&v.Validators))
 }
 func XDR_KnownQuorumSets(v *KnownQuorumSets) *KnownQuorumSets { return v }
