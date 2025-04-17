@@ -238,14 +238,25 @@ type QuorumSetSnapshot struct {
 }
 
 type SignedQuorumSetSnapshot struct {
-	Validator_public_info ValidatorPublicInfo
+	Signer ValidatorPublicInfo
+	Signature Signature
 	Quorum_set_snapshot QuorumSetSnapshot
-	Validator_signature Signature
+}
+
+type ValidatorInfoSnapshot struct {
+	Timestamp Timestamp
+	Validator ValidatorPublicInfo
+}
+
+type SignedValidatorInfoSnapshot struct {
+	Signer ValidatorPublicInfo
+	Signature Signature
+	Validator_snapshot ValidatorInfoSnapshot
 }
 
 type KnownQuorumSets struct {
-	Signed_quorum_set_snapshots []SignedQuorumSetSnapshot
-	Validators []ValidatorPublicInfo
+	Quorum_set_snapshots []SignedQuorumSetSnapshot
+	Validator_snapshots []SignedValidatorInfoSnapshot
 }
 
 type Discovery1 interface {
@@ -2581,11 +2592,38 @@ func (v *SignedQuorumSetSnapshot) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%svalidator_public_info", name), XDR_ValidatorPublicInfo(&v.Validator_public_info))
+	x.Marshal(x.Sprintf("%ssigner", name), XDR_ValidatorPublicInfo(&v.Signer))
+	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
 	x.Marshal(x.Sprintf("%squorum_set_snapshot", name), XDR_QuorumSetSnapshot(&v.Quorum_set_snapshot))
-	x.Marshal(x.Sprintf("%svalidator_signature", name), XDR_Signature(&v.Validator_signature))
 }
 func XDR_SignedQuorumSetSnapshot(v *SignedQuorumSetSnapshot) *SignedQuorumSetSnapshot { return v }
+type XdrType_ValidatorInfoSnapshot = *ValidatorInfoSnapshot
+func (v *ValidatorInfoSnapshot) XdrPointer() interface{} { return v }
+func (ValidatorInfoSnapshot) XdrTypeName() string { return "ValidatorInfoSnapshot" }
+func (v ValidatorInfoSnapshot) XdrValue() interface{} { return v }
+func (v *ValidatorInfoSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ValidatorInfoSnapshot) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
+	x.Marshal(x.Sprintf("%svalidator", name), XDR_ValidatorPublicInfo(&v.Validator))
+}
+func XDR_ValidatorInfoSnapshot(v *ValidatorInfoSnapshot) *ValidatorInfoSnapshot { return v }
+type XdrType_SignedValidatorInfoSnapshot = *SignedValidatorInfoSnapshot
+func (v *SignedValidatorInfoSnapshot) XdrPointer() interface{} { return v }
+func (SignedValidatorInfoSnapshot) XdrTypeName() string { return "SignedValidatorInfoSnapshot" }
+func (v SignedValidatorInfoSnapshot) XdrValue() interface{} { return v }
+func (v *SignedValidatorInfoSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SignedValidatorInfoSnapshot) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssigner", name), XDR_ValidatorPublicInfo(&v.Signer))
+	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
+	x.Marshal(x.Sprintf("%svalidator_snapshot", name), XDR_ValidatorInfoSnapshot(&v.Validator_snapshot))
+}
+func XDR_SignedValidatorInfoSnapshot(v *SignedValidatorInfoSnapshot) *SignedValidatorInfoSnapshot { return v }
 type _XdrVec_unbounded_SignedQuorumSetSnapshot []SignedQuorumSetSnapshot
 func (_XdrVec_unbounded_SignedQuorumSetSnapshot) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -2641,6 +2679,61 @@ func (_XdrVec_unbounded_SignedQuorumSetSnapshot) XdrTypeName() string { return "
 func (v *_XdrVec_unbounded_SignedQuorumSetSnapshot) XdrPointer() interface{} { return (*[]SignedQuorumSetSnapshot)(v) }
 func (v _XdrVec_unbounded_SignedQuorumSetSnapshot) XdrValue() interface{} { return ([]SignedQuorumSetSnapshot)(v) }
 func (v *_XdrVec_unbounded_SignedQuorumSetSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type _XdrVec_unbounded_SignedValidatorInfoSnapshot []SignedValidatorInfoSnapshot
+func (_XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SignedValidatorInfoSnapshot length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SignedValidatorInfoSnapshot length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SignedValidatorInfoSnapshot) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SignedValidatorInfoSnapshot) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SignedValidatorInfoSnapshot, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SignedValidatorInfoSnapshot(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrTypeName() string { return "SignedValidatorInfoSnapshot<>" }
+func (v *_XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrPointer() interface{} { return (*[]SignedValidatorInfoSnapshot)(v) }
+func (v _XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrValue() interface{} { return ([]SignedValidatorInfoSnapshot)(v) }
+func (v *_XdrVec_unbounded_SignedValidatorInfoSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_KnownQuorumSets = *KnownQuorumSets
 func (v *KnownQuorumSets) XdrPointer() interface{} { return v }
 func (KnownQuorumSets) XdrTypeName() string { return "KnownQuorumSets" }
@@ -2650,8 +2743,8 @@ func (v *KnownQuorumSets) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%ssigned_quorum_set_snapshots", name), (*_XdrVec_unbounded_SignedQuorumSetSnapshot)(&v.Signed_quorum_set_snapshots))
-	x.Marshal(x.Sprintf("%svalidators", name), (*_XdrVec_unbounded_ValidatorPublicInfo)(&v.Validators))
+	x.Marshal(x.Sprintf("%squorum_set_snapshots", name), (*_XdrVec_unbounded_SignedQuorumSetSnapshot)(&v.Quorum_set_snapshots))
+	x.Marshal(x.Sprintf("%svalidator_snapshots", name), (*_XdrVec_unbounded_SignedValidatorInfoSnapshot)(&v.Validator_snapshots))
 }
 func XDR_KnownQuorumSets(v *KnownQuorumSets) *KnownQuorumSets { return v }
 
