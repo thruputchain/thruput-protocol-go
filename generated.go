@@ -474,7 +474,7 @@ type SoloServer1 interface {
 
 type SoloClient1 interface {
 	Soloclient_null(context.Context, ) error
-	Soloclient_validate(context.Context, SoloSignedValidate) error
+	Soloclient_validate(context.Context, SoloSignedValidate) (bool, error)
 	Soloclient_externalized(context.Context, SoloSignedExternalized) error
 }
 
@@ -4432,7 +4432,7 @@ var _ XdrSrvProc = &xdrSrvProc_Soloclient_null{} // XXX
 
 type xdrProc_Soloclient_validate struct {
 	Arg *SoloSignedValidate
-	Res *XdrVoid
+	Res *bool
 }
 func (xdrProc_Soloclient_validate) Prog() uint32 { return 2326270499 }
 func (xdrProc_Soloclient_validate) Vers() uint32 { return 1 }
@@ -4448,9 +4448,9 @@ func (p *xdrProc_Soloclient_validate) GetArg() XdrType {
 }
 func (p *xdrProc_Soloclient_validate) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(bool)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_bool(p.Res)
 }
 var _ XdrProc = &xdrProc_Soloclient_validate{} // XXX
 
@@ -4468,7 +4468,9 @@ func (p *xdrSrvProc_Soloclient_validate) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Soloclient_validate) Do() {
-	err := p.Srv.Soloclient_validate(p.Ctx, *p.Arg)
+	r, err := p.Srv.Soloclient_validate(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -4571,13 +4573,13 @@ func (c SoloClient1_Client) Soloclient_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c SoloClient1_Client) Soloclient_validate(ctx context.Context, a1 SoloSignedValidate) error {
+func (c SoloClient1_Client) Soloclient_validate(ctx context.Context, a1 SoloSignedValidate) (r bool, _ error) {
 	var proc xdrProc_Soloclient_validate
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c SoloClient1_Client) Soloclient_externalized(ctx context.Context, a1 SoloSignedExternalized) error {
 	var proc xdrProc_Soloclient_externalized
