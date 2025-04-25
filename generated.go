@@ -445,6 +445,17 @@ type SoloSignedNomination struct {
 	Nomination SoloNomination
 }
 
+type SoloValidate struct {
+	Slot_index SoloSlotIndex
+	Value SoloValue
+}
+
+type SoloSignedValidate struct {
+	Signer ValidatorPublicInfo
+	Signature Signature
+	Validate SoloValidate
+}
+
 type SoloExternalized struct {
 	Slot_index SoloSlotIndex
 	Value SoloValue
@@ -463,6 +474,7 @@ type SoloServer1 interface {
 
 type SoloClient1 interface {
 	Soloclient_null(context.Context, ) error
+	Soloclient_validate(context.Context, SoloSignedValidate) error
 	Soloclient_externalized(context.Context, SoloSignedExternalized) error
 }
 
@@ -4172,6 +4184,33 @@ func (v *SoloSignedNomination) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snomination", name), XDR_SoloNomination(&v.Nomination))
 }
 func XDR_SoloSignedNomination(v *SoloSignedNomination) *SoloSignedNomination { return v }
+type XdrType_SoloValidate = *SoloValidate
+func (v *SoloValidate) XdrPointer() interface{} { return v }
+func (SoloValidate) XdrTypeName() string { return "SoloValidate" }
+func (v SoloValidate) XdrValue() interface{} { return v }
+func (v *SoloValidate) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SoloValidate) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sslot_index", name), XDR_SoloSlotIndex(&v.Slot_index))
+	x.Marshal(x.Sprintf("%svalue", name), XDR_SoloValue(&v.Value))
+}
+func XDR_SoloValidate(v *SoloValidate) *SoloValidate { return v }
+type XdrType_SoloSignedValidate = *SoloSignedValidate
+func (v *SoloSignedValidate) XdrPointer() interface{} { return v }
+func (SoloSignedValidate) XdrTypeName() string { return "SoloSignedValidate" }
+func (v SoloSignedValidate) XdrValue() interface{} { return v }
+func (v *SoloSignedValidate) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SoloSignedValidate) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssigner", name), XDR_ValidatorPublicInfo(&v.Signer))
+	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
+	x.Marshal(x.Sprintf("%svalidate", name), XDR_SoloValidate(&v.Validate))
+}
+func XDR_SoloSignedValidate(v *SoloSignedValidate) *SoloSignedValidate { return v }
 type XdrType_SoloExternalized = *SoloExternalized
 func (v *SoloExternalized) XdrPointer() interface{} { return v }
 func (SoloExternalized) XdrTypeName() string { return "SoloExternalized" }
@@ -4391,13 +4430,58 @@ func (p *xdrSrvProc_Soloclient_null) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Soloclient_null{} // XXX
 
+type xdrProc_Soloclient_validate struct {
+	Arg *SoloSignedValidate
+	Res *XdrVoid
+}
+func (xdrProc_Soloclient_validate) Prog() uint32 { return 2326270499 }
+func (xdrProc_Soloclient_validate) Vers() uint32 { return 1 }
+func (xdrProc_Soloclient_validate) Proc() uint32 { return 10 }
+func (xdrProc_Soloclient_validate) ProgName() string { return "SoloClient" }
+func (xdrProc_Soloclient_validate) VersName() string { return "SoloClient1" }
+func (xdrProc_Soloclient_validate) ProcName() string { return "soloclient_validate" }
+func (p *xdrProc_Soloclient_validate) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SoloSignedValidate)
+	}
+	return XDR_SoloSignedValidate(p.Arg)
+}
+func (p *xdrProc_Soloclient_validate) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Soloclient_validate{} // XXX
+
+type xdrSrvProc_Soloclient_validate struct {
+	xdrProc_Soloclient_validate
+	Srv SoloClient1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Soloclient_validate) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SoloClient1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Soloclient_validate) Do() {
+	err := p.Srv.Soloclient_validate(p.Ctx, *p.Arg)
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Soloclient_validate{} // XXX
+
 type xdrProc_Soloclient_externalized struct {
 	Arg *SoloSignedExternalized
 	Res *XdrVoid
 }
 func (xdrProc_Soloclient_externalized) Prog() uint32 { return 2326270499 }
 func (xdrProc_Soloclient_externalized) Vers() uint32 { return 1 }
-func (xdrProc_Soloclient_externalized) Proc() uint32 { return 10 }
+func (xdrProc_Soloclient_externalized) Proc() uint32 { return 20 }
 func (xdrProc_Soloclient_externalized) ProgName() string { return "SoloClient" }
 func (xdrProc_Soloclient_externalized) VersName() string { return "SoloClient1" }
 func (xdrProc_Soloclient_externalized) ProcName() string { return "soloclient_externalized" }
@@ -4442,6 +4526,8 @@ func init() {
 		case 0:
 			return &xdrProc_Soloclient_null{}
 		case 10:
+			return &xdrProc_Soloclient_validate{}
+		case 20:
 			return &xdrProc_Soloclient_externalized{}
 		}
 		return nil
@@ -4459,7 +4545,9 @@ func (s SoloClient1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // soloclient_null
 		return &xdrSrvProc_Soloclient_null{ Srv: s.Srv }
-	case 10:  // soloclient_externalized
+	case 10:  // soloclient_validate
+		return &xdrSrvProc_Soloclient_validate{ Srv: s.Srv }
+	case 20:  // soloclient_externalized
 		return &xdrSrvProc_Soloclient_externalized{ Srv: s.Srv }
 	default:
 		return nil
@@ -4478,6 +4566,14 @@ func (c SoloClient1_Client) WithContext(ctx context.Context) SoloClient1 {
 }
 func (c SoloClient1_Client) Soloclient_null(ctx context.Context, ) error {
 	var proc xdrProc_Soloclient_null
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
+}
+func (c SoloClient1_Client) Soloclient_validate(ctx context.Context, a1 SoloSignedValidate) error {
+	var proc xdrProc_Soloclient_validate
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
