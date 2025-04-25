@@ -456,6 +456,10 @@ type SoloStatement struct {
 	_u interface{}
 }
 
+type SoloStatementSet struct {
+	Statements []SoloStatement
+}
+
 type SoloValidationLevel int32
 const (
 	SoloInvalidValue SoloValidationLevel = 0
@@ -4288,6 +4292,73 @@ func (u *SoloStatement) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_SoloStatement(v *SoloStatement) *SoloStatement { return v}
+type _XdrVec_unbounded_SoloStatement []SoloStatement
+func (_XdrVec_unbounded_SoloStatement) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SoloStatement) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SoloStatement length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SoloStatement length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SoloStatement) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SoloStatement) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SoloStatement, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SoloStatement) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SoloStatement(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SoloStatement) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SoloStatement) XdrTypeName() string { return "SoloStatement<>" }
+func (v *_XdrVec_unbounded_SoloStatement) XdrPointer() interface{} { return (*[]SoloStatement)(v) }
+func (v _XdrVec_unbounded_SoloStatement) XdrValue() interface{} { return ([]SoloStatement)(v) }
+func (v *_XdrVec_unbounded_SoloStatement) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SoloStatementSet = *SoloStatementSet
+func (v *SoloStatementSet) XdrPointer() interface{} { return v }
+func (SoloStatementSet) XdrTypeName() string { return "SoloStatementSet" }
+func (v SoloStatementSet) XdrValue() interface{} { return v }
+func (v *SoloStatementSet) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SoloStatementSet) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sstatements", name), (*_XdrVec_unbounded_SoloStatement)(&v.Statements))
+}
+func XDR_SoloStatementSet(v *SoloStatementSet) *SoloStatementSet { return v }
 var _XdrNames_SoloValidationLevel = map[int32]string{
 	int32(SoloInvalidValue): "SoloInvalidValue",
 	int32(SoloMaybeValidValue): "SoloMaybeValidValue",
