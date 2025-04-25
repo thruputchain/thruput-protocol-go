@@ -434,6 +434,13 @@ type SoloSlotIndex = uint64
 
 type SoloValue = []byte
 
+type SoloValidationLevel int32
+const (
+	SoloInvalidValue SoloValidationLevel = 0
+	SoloMaybeValidValue SoloValidationLevel = 1
+	SoloFullyValidValue SoloValidationLevel = 2
+)
+
 type SoloNomination struct {
 	Slot_index SoloSlotIndex
 	Value SoloValue
@@ -474,7 +481,7 @@ type SoloServer1 interface {
 
 type SoloClient1 interface {
 	Soloclient_null(context.Context, ) error
-	Soloclient_validate(context.Context, SoloSignedValidate) (bool, error)
+	Soloclient_validate(context.Context, SoloSignedValidate) (SoloValidationLevel, error)
 	Soloclient_externalized(context.Context, SoloSignedExternalized) error
 }
 
@@ -4157,6 +4164,50 @@ func XDR_SoloValue(v *SoloValue) XdrType_SoloValue {
 }
 func (XdrType_SoloValue) XdrTypeName() string { return "SoloValue" }
 func (v XdrType_SoloValue) XdrUnwrap() XdrType { return v.XdrVecOpaque }
+var _XdrNames_SoloValidationLevel = map[int32]string{
+	int32(SoloInvalidValue): "SoloInvalidValue",
+	int32(SoloMaybeValidValue): "SoloMaybeValidValue",
+	int32(SoloFullyValidValue): "SoloFullyValidValue",
+}
+var _XdrValues_SoloValidationLevel = map[string]int32{
+	"SoloInvalidValue": int32(SoloInvalidValue),
+	"SoloMaybeValidValue": int32(SoloMaybeValidValue),
+	"SoloFullyValidValue": int32(SoloFullyValidValue),
+}
+func (SoloValidationLevel) XdrEnumNames() map[int32]string {
+	return _XdrNames_SoloValidationLevel
+}
+func (v SoloValidationLevel) String() string {
+	if s, ok := _XdrNames_SoloValidationLevel[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SoloValidationLevel#%d", v)
+}
+func (v *SoloValidationLevel) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SoloValidationLevel[stok]; ok {
+			*v = SoloValidationLevel(val)
+			return nil
+		} else if stok == "SoloValidationLevel" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SoloValidationLevel.", stok))
+	}
+}
+func (v SoloValidationLevel) GetU32() uint32 { return uint32(v) }
+func (v *SoloValidationLevel) SetU32(n uint32) { *v = SoloValidationLevel(n) }
+func (v *SoloValidationLevel) XdrPointer() interface{} { return v }
+func (SoloValidationLevel) XdrTypeName() string { return "SoloValidationLevel" }
+func (v SoloValidationLevel) XdrValue() interface{} { return v }
+func (v *SoloValidationLevel) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SoloValidationLevel = *SoloValidationLevel
+func XDR_SoloValidationLevel(v *SoloValidationLevel) *SoloValidationLevel { return v }
 type XdrType_SoloNomination = *SoloNomination
 func (v *SoloNomination) XdrPointer() interface{} { return v }
 func (SoloNomination) XdrTypeName() string { return "SoloNomination" }
@@ -4432,7 +4483,7 @@ var _ XdrSrvProc = &xdrSrvProc_Soloclient_null{} // XXX
 
 type xdrProc_Soloclient_validate struct {
 	Arg *SoloSignedValidate
-	Res *bool
+	Res *SoloValidationLevel
 }
 func (xdrProc_Soloclient_validate) Prog() uint32 { return 2326270499 }
 func (xdrProc_Soloclient_validate) Vers() uint32 { return 1 }
@@ -4448,9 +4499,9 @@ func (p *xdrProc_Soloclient_validate) GetArg() XdrType {
 }
 func (p *xdrProc_Soloclient_validate) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(bool)
+		p.Res = new(SoloValidationLevel)
 	}
-	return XDR_bool(p.Res)
+	return XDR_SoloValidationLevel(p.Res)
 }
 var _ XdrProc = &xdrProc_Soloclient_validate{} // XXX
 
@@ -4573,7 +4624,7 @@ func (c SoloClient1_Client) Soloclient_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c SoloClient1_Client) Soloclient_validate(ctx context.Context, a1 SoloSignedValidate) (r bool, _ error) {
+func (c SoloClient1_Client) Soloclient_validate(ctx context.Context, a1 SoloSignedValidate) (r SoloValidationLevel, _ error) {
 	var proc xdrProc_Soloclient_validate
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
