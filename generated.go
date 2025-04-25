@@ -432,10 +432,28 @@ type SoloNodeID = [32]byte
 
 type SoloSlotIndex = uint64
 
-type SoloPayload = []byte
+type SoloValue = []byte
 
-type SoloValue struct {
-	Payloads []SoloPayload
+type SoloStatementType int32
+const (
+	StatementAlpha SoloStatementType = 0
+	StatementkBeta SoloStatementType = 1
+	StatementGamma SoloStatementType = 2
+)
+
+// SoloStatement is an extension point
+type SoloStatement struct {
+	// The union discriminant Statement_type selects among the following arms:
+	//   StatementAlpha:
+	//      void
+	//   StatementkBeta:
+	//      void
+	//   StatementGamma:
+	//      void
+	//   default:
+	//      void
+	Statement_type SoloStatementType
+	_u interface{}
 }
 
 type SoloValidationLevel int32
@@ -4160,81 +4178,116 @@ func XDR_SoloSlotIndex(v *SoloSlotIndex) XdrType_SoloSlotIndex {
 }
 func (XdrType_SoloSlotIndex) XdrTypeName() string { return "SoloSlotIndex" }
 func (v XdrType_SoloSlotIndex) XdrUnwrap() XdrType { return v.XdrType_uint64 }
-type XdrType_SoloPayload struct {
+type XdrType_SoloValue struct {
 	XdrVecOpaque
 }
-func XDR_SoloPayload(v *SoloPayload) XdrType_SoloPayload {
-	return XdrType_SoloPayload{XdrVecOpaque{v, 0xffffffff}}
+func XDR_SoloValue(v *SoloValue) XdrType_SoloValue {
+	return XdrType_SoloValue{XdrVecOpaque{v, 0xffffffff}}
 }
-func (XdrType_SoloPayload) XdrTypeName() string { return "SoloPayload" }
-func (v XdrType_SoloPayload) XdrUnwrap() XdrType { return v.XdrVecOpaque }
-type _XdrVec_unbounded_SoloPayload []SoloPayload
-func (_XdrVec_unbounded_SoloPayload) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
+func (XdrType_SoloValue) XdrTypeName() string { return "SoloValue" }
+func (v XdrType_SoloValue) XdrUnwrap() XdrType { return v.XdrVecOpaque }
+var _XdrNames_SoloStatementType = map[int32]string{
+	int32(StatementAlpha): "StatementAlpha",
+	int32(StatementkBeta): "StatementkBeta",
+	int32(StatementGamma): "StatementGamma",
 }
-func (_XdrVec_unbounded_SoloPayload) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_SoloPayload length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_SoloPayload length %d exceeds max int", length)
+var _XdrValues_SoloStatementType = map[string]int32{
+	"StatementAlpha": int32(StatementAlpha),
+	"StatementkBeta": int32(StatementkBeta),
+	"StatementGamma": int32(StatementGamma),
+}
+func (SoloStatementType) XdrEnumNames() map[int32]string {
+	return _XdrNames_SoloStatementType
+}
+func (v SoloStatementType) String() string {
+	if s, ok := _XdrNames_SoloStatementType[int32(v)]; ok {
+		return s
 	}
+	return fmt.Sprintf("SoloStatementType#%d", v)
 }
-func (v _XdrVec_unbounded_SoloPayload) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_SoloPayload) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
+func (v *SoloStatementType) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SoloStatementType[stok]; ok {
+			*v = SoloStatementType(val)
+			return nil
+		} else if stok == "SoloStatementType" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
 		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]SoloPayload, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_SoloPayload) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_SoloPayload(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
+		return XdrError(fmt.Sprintf("%s is not a valid SoloStatementType.", stok))
 	}
 }
-func (v *_XdrVec_unbounded_SoloPayload) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
+func (v SoloStatementType) GetU32() uint32 { return uint32(v) }
+func (v *SoloStatementType) SetU32(n uint32) { *v = SoloStatementType(n) }
+func (v *SoloStatementType) XdrPointer() interface{} { return v }
+func (SoloStatementType) XdrTypeName() string { return "SoloStatementType" }
+func (v SoloStatementType) XdrValue() interface{} { return v }
+func (v *SoloStatementType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SoloStatementType = *SoloStatementType
+func XDR_SoloStatementType(v *SoloStatementType) *SoloStatementType { return v }
+func (_ SoloStatement) XdrValidTags() map[int32]bool {
+	return nil
 }
-func (_XdrVec_unbounded_SoloPayload) XdrTypeName() string { return "SoloPayload<>" }
-func (v *_XdrVec_unbounded_SoloPayload) XdrPointer() interface{} { return (*[]SoloPayload)(v) }
-func (v _XdrVec_unbounded_SoloPayload) XdrValue() interface{} { return ([]SoloPayload)(v) }
-func (v *_XdrVec_unbounded_SoloPayload) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_SoloValue = *SoloValue
-func (v *SoloValue) XdrPointer() interface{} { return v }
-func (SoloValue) XdrTypeName() string { return "SoloValue" }
-func (v SoloValue) XdrValue() interface{} { return v }
-func (v *SoloValue) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *SoloValue) XdrRecurse(x XDR, name string) {
+func (u SoloStatement) XdrValid() bool {
+	return true
+}
+func (u *SoloStatement) XdrUnionTag() XdrNum32 {
+	return XDR_SoloStatementType(&u.Statement_type)
+}
+func (u *SoloStatement) XdrUnionTagName() string {
+	return "Statement_type"
+}
+func (u *SoloStatement) XdrUnionBody() XdrType {
+	switch u.Statement_type {
+	case StatementAlpha:
+		return nil
+	case StatementkBeta:
+		return nil
+	case StatementGamma:
+		return nil
+	default:
+		return nil
+	}
+}
+func (u *SoloStatement) XdrUnionBodyName() string {
+	switch u.Statement_type {
+	case StatementAlpha:
+		return ""
+	case StatementkBeta:
+		return ""
+	case StatementGamma:
+		return ""
+	default:
+		return ""
+	}
+}
+type XdrType_SoloStatement = *SoloStatement
+func (v *SoloStatement) XdrPointer() interface{} { return v }
+func (SoloStatement) XdrTypeName() string { return "SoloStatement" }
+func (v SoloStatement) XdrValue() interface{} { return v }
+func (v *SoloStatement) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *SoloStatement) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%spayloads", name), (*_XdrVec_unbounded_SoloPayload)(&v.Payloads))
+	XDR_SoloStatementType(&u.Statement_type).XdrMarshal(x, x.Sprintf("%sstatement_type", name))
+	switch u.Statement_type {
+	case StatementAlpha:
+		return
+	case StatementkBeta:
+		return
+	case StatementGamma:
+		return
+	default:
+		return
+	}
 }
-func XDR_SoloValue(v *SoloValue) *SoloValue { return v }
+func XDR_SoloStatement(v *SoloStatement) *SoloStatement { return v}
 var _XdrNames_SoloValidationLevel = map[int32]string{
 	int32(SoloInvalidValue): "SoloInvalidValue",
 	int32(SoloMaybeValidValue): "SoloMaybeValidValue",
