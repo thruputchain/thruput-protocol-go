@@ -500,15 +500,15 @@ type SoloSignedExternalized struct {
 	Externalized SoloExternalized
 }
 
-type SoloServer1 interface {
-	Soloserver_null(context.Context, ) error
-	Soloserver_nominate(context.Context, SoloSignedNomination) error
+type SoloLeader1 interface {
+	Sololeader_null(context.Context, ) error
+	Sololeader_nominate(context.Context, SoloSignedNomination) error
 }
 
-type SoloClient1 interface {
-	Soloclient_null(context.Context, ) error
-	Soloclient_validate(context.Context, SoloSignedValidate) (SoloValidationLevel, error)
-	Soloclient_externalized(context.Context, SoloSignedExternalized) error
+type SoloFollower1 interface {
+	Solofollower_null(context.Context, ) error
+	Solofollower_validate(context.Context, SoloSignedValidate) (SoloValidationLevel, error)
+	Solofollower_externalized(context.Context, SoloSignedExternalized) error
 }
 
 type StorageItemType int32
@@ -4485,145 +4485,145 @@ func (v *SoloSignedExternalized) XdrRecurse(x XDR, name string) {
 }
 func XDR_SoloSignedExternalized(v *SoloSignedExternalized) *SoloSignedExternalized { return v }
 
-type xdrProc_Soloserver_null struct {
+type xdrProc_Sololeader_null struct {
 	Arg *XdrVoid
 	Res *XdrVoid
 }
-func (xdrProc_Soloserver_null) Prog() uint32 { return 2326270498 }
-func (xdrProc_Soloserver_null) Vers() uint32 { return 1 }
-func (xdrProc_Soloserver_null) Proc() uint32 { return 0 }
-func (xdrProc_Soloserver_null) ProgName() string { return "SoloServer" }
-func (xdrProc_Soloserver_null) VersName() string { return "SoloServer1" }
-func (xdrProc_Soloserver_null) ProcName() string { return "soloserver_null" }
-func (p *xdrProc_Soloserver_null) GetArg() XdrType {
+func (xdrProc_Sololeader_null) Prog() uint32 { return 2326270498 }
+func (xdrProc_Sololeader_null) Vers() uint32 { return 1 }
+func (xdrProc_Sololeader_null) Proc() uint32 { return 0 }
+func (xdrProc_Sololeader_null) ProgName() string { return "SoloLeader" }
+func (xdrProc_Sololeader_null) VersName() string { return "SoloLeader1" }
+func (xdrProc_Sololeader_null) ProcName() string { return "sololeader_null" }
+func (p *xdrProc_Sololeader_null) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Arg)
 }
-func (p *xdrProc_Soloserver_null) GetRes() XdrType {
+func (p *xdrProc_Sololeader_null) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Soloserver_null{} // XXX
+var _ XdrProc = &xdrProc_Sololeader_null{} // XXX
 
-type xdrSrvProc_Soloserver_null struct {
-	xdrProc_Soloserver_null
-	Srv SoloServer1
+type xdrSrvProc_Sololeader_null struct {
+	xdrProc_Sololeader_null
+	Srv SoloLeader1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Soloserver_null) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Sololeader_null) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SoloServer1
+		WithContext(context.Context) SoloLeader1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Soloserver_null) Do() {
-	err := p.Srv.Soloserver_null(p.Ctx, )
+func (p *xdrSrvProc_Sololeader_null) Do() {
+	err := p.Srv.Sololeader_null(p.Ctx, )
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Soloserver_null{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Sololeader_null{} // XXX
 
-type xdrProc_Soloserver_nominate struct {
+type xdrProc_Sololeader_nominate struct {
 	Arg *SoloSignedNomination
 	Res *XdrVoid
 }
-func (xdrProc_Soloserver_nominate) Prog() uint32 { return 2326270498 }
-func (xdrProc_Soloserver_nominate) Vers() uint32 { return 1 }
-func (xdrProc_Soloserver_nominate) Proc() uint32 { return 10 }
-func (xdrProc_Soloserver_nominate) ProgName() string { return "SoloServer" }
-func (xdrProc_Soloserver_nominate) VersName() string { return "SoloServer1" }
-func (xdrProc_Soloserver_nominate) ProcName() string { return "soloserver_nominate" }
-func (p *xdrProc_Soloserver_nominate) GetArg() XdrType {
+func (xdrProc_Sololeader_nominate) Prog() uint32 { return 2326270498 }
+func (xdrProc_Sololeader_nominate) Vers() uint32 { return 1 }
+func (xdrProc_Sololeader_nominate) Proc() uint32 { return 10 }
+func (xdrProc_Sololeader_nominate) ProgName() string { return "SoloLeader" }
+func (xdrProc_Sololeader_nominate) VersName() string { return "SoloLeader1" }
+func (xdrProc_Sololeader_nominate) ProcName() string { return "sololeader_nominate" }
+func (p *xdrProc_Sololeader_nominate) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(SoloSignedNomination)
 	}
 	return XDR_SoloSignedNomination(p.Arg)
 }
-func (p *xdrProc_Soloserver_nominate) GetRes() XdrType {
+func (p *xdrProc_Sololeader_nominate) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Soloserver_nominate{} // XXX
+var _ XdrProc = &xdrProc_Sololeader_nominate{} // XXX
 
-type xdrSrvProc_Soloserver_nominate struct {
-	xdrProc_Soloserver_nominate
-	Srv SoloServer1
+type xdrSrvProc_Sololeader_nominate struct {
+	xdrProc_Sololeader_nominate
+	Srv SoloLeader1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Soloserver_nominate) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Sololeader_nominate) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SoloServer1
+		WithContext(context.Context) SoloLeader1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Soloserver_nominate) Do() {
-	err := p.Srv.Soloserver_nominate(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Sololeader_nominate) Do() {
+	err := p.Srv.Sololeader_nominate(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Soloserver_nominate{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Sololeader_nominate{} // XXX
 
 func init() {
 	XdrCatalog[2326270498<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
-			return &xdrProc_Soloserver_null{}
+			return &xdrProc_Sololeader_null{}
 		case 10:
-			return &xdrProc_Soloserver_nominate{}
+			return &xdrProc_Sololeader_nominate{}
 		}
 		return nil
 	}
 }
 
-type SoloServer1_Server struct {
-	Srv SoloServer1
+type SoloLeader1_Server struct {
+	Srv SoloLeader1
 }
-func (SoloServer1_Server) Prog() uint32 { return 2326270498 }
-func (SoloServer1_Server) Vers() uint32 { return 1 }
-func (SoloServer1_Server) ProgName() string { return "SoloServer" }
-func (SoloServer1_Server) VersName() string { return "SoloServer1" }
-func (s SoloServer1_Server) GetProc(p uint32) XdrSrvProc {
+func (SoloLeader1_Server) Prog() uint32 { return 2326270498 }
+func (SoloLeader1_Server) Vers() uint32 { return 1 }
+func (SoloLeader1_Server) ProgName() string { return "SoloLeader" }
+func (SoloLeader1_Server) VersName() string { return "SoloLeader1" }
+func (s SoloLeader1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
-	case 0:  // soloserver_null
-		return &xdrSrvProc_Soloserver_null{ Srv: s.Srv }
-	case 10:  // soloserver_nominate
-		return &xdrSrvProc_Soloserver_nominate{ Srv: s.Srv }
+	case 0:  // sololeader_null
+		return &xdrSrvProc_Sololeader_null{ Srv: s.Srv }
+	case 10:  // sololeader_nominate
+		return &xdrSrvProc_Sololeader_nominate{ Srv: s.Srv }
 	default:
 		return nil
 	}
 }
-var _ XdrSrv = SoloServer1_Server{} // XXX
+var _ XdrSrv = SoloLeader1_Server{} // XXX
 
-type SoloServer1_Client struct {
+type SoloLeader1_Client struct {
 	Send XdrSendCall
 	Ctx context.Context
 }
-var _ SoloServer1 = SoloServer1_Client{} // XXX
-func (c SoloServer1_Client) WithContext(ctx context.Context) SoloServer1 {
+var _ SoloLeader1 = SoloLeader1_Client{} // XXX
+func (c SoloLeader1_Client) WithContext(ctx context.Context) SoloLeader1 {
 	c.Ctx = ctx
 	return c
 }
-func (c SoloServer1_Client) Soloserver_null(ctx context.Context, ) error {
-	var proc xdrProc_Soloserver_null
+func (c SoloLeader1_Client) Sololeader_null(ctx context.Context, ) error {
+	var proc xdrProc_Sololeader_null
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
 	return nil
 }
-func (c SoloServer1_Client) Soloserver_nominate(ctx context.Context, a1 SoloSignedNomination) error {
-	var proc xdrProc_Soloserver_nominate
+func (c SoloLeader1_Client) Sololeader_nominate(ctx context.Context, a1 SoloSignedNomination) error {
+	var proc xdrProc_Sololeader_nominate
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
@@ -4631,204 +4631,204 @@ func (c SoloServer1_Client) Soloserver_nominate(ctx context.Context, a1 SoloSign
 	return nil
 }
 
-type xdrProc_Soloclient_null struct {
+type xdrProc_Solofollower_null struct {
 	Arg *XdrVoid
 	Res *XdrVoid
 }
-func (xdrProc_Soloclient_null) Prog() uint32 { return 2326270499 }
-func (xdrProc_Soloclient_null) Vers() uint32 { return 1 }
-func (xdrProc_Soloclient_null) Proc() uint32 { return 0 }
-func (xdrProc_Soloclient_null) ProgName() string { return "SoloClient" }
-func (xdrProc_Soloclient_null) VersName() string { return "SoloClient1" }
-func (xdrProc_Soloclient_null) ProcName() string { return "soloclient_null" }
-func (p *xdrProc_Soloclient_null) GetArg() XdrType {
+func (xdrProc_Solofollower_null) Prog() uint32 { return 2326270499 }
+func (xdrProc_Solofollower_null) Vers() uint32 { return 1 }
+func (xdrProc_Solofollower_null) Proc() uint32 { return 0 }
+func (xdrProc_Solofollower_null) ProgName() string { return "SoloFollower" }
+func (xdrProc_Solofollower_null) VersName() string { return "SoloFollower1" }
+func (xdrProc_Solofollower_null) ProcName() string { return "solofollower_null" }
+func (p *xdrProc_Solofollower_null) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Arg)
 }
-func (p *xdrProc_Soloclient_null) GetRes() XdrType {
+func (p *xdrProc_Solofollower_null) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Soloclient_null{} // XXX
+var _ XdrProc = &xdrProc_Solofollower_null{} // XXX
 
-type xdrSrvProc_Soloclient_null struct {
-	xdrProc_Soloclient_null
-	Srv SoloClient1
+type xdrSrvProc_Solofollower_null struct {
+	xdrProc_Solofollower_null
+	Srv SoloFollower1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Soloclient_null) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Solofollower_null) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SoloClient1
+		WithContext(context.Context) SoloFollower1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Soloclient_null) Do() {
-	err := p.Srv.Soloclient_null(p.Ctx, )
+func (p *xdrSrvProc_Solofollower_null) Do() {
+	err := p.Srv.Solofollower_null(p.Ctx, )
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Soloclient_null{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Solofollower_null{} // XXX
 
-type xdrProc_Soloclient_validate struct {
+type xdrProc_Solofollower_validate struct {
 	Arg *SoloSignedValidate
 	Res *SoloValidationLevel
 }
-func (xdrProc_Soloclient_validate) Prog() uint32 { return 2326270499 }
-func (xdrProc_Soloclient_validate) Vers() uint32 { return 1 }
-func (xdrProc_Soloclient_validate) Proc() uint32 { return 10 }
-func (xdrProc_Soloclient_validate) ProgName() string { return "SoloClient" }
-func (xdrProc_Soloclient_validate) VersName() string { return "SoloClient1" }
-func (xdrProc_Soloclient_validate) ProcName() string { return "soloclient_validate" }
-func (p *xdrProc_Soloclient_validate) GetArg() XdrType {
+func (xdrProc_Solofollower_validate) Prog() uint32 { return 2326270499 }
+func (xdrProc_Solofollower_validate) Vers() uint32 { return 1 }
+func (xdrProc_Solofollower_validate) Proc() uint32 { return 10 }
+func (xdrProc_Solofollower_validate) ProgName() string { return "SoloFollower" }
+func (xdrProc_Solofollower_validate) VersName() string { return "SoloFollower1" }
+func (xdrProc_Solofollower_validate) ProcName() string { return "solofollower_validate" }
+func (p *xdrProc_Solofollower_validate) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(SoloSignedValidate)
 	}
 	return XDR_SoloSignedValidate(p.Arg)
 }
-func (p *xdrProc_Soloclient_validate) GetRes() XdrType {
+func (p *xdrProc_Solofollower_validate) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(SoloValidationLevel)
 	}
 	return XDR_SoloValidationLevel(p.Res)
 }
-var _ XdrProc = &xdrProc_Soloclient_validate{} // XXX
+var _ XdrProc = &xdrProc_Solofollower_validate{} // XXX
 
-type xdrSrvProc_Soloclient_validate struct {
-	xdrProc_Soloclient_validate
-	Srv SoloClient1
+type xdrSrvProc_Solofollower_validate struct {
+	xdrProc_Solofollower_validate
+	Srv SoloFollower1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Soloclient_validate) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Solofollower_validate) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SoloClient1
+		WithContext(context.Context) SoloFollower1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Soloclient_validate) Do() {
-	r, err := p.Srv.Soloclient_validate(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Solofollower_validate) Do() {
+	r, err := p.Srv.Solofollower_validate(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Soloclient_validate{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Solofollower_validate{} // XXX
 
-type xdrProc_Soloclient_externalized struct {
+type xdrProc_Solofollower_externalized struct {
 	Arg *SoloSignedExternalized
 	Res *XdrVoid
 }
-func (xdrProc_Soloclient_externalized) Prog() uint32 { return 2326270499 }
-func (xdrProc_Soloclient_externalized) Vers() uint32 { return 1 }
-func (xdrProc_Soloclient_externalized) Proc() uint32 { return 20 }
-func (xdrProc_Soloclient_externalized) ProgName() string { return "SoloClient" }
-func (xdrProc_Soloclient_externalized) VersName() string { return "SoloClient1" }
-func (xdrProc_Soloclient_externalized) ProcName() string { return "soloclient_externalized" }
-func (p *xdrProc_Soloclient_externalized) GetArg() XdrType {
+func (xdrProc_Solofollower_externalized) Prog() uint32 { return 2326270499 }
+func (xdrProc_Solofollower_externalized) Vers() uint32 { return 1 }
+func (xdrProc_Solofollower_externalized) Proc() uint32 { return 20 }
+func (xdrProc_Solofollower_externalized) ProgName() string { return "SoloFollower" }
+func (xdrProc_Solofollower_externalized) VersName() string { return "SoloFollower1" }
+func (xdrProc_Solofollower_externalized) ProcName() string { return "solofollower_externalized" }
+func (p *xdrProc_Solofollower_externalized) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(SoloSignedExternalized)
 	}
 	return XDR_SoloSignedExternalized(p.Arg)
 }
-func (p *xdrProc_Soloclient_externalized) GetRes() XdrType {
+func (p *xdrProc_Solofollower_externalized) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Soloclient_externalized{} // XXX
+var _ XdrProc = &xdrProc_Solofollower_externalized{} // XXX
 
-type xdrSrvProc_Soloclient_externalized struct {
-	xdrProc_Soloclient_externalized
-	Srv SoloClient1
+type xdrSrvProc_Solofollower_externalized struct {
+	xdrProc_Solofollower_externalized
+	Srv SoloFollower1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Soloclient_externalized) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Solofollower_externalized) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SoloClient1
+		WithContext(context.Context) SoloFollower1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Soloclient_externalized) Do() {
-	err := p.Srv.Soloclient_externalized(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Solofollower_externalized) Do() {
+	err := p.Srv.Solofollower_externalized(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Soloclient_externalized{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Solofollower_externalized{} // XXX
 
 func init() {
 	XdrCatalog[2326270499<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
-			return &xdrProc_Soloclient_null{}
+			return &xdrProc_Solofollower_null{}
 		case 10:
-			return &xdrProc_Soloclient_validate{}
+			return &xdrProc_Solofollower_validate{}
 		case 20:
-			return &xdrProc_Soloclient_externalized{}
+			return &xdrProc_Solofollower_externalized{}
 		}
 		return nil
 	}
 }
 
-type SoloClient1_Server struct {
-	Srv SoloClient1
+type SoloFollower1_Server struct {
+	Srv SoloFollower1
 }
-func (SoloClient1_Server) Prog() uint32 { return 2326270499 }
-func (SoloClient1_Server) Vers() uint32 { return 1 }
-func (SoloClient1_Server) ProgName() string { return "SoloClient" }
-func (SoloClient1_Server) VersName() string { return "SoloClient1" }
-func (s SoloClient1_Server) GetProc(p uint32) XdrSrvProc {
+func (SoloFollower1_Server) Prog() uint32 { return 2326270499 }
+func (SoloFollower1_Server) Vers() uint32 { return 1 }
+func (SoloFollower1_Server) ProgName() string { return "SoloFollower" }
+func (SoloFollower1_Server) VersName() string { return "SoloFollower1" }
+func (s SoloFollower1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
-	case 0:  // soloclient_null
-		return &xdrSrvProc_Soloclient_null{ Srv: s.Srv }
-	case 10:  // soloclient_validate
-		return &xdrSrvProc_Soloclient_validate{ Srv: s.Srv }
-	case 20:  // soloclient_externalized
-		return &xdrSrvProc_Soloclient_externalized{ Srv: s.Srv }
+	case 0:  // solofollower_null
+		return &xdrSrvProc_Solofollower_null{ Srv: s.Srv }
+	case 10:  // solofollower_validate
+		return &xdrSrvProc_Solofollower_validate{ Srv: s.Srv }
+	case 20:  // solofollower_externalized
+		return &xdrSrvProc_Solofollower_externalized{ Srv: s.Srv }
 	default:
 		return nil
 	}
 }
-var _ XdrSrv = SoloClient1_Server{} // XXX
+var _ XdrSrv = SoloFollower1_Server{} // XXX
 
-type SoloClient1_Client struct {
+type SoloFollower1_Client struct {
 	Send XdrSendCall
 	Ctx context.Context
 }
-var _ SoloClient1 = SoloClient1_Client{} // XXX
-func (c SoloClient1_Client) WithContext(ctx context.Context) SoloClient1 {
+var _ SoloFollower1 = SoloFollower1_Client{} // XXX
+func (c SoloFollower1_Client) WithContext(ctx context.Context) SoloFollower1 {
 	c.Ctx = ctx
 	return c
 }
-func (c SoloClient1_Client) Soloclient_null(ctx context.Context, ) error {
-	var proc xdrProc_Soloclient_null
+func (c SoloFollower1_Client) Solofollower_null(ctx context.Context, ) error {
+	var proc xdrProc_Solofollower_null
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
 	return nil
 }
-func (c SoloClient1_Client) Soloclient_validate(ctx context.Context, a1 SoloSignedValidate) (r SoloValidationLevel, _ error) {
-	var proc xdrProc_Soloclient_validate
+func (c SoloFollower1_Client) Solofollower_validate(ctx context.Context, a1 SoloSignedValidate) (r SoloValidationLevel, _ error) {
+	var proc xdrProc_Solofollower_validate
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
 	return *proc.Res, nil
 }
-func (c SoloClient1_Client) Soloclient_externalized(ctx context.Context, a1 SoloSignedExternalized) error {
-	var proc xdrProc_Soloclient_externalized
+func (c SoloFollower1_Client) Solofollower_externalized(ctx context.Context, a1 SoloSignedExternalized) error {
+	var proc xdrProc_Solofollower_externalized
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
