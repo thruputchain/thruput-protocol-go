@@ -321,9 +321,13 @@ const (
 
 type BatchID = SHA256Hash
 
-type MempoolMessage struct {
+type BatchHeader struct {
 	Batch_id BatchID
 	Batch_size uint32
+}
+
+type MempoolMessage struct {
+	Batch_header BatchHeader
 	Transactions []Transaction
 }
 
@@ -3554,6 +3558,19 @@ func XDR_BatchID(v *BatchID) XdrType_BatchID {
 }
 func (XdrType_BatchID) XdrTypeName() string { return "BatchID" }
 func (v XdrType_BatchID) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_BatchHeader = *BatchHeader
+func (v *BatchHeader) XdrPointer() interface{} { return v }
+func (BatchHeader) XdrTypeName() string { return "BatchHeader" }
+func (v BatchHeader) XdrValue() interface{} { return v }
+func (v *BatchHeader) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BatchHeader) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sbatch_id", name), XDR_BatchID(&v.Batch_id))
+	x.Marshal(x.Sprintf("%sbatch_size", name), XDR_uint32(&v.Batch_size))
+}
+func XDR_BatchHeader(v *BatchHeader) *BatchHeader { return v }
 type _XdrVec_unbounded_Transaction []Transaction
 func (_XdrVec_unbounded_Transaction) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -3618,8 +3635,7 @@ func (v *MempoolMessage) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sbatch_id", name), XDR_BatchID(&v.Batch_id))
-	x.Marshal(x.Sprintf("%sbatch_size", name), XDR_uint32(&v.Batch_size))
+	x.Marshal(x.Sprintf("%sbatch_header", name), XDR_BatchHeader(&v.Batch_header))
 	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_Transaction)(&v.Transactions))
 }
 func XDR_MempoolMessage(v *MempoolMessage) *MempoolMessage { return v }
