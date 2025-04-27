@@ -17,6 +17,8 @@ var _ context.Context
 // in creating a channel's multicast tree
 type BroadcastChannelID = [32]byte
 
+type BatchID = [32]byte
+
 type SeqNo = uint32
 
 type MulticastTreeHash = SHA256Hash
@@ -720,6 +722,14 @@ func XDR_BroadcastChannelID(v *BroadcastChannelID) XdrType_BroadcastChannelID {
 }
 func (XdrType_BroadcastChannelID) XdrTypeName() string { return "BroadcastChannelID" }
 func (v XdrType_BroadcastChannelID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+type XdrType_BatchID struct {
+	*_XdrArray_32_opaque
+}
+func XDR_BatchID(v *BatchID) XdrType_BatchID {
+	return XdrType_BatchID{(*_XdrArray_32_opaque)(v)}
+}
+func (XdrType_BatchID) XdrTypeName() string { return "BatchID" }
+func (v XdrType_BatchID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_SeqNo struct {
 	XdrType_uint32
 }
