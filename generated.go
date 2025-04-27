@@ -323,6 +323,7 @@ type BatchID = SHA256Hash
 
 type MempoolMessage struct {
 	Batch_id BatchID
+	Batch_size uint32
 	Transactions []Transaction
 }
 
@@ -3618,6 +3619,7 @@ func (v *MempoolMessage) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sbatch_id", name), XDR_BatchID(&v.Batch_id))
+	x.Marshal(x.Sprintf("%sbatch_size", name), XDR_uint32(&v.Batch_size))
 	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_Transaction)(&v.Transactions))
 }
 func XDR_MempoolMessage(v *MempoolMessage) *MempoolMessage { return v }
