@@ -91,6 +91,15 @@ type ValidatorConfig struct {
 	Known_validators []ValidatorPublicInfo
 }
 
+type WalletConfig struct {
+	Users []WalletUser
+}
+
+type Config struct {
+	Validator_config ValidatorConfig
+	Wallet_config WalletConfig
+}
+
 type ContractBlob = []byte
 
 type ContractType int32
@@ -1594,6 +1603,86 @@ func (v *ValidatorConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sknown_validators", name), (*_XdrVec_unbounded_ValidatorPublicInfo)(&v.Known_validators))
 }
 func XDR_ValidatorConfig(v *ValidatorConfig) *ValidatorConfig { return v }
+type _XdrVec_unbounded_WalletUser []WalletUser
+func (_XdrVec_unbounded_WalletUser) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_WalletUser) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_WalletUser length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_WalletUser length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_WalletUser) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_WalletUser) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]WalletUser, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_WalletUser) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_WalletUser(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_WalletUser) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_WalletUser) XdrTypeName() string { return "WalletUser<>" }
+func (v *_XdrVec_unbounded_WalletUser) XdrPointer() interface{} { return (*[]WalletUser)(v) }
+func (v _XdrVec_unbounded_WalletUser) XdrValue() interface{} { return ([]WalletUser)(v) }
+func (v *_XdrVec_unbounded_WalletUser) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_WalletConfig = *WalletConfig
+func (v *WalletConfig) XdrPointer() interface{} { return v }
+func (WalletConfig) XdrTypeName() string { return "WalletConfig" }
+func (v WalletConfig) XdrValue() interface{} { return v }
+func (v *WalletConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *WalletConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%susers", name), (*_XdrVec_unbounded_WalletUser)(&v.Users))
+}
+func XDR_WalletConfig(v *WalletConfig) *WalletConfig { return v }
+type XdrType_Config = *Config
+func (v *Config) XdrPointer() interface{} { return v }
+func (Config) XdrTypeName() string { return "Config" }
+func (v Config) XdrValue() interface{} { return v }
+func (v *Config) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Config) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%svalidator_config", name), XDR_ValidatorConfig(&v.Validator_config))
+	x.Marshal(x.Sprintf("%swallet_config", name), XDR_WalletConfig(&v.Wallet_config))
+}
+func XDR_Config(v *Config) *Config { return v }
 type XdrType_ContractBlob struct {
 	XdrVecOpaque
 }
