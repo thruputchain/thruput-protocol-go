@@ -713,6 +713,39 @@ type WalletUser struct {
 	Password_hash SHA256Hash
 }
 
+type WalletSubmit struct {
+	Signed_transactions []SignedTransaction
+}
+
+type WalletTransactionAckType int32
+const (
+	WalletTransactionNotSubmitted WalletTransactionAckType = 0
+	WalletTransactionSubmitted WalletTransactionAckType = 1
+)
+
+type WalletSubmittedTransactionID = [32]byte
+
+type WalletTransactionAck struct {
+	// The union discriminant Ack_type selects among the following arms:
+	//   WalletTransactionNotSubmitted:
+	//      void
+	//   WalletTransactionSubmitted:
+	//      Submitted_transaction_id() *WalletSubmittedTransactionID
+	//   default:
+	//      void
+	Ack_type WalletTransactionAckType
+	_u interface{}
+}
+
+type WalletAck struct {
+	Transaction_acks []WalletTransactionAck
+}
+
+type Wallet1 interface {
+	Wallet_null(context.Context, ) error
+	Wallet_submit(context.Context, WalletSubmit) (WalletAck, error)
+}
+
 //
 // Helper types and generated marshaling functions
 //
@@ -5833,3 +5866,403 @@ func (v *WalletUser) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spassword_hash", name), XDR_SHA256Hash(&v.Password_hash))
 }
 func XDR_WalletUser(v *WalletUser) *WalletUser { return v }
+type _XdrVec_unbounded_SignedTransaction []SignedTransaction
+func (_XdrVec_unbounded_SignedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SignedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SignedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SignedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SignedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SignedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SignedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SignedTransaction) XdrTypeName() string { return "SignedTransaction<>" }
+func (v *_XdrVec_unbounded_SignedTransaction) XdrPointer() interface{} { return (*[]SignedTransaction)(v) }
+func (v _XdrVec_unbounded_SignedTransaction) XdrValue() interface{} { return ([]SignedTransaction)(v) }
+func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_WalletSubmit = *WalletSubmit
+func (v *WalletSubmit) XdrPointer() interface{} { return v }
+func (WalletSubmit) XdrTypeName() string { return "WalletSubmit" }
+func (v WalletSubmit) XdrValue() interface{} { return v }
+func (v *WalletSubmit) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *WalletSubmit) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssigned_transactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Signed_transactions))
+}
+func XDR_WalletSubmit(v *WalletSubmit) *WalletSubmit { return v }
+var _XdrNames_WalletTransactionAckType = map[int32]string{
+	int32(WalletTransactionNotSubmitted): "WalletTransactionNotSubmitted",
+	int32(WalletTransactionSubmitted): "WalletTransactionSubmitted",
+}
+var _XdrValues_WalletTransactionAckType = map[string]int32{
+	"WalletTransactionNotSubmitted": int32(WalletTransactionNotSubmitted),
+	"WalletTransactionSubmitted": int32(WalletTransactionSubmitted),
+}
+func (WalletTransactionAckType) XdrEnumNames() map[int32]string {
+	return _XdrNames_WalletTransactionAckType
+}
+func (v WalletTransactionAckType) String() string {
+	if s, ok := _XdrNames_WalletTransactionAckType[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("WalletTransactionAckType#%d", v)
+}
+func (v *WalletTransactionAckType) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_WalletTransactionAckType[stok]; ok {
+			*v = WalletTransactionAckType(val)
+			return nil
+		} else if stok == "WalletTransactionAckType" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid WalletTransactionAckType.", stok))
+	}
+}
+func (v WalletTransactionAckType) GetU32() uint32 { return uint32(v) }
+func (v *WalletTransactionAckType) SetU32(n uint32) { *v = WalletTransactionAckType(n) }
+func (v *WalletTransactionAckType) XdrPointer() interface{} { return v }
+func (WalletTransactionAckType) XdrTypeName() string { return "WalletTransactionAckType" }
+func (v WalletTransactionAckType) XdrValue() interface{} { return v }
+func (v *WalletTransactionAckType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_WalletTransactionAckType = *WalletTransactionAckType
+func XDR_WalletTransactionAckType(v *WalletTransactionAckType) *WalletTransactionAckType { return v }
+type XdrType_WalletSubmittedTransactionID struct {
+	*_XdrArray_32_opaque
+}
+func XDR_WalletSubmittedTransactionID(v *WalletSubmittedTransactionID) XdrType_WalletSubmittedTransactionID {
+	return XdrType_WalletSubmittedTransactionID{(*_XdrArray_32_opaque)(v)}
+}
+func (XdrType_WalletSubmittedTransactionID) XdrTypeName() string { return "WalletSubmittedTransactionID" }
+func (v XdrType_WalletSubmittedTransactionID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+func (_ WalletTransactionAck) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *WalletTransactionAck) Submitted_transaction_id() *WalletSubmittedTransactionID {
+	switch u.Ack_type {
+	case WalletTransactionSubmitted:
+		if v, ok := u._u.(*WalletSubmittedTransactionID); ok {
+			return v
+		} else {
+			var zero WalletSubmittedTransactionID
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("WalletTransactionAck.Submitted_transaction_id accessed when Ack_type == %v", u.Ack_type)
+		return nil
+	}
+}
+func (u WalletTransactionAck) XdrValid() bool {
+	return true
+}
+func (u *WalletTransactionAck) XdrUnionTag() XdrNum32 {
+	return XDR_WalletTransactionAckType(&u.Ack_type)
+}
+func (u *WalletTransactionAck) XdrUnionTagName() string {
+	return "Ack_type"
+}
+func (u *WalletTransactionAck) XdrUnionBody() XdrType {
+	switch u.Ack_type {
+	case WalletTransactionNotSubmitted:
+		return nil
+	case WalletTransactionSubmitted:
+		return XDR_WalletSubmittedTransactionID(u.Submitted_transaction_id())
+	default:
+		return nil
+	}
+}
+func (u *WalletTransactionAck) XdrUnionBodyName() string {
+	switch u.Ack_type {
+	case WalletTransactionNotSubmitted:
+		return ""
+	case WalletTransactionSubmitted:
+		return "Submitted_transaction_id"
+	default:
+		return ""
+	}
+}
+type XdrType_WalletTransactionAck = *WalletTransactionAck
+func (v *WalletTransactionAck) XdrPointer() interface{} { return v }
+func (WalletTransactionAck) XdrTypeName() string { return "WalletTransactionAck" }
+func (v WalletTransactionAck) XdrValue() interface{} { return v }
+func (v *WalletTransactionAck) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *WalletTransactionAck) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_WalletTransactionAckType(&u.Ack_type).XdrMarshal(x, x.Sprintf("%sack_type", name))
+	switch u.Ack_type {
+	case WalletTransactionNotSubmitted:
+		return
+	case WalletTransactionSubmitted:
+		x.Marshal(x.Sprintf("%ssubmitted_transaction_id", name), XDR_WalletSubmittedTransactionID(u.Submitted_transaction_id()))
+		return
+	default:
+		return
+	}
+}
+func XDR_WalletTransactionAck(v *WalletTransactionAck) *WalletTransactionAck { return v}
+type _XdrVec_unbounded_WalletTransactionAck []WalletTransactionAck
+func (_XdrVec_unbounded_WalletTransactionAck) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_WalletTransactionAck) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_WalletTransactionAck length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_WalletTransactionAck length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_WalletTransactionAck) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_WalletTransactionAck) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]WalletTransactionAck, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_WalletTransactionAck) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_WalletTransactionAck(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_WalletTransactionAck) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_WalletTransactionAck) XdrTypeName() string { return "WalletTransactionAck<>" }
+func (v *_XdrVec_unbounded_WalletTransactionAck) XdrPointer() interface{} { return (*[]WalletTransactionAck)(v) }
+func (v _XdrVec_unbounded_WalletTransactionAck) XdrValue() interface{} { return ([]WalletTransactionAck)(v) }
+func (v *_XdrVec_unbounded_WalletTransactionAck) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_WalletAck = *WalletAck
+func (v *WalletAck) XdrPointer() interface{} { return v }
+func (WalletAck) XdrTypeName() string { return "WalletAck" }
+func (v WalletAck) XdrValue() interface{} { return v }
+func (v *WalletAck) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *WalletAck) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransaction_acks", name), (*_XdrVec_unbounded_WalletTransactionAck)(&v.Transaction_acks))
+}
+func XDR_WalletAck(v *WalletAck) *WalletAck { return v }
+
+type xdrProc_Wallet_null struct {
+	Arg *XdrVoid
+	Res *XdrVoid
+}
+func (xdrProc_Wallet_null) Prog() uint32 { return 2326297255 }
+func (xdrProc_Wallet_null) Vers() uint32 { return 1 }
+func (xdrProc_Wallet_null) Proc() uint32 { return 0 }
+func (xdrProc_Wallet_null) ProgName() string { return "Wallet" }
+func (xdrProc_Wallet_null) VersName() string { return "Wallet1" }
+func (xdrProc_Wallet_null) ProcName() string { return "wallet_null" }
+func (p *xdrProc_Wallet_null) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Arg)
+}
+func (p *xdrProc_Wallet_null) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Wallet_null{} // XXX
+
+type xdrSrvProc_Wallet_null struct {
+	xdrProc_Wallet_null
+	Srv Wallet1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Wallet_null) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) Wallet1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Wallet_null) Do() {
+	err := p.Srv.Wallet_null(p.Ctx, )
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Wallet_null{} // XXX
+
+type xdrProc_Wallet_submit struct {
+	Arg *WalletSubmit
+	Res *WalletAck
+}
+func (xdrProc_Wallet_submit) Prog() uint32 { return 2326297255 }
+func (xdrProc_Wallet_submit) Vers() uint32 { return 1 }
+func (xdrProc_Wallet_submit) Proc() uint32 { return 10 }
+func (xdrProc_Wallet_submit) ProgName() string { return "Wallet" }
+func (xdrProc_Wallet_submit) VersName() string { return "Wallet1" }
+func (xdrProc_Wallet_submit) ProcName() string { return "wallet_submit" }
+func (p *xdrProc_Wallet_submit) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(WalletSubmit)
+	}
+	return XDR_WalletSubmit(p.Arg)
+}
+func (p *xdrProc_Wallet_submit) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(WalletAck)
+	}
+	return XDR_WalletAck(p.Res)
+}
+var _ XdrProc = &xdrProc_Wallet_submit{} // XXX
+
+type xdrSrvProc_Wallet_submit struct {
+	xdrProc_Wallet_submit
+	Srv Wallet1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Wallet_submit) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) Wallet1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Wallet_submit) Do() {
+	r, err := p.Srv.Wallet_submit(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Wallet_submit{} // XXX
+
+func init() {
+	XdrCatalog[2326297255<<32|1] = func(p uint32) XdrProc {
+		switch(p) {
+		case 0:
+			return &xdrProc_Wallet_null{}
+		case 10:
+			return &xdrProc_Wallet_submit{}
+		}
+		return nil
+	}
+}
+
+type Wallet1_Server struct {
+	Srv Wallet1
+}
+func (Wallet1_Server) Prog() uint32 { return 2326297255 }
+func (Wallet1_Server) Vers() uint32 { return 1 }
+func (Wallet1_Server) ProgName() string { return "Wallet" }
+func (Wallet1_Server) VersName() string { return "Wallet1" }
+func (s Wallet1_Server) GetProc(p uint32) XdrSrvProc {
+	switch p {
+	case 0:  // wallet_null
+		return &xdrSrvProc_Wallet_null{ Srv: s.Srv }
+	case 10:  // wallet_submit
+		return &xdrSrvProc_Wallet_submit{ Srv: s.Srv }
+	default:
+		return nil
+	}
+}
+var _ XdrSrv = Wallet1_Server{} // XXX
+
+type Wallet1_Client struct {
+	Send XdrSendCall
+	Ctx context.Context
+}
+var _ Wallet1 = Wallet1_Client{} // XXX
+func (c Wallet1_Client) WithContext(ctx context.Context) Wallet1 {
+	c.Ctx = ctx
+	return c
+}
+func (c Wallet1_Client) Wallet_null(ctx context.Context, ) error {
+	var proc xdrProc_Wallet_null
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
+}
+func (c Wallet1_Client) Wallet_submit(ctx context.Context, a1 WalletSubmit) (r WalletAck, _ error) {
+	var proc xdrProc_Wallet_submit
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
