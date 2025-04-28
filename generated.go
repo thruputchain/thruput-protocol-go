@@ -709,7 +709,7 @@ type LogEntry struct {
 }
 
 type WalletUser struct {
-	Name string
+	Login string
 	Password_hash SHA256Hash
 }
 
@@ -5829,7 +5829,7 @@ func (v *WalletUser) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sname", name), XdrString{&v.Name, 0xffffffff})
+	x.Marshal(x.Sprintf("%slogin", name), XdrString{&v.Login, 0xffffffff})
 	x.Marshal(x.Sprintf("%spassword_hash", name), XDR_SHA256Hash(&v.Password_hash))
 }
 func XDR_WalletUser(v *WalletUser) *WalletUser { return v }
