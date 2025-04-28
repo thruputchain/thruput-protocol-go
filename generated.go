@@ -96,8 +96,8 @@ type WalletConfig struct {
 }
 
 type Config struct {
-	Validator_config ValidatorConfig
-	Wallet_config WalletConfig
+	Validator_config *ValidatorConfig
+	Wallet_config *WalletConfig
 }
 
 type ContractBlob = []byte
@@ -1670,6 +1670,148 @@ func (v *WalletConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%susers", name), (*_XdrVec_unbounded_WalletUser)(&v.Users))
 }
 func XDR_WalletConfig(v *WalletConfig) *WalletConfig { return v }
+type _XdrPtr_ValidatorConfig struct {
+	p **ValidatorConfig
+}
+type _ptrflag_ValidatorConfig _XdrPtr_ValidatorConfig
+func (v _ptrflag_ValidatorConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_ValidatorConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("ValidatorConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_ValidatorConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_ValidatorConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(ValidatorConfig)
+		}
+	default:
+		XdrPanic("*ValidatorConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_ValidatorConfig) XdrTypeName() string { return "ValidatorConfig?" }
+func (v _ptrflag_ValidatorConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_ValidatorConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_ValidatorConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_ValidatorConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_ValidatorConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_ValidatorConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(ValidatorConfig)
+	}
+}
+func (v _XdrPtr_ValidatorConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_ValidatorConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_ValidatorConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_ValidatorConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_ValidatorConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_ValidatorConfig) XdrTypeName() string { return "ValidatorConfig*" }
+func (v _XdrPtr_ValidatorConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_ValidatorConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_WalletConfig struct {
+	p **WalletConfig
+}
+type _ptrflag_WalletConfig _XdrPtr_WalletConfig
+func (v _ptrflag_WalletConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_WalletConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("WalletConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_WalletConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_WalletConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(WalletConfig)
+		}
+	default:
+		XdrPanic("*WalletConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_WalletConfig) XdrTypeName() string { return "WalletConfig?" }
+func (v _ptrflag_WalletConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_WalletConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_WalletConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_WalletConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_WalletConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_WalletConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(WalletConfig)
+	}
+}
+func (v _XdrPtr_WalletConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_WalletConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_WalletConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_WalletConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_WalletConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_WalletConfig) XdrTypeName() string { return "WalletConfig*" }
+func (v _XdrPtr_WalletConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_WalletConfig) XdrValue() interface{} { return *v.p }
 type XdrType_Config = *Config
 func (v *Config) XdrPointer() interface{} { return v }
 func (Config) XdrTypeName() string { return "Config" }
@@ -1679,8 +1821,8 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%svalidator_config", name), XDR_ValidatorConfig(&v.Validator_config))
-	x.Marshal(x.Sprintf("%swallet_config", name), XDR_WalletConfig(&v.Wallet_config))
+	x.Marshal(x.Sprintf("%svalidator_config", name), _XdrPtr_ValidatorConfig{&v.Validator_config})
+	x.Marshal(x.Sprintf("%swallet_config", name), _XdrPtr_WalletConfig{&v.Wallet_config})
 }
 func XDR_Config(v *Config) *Config { return v }
 type XdrType_ContractBlob struct {
