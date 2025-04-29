@@ -38,8 +38,8 @@ type BroadcastChannel struct {
 	Source_id ValidatorID
 	Channel_id BroadcastChannelID
 	Tree_hash MulticastTreeHash
-	// If batch_size is negative, this is a streaming channel.
-	Batch_size int64
+	// If batch_count is non-negative, this is a bulk channel.
+	Batch_count int64
 	Batch_hash BroadcastBatchHash
 }
 
@@ -978,7 +978,7 @@ func (v *BroadcastChannel) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%ssource_id", name), XDR_ValidatorID(&v.Source_id))
 	x.Marshal(x.Sprintf("%schannel_id", name), XDR_BroadcastChannelID(&v.Channel_id))
 	x.Marshal(x.Sprintf("%stree_hash", name), XDR_MulticastTreeHash(&v.Tree_hash))
-	x.Marshal(x.Sprintf("%sbatch_size", name), XDR_int64(&v.Batch_size))
+	x.Marshal(x.Sprintf("%sbatch_count", name), XDR_int64(&v.Batch_count))
 	x.Marshal(x.Sprintf("%sbatch_hash", name), XDR_BroadcastBatchHash(&v.Batch_hash))
 }
 func XDR_BroadcastChannel(v *BroadcastChannel) *BroadcastChannel { return v }
