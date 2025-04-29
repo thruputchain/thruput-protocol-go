@@ -23,6 +23,8 @@ type MulticastTreeHash = SHA256Hash
 
 type BroadcastMessageHash = SHA256Hash
 
+type BroadcastBatchHash = SHA256Hash
+
 type MulticastTreeNode struct {
 	Node ValidatorPublicInfo
 	Children []MulticastTreeHash
@@ -36,6 +38,9 @@ type BroadcastChannel struct {
 	Source_id ValidatorID
 	Channel_id BroadcastChannelID
 	Tree_hash MulticastTreeHash
+	// If batch_size is negative, this is a streaming channel.
+	Batch_size int64
+	Batch_hash BroadcastBatchHash
 }
 
 type BroadcastHeader struct {
@@ -822,6 +827,14 @@ func XDR_BroadcastMessageHash(v *BroadcastMessageHash) XdrType_BroadcastMessageH
 }
 func (XdrType_BroadcastMessageHash) XdrTypeName() string { return "BroadcastMessageHash" }
 func (v XdrType_BroadcastMessageHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_BroadcastBatchHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_BroadcastBatchHash(v *BroadcastBatchHash) XdrType_BroadcastBatchHash {
+	return XdrType_BroadcastBatchHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_BroadcastBatchHash) XdrTypeName() string { return "BroadcastBatchHash" }
+func (v XdrType_BroadcastBatchHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrVec_unbounded_MulticastTreeHash []MulticastTreeHash
 func (_XdrVec_unbounded_MulticastTreeHash) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -965,6 +978,8 @@ func (v *BroadcastChannel) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%ssource_id", name), XDR_ValidatorID(&v.Source_id))
 	x.Marshal(x.Sprintf("%schannel_id", name), XDR_BroadcastChannelID(&v.Channel_id))
 	x.Marshal(x.Sprintf("%stree_hash", name), XDR_MulticastTreeHash(&v.Tree_hash))
+	x.Marshal(x.Sprintf("%sbatch_size", name), XDR_int64(&v.Batch_size))
+	x.Marshal(x.Sprintf("%sbatch_hash", name), XDR_BroadcastBatchHash(&v.Batch_hash))
 }
 func XDR_BroadcastChannel(v *BroadcastChannel) *BroadcastChannel { return v }
 type _XdrPtr_BroadcastMessageHash struct {
