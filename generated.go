@@ -573,7 +573,10 @@ type SoloFollower1 interface {
 	Solofollower_externalized(context.Context, SoloSignedExternalized) error
 }
 
+type SpectraTransmissionID = int64
+
 type SpectraHeader struct {
+	Transmission_id SpectraTransmissionID
 	Num_payload_channels uint32
 	Num_parity_channels uint32
 	Payload_size uint64
@@ -6210,6 +6213,14 @@ func (c SoloFollower1_Client) Solofollower_externalized(ctx context.Context, a1 
 	}
 	return nil
 }
+type XdrType_SpectraTransmissionID struct {
+	XdrType_int64
+}
+func XDR_SpectraTransmissionID(v *SpectraTransmissionID) XdrType_SpectraTransmissionID {
+	return XdrType_SpectraTransmissionID{XDR_int64(v)}
+}
+func (XdrType_SpectraTransmissionID) XdrTypeName() string { return "SpectraTransmissionID" }
+func (v XdrType_SpectraTransmissionID) XdrUnwrap() XdrType { return v.XdrType_int64 }
 type XdrType_SpectraHeader = *SpectraHeader
 func (v *SpectraHeader) XdrPointer() interface{} { return v }
 func (SpectraHeader) XdrTypeName() string { return "SpectraHeader" }
@@ -6219,6 +6230,7 @@ func (v *SpectraHeader) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%stransmission_id", name), XDR_SpectraTransmissionID(&v.Transmission_id))
 	x.Marshal(x.Sprintf("%snum_payload_channels", name), XDR_uint32(&v.Num_payload_channels))
 	x.Marshal(x.Sprintf("%snum_parity_channels", name), XDR_uint32(&v.Num_parity_channels))
 	x.Marshal(x.Sprintf("%spayload_size", name), XDR_uint64(&v.Payload_size))
