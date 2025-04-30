@@ -110,7 +110,7 @@ type BroadcastConfig struct {
 }
 
 type SpectraConfig struct {
-	Num_data_channels uint32
+	Num_payload_channels uint32
 	Num_parity_channels uint32
 }
 
@@ -573,7 +573,7 @@ type SoloFollower1 interface {
 }
 
 type SpectraHeader struct {
-	Num_data_channels uint32
+	Num_payload_channels uint32
 	Num_parity_channels uint32
 	Payload_size uint64
 	Shard_size uint64
@@ -1748,7 +1748,7 @@ func (v *SpectraConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%snum_data_channels", name), XDR_uint32(&v.Num_data_channels))
+	x.Marshal(x.Sprintf("%snum_payload_channels", name), XDR_uint32(&v.Num_payload_channels))
 	x.Marshal(x.Sprintf("%snum_parity_channels", name), XDR_uint32(&v.Num_parity_channels))
 }
 func XDR_SpectraConfig(v *SpectraConfig) *SpectraConfig { return v }
@@ -6216,7 +6216,7 @@ func (v *SpectraHeader) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%snum_data_channels", name), XDR_uint32(&v.Num_data_channels))
+	x.Marshal(x.Sprintf("%snum_payload_channels", name), XDR_uint32(&v.Num_payload_channels))
 	x.Marshal(x.Sprintf("%snum_parity_channels", name), XDR_uint32(&v.Num_parity_channels))
 	x.Marshal(x.Sprintf("%spayload_size", name), XDR_uint64(&v.Payload_size))
 	x.Marshal(x.Sprintf("%sshard_size", name), XDR_uint64(&v.Shard_size))
