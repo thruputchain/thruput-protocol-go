@@ -104,8 +104,9 @@ type WalletConfig struct {
 }
 
 type BroadcastConfig struct {
-	Multicast_tree_ttl_sec uint32
-	Chunk_size uint32
+	// milliseconds
+	Multicast_tree_ttl_msec uint32
+	Chunk_size uint64
 }
 
 type SpectraConfig struct {
@@ -1727,8 +1728,8 @@ func (v *BroadcastConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%smulticast_tree_ttl_sec", name), XDR_uint32(&v.Multicast_tree_ttl_sec))
-	x.Marshal(x.Sprintf("%schunk_size", name), XDR_uint32(&v.Chunk_size))
+	x.Marshal(x.Sprintf("%smulticast_tree_ttl_msec", name), XDR_uint32(&v.Multicast_tree_ttl_msec))
+	x.Marshal(x.Sprintf("%schunk_size", name), XDR_uint64(&v.Chunk_size))
 }
 func XDR_BroadcastConfig(v *BroadcastConfig) *BroadcastConfig { return v }
 type XdrType_SpectraConfig = *SpectraConfig
