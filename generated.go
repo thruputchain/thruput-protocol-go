@@ -112,6 +112,7 @@ type BroadcastConfig struct {
 type SpectraConfig struct {
 	Num_payload_channels uint32
 	Num_parity_channels uint32
+	Partial_ttl_msec uint64
 }
 
 type Config struct {
@@ -1751,6 +1752,7 @@ func (v *SpectraConfig) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%snum_payload_channels", name), XDR_uint32(&v.Num_payload_channels))
 	x.Marshal(x.Sprintf("%snum_parity_channels", name), XDR_uint32(&v.Num_parity_channels))
+	x.Marshal(x.Sprintf("%spartial_ttl_msec", name), XDR_uint64(&v.Partial_ttl_msec))
 }
 func XDR_SpectraConfig(v *SpectraConfig) *SpectraConfig { return v }
 type _XdrPtr_ValidatorConfig struct {
