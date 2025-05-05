@@ -117,7 +117,7 @@ type CatchupBlocksRequest struct {
 	// requester to ask for blocks whose hashes are not known ahead of time. For
 	// instance, the caller can request the block that is currently being
 	// prepared.
-	Starting_block_height BlockHeight
+	Onto_block_height BlockHeight
 }
 
 type SignedCatchupBlocksRequest struct {
@@ -1861,7 +1861,7 @@ func (v *CatchupBlocksRequest) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
-	x.Marshal(x.Sprintf("%sstarting_block_height", name), XDR_BlockHeight(&v.Starting_block_height))
+	x.Marshal(x.Sprintf("%sonto_block_height", name), XDR_BlockHeight(&v.Onto_block_height))
 }
 func XDR_CatchupBlocksRequest(v *CatchupBlocksRequest) *CatchupBlocksRequest { return v }
 type XdrType_SignedCatchupBlocksRequest = *SignedCatchupBlocksRequest
