@@ -113,11 +113,8 @@ type CatchupBlock struct {
 
 type CatchupBlocksRequest struct {
 	Timestamp Timestamp
-	// We intentionally use only block height (and not block hashes) to enable the
-	// requester to ask for blocks whose hashes are not known ahead of time. For
-	// instance, the caller can request the block that is currently being
-	// prepared.
-	Onto_block_height BlockHeight
+	From_block_height BlockHeight
+	To_block_height BlockHeight
 }
 
 type SignedCatchupBlocksRequest struct {
@@ -470,8 +467,8 @@ type MultiplexMessage struct {
 	_u interface{}
 }
 
-// BlockHeight is the height of a block.
-type BlockHeight = uint64
+// BlockHeight is the height of a block. It is signed to prevent overflows in calculations.
+type BlockHeight = int64
 
 type BlockHash = SHA256Hash
 
@@ -1941,7 +1938,8 @@ func (v *CatchupBlocksRequest) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
-	x.Marshal(x.Sprintf("%sonto_block_height", name), XDR_BlockHeight(&v.Onto_block_height))
+	x.Marshal(x.Sprintf("%sfrom_block_height", name), XDR_BlockHeight(&v.From_block_height))
+	x.Marshal(x.Sprintf("%sto_block_height", name), XDR_BlockHeight(&v.To_block_height))
 }
 func XDR_CatchupBlocksRequest(v *CatchupBlocksRequest) *CatchupBlocksRequest { return v }
 type XdrType_SignedCatchupBlocksRequest = *SignedCatchupBlocksRequest
@@ -5965,13 +5963,13 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 }
 func XDR_MultiplexMessage(v *MultiplexMessage) *MultiplexMessage { return v}
 type XdrType_BlockHeight struct {
-	XdrType_uint64
+	XdrType_int64
 }
 func XDR_BlockHeight(v *BlockHeight) XdrType_BlockHeight {
-	return XdrType_BlockHeight{XDR_uint64(v)}
+	return XdrType_BlockHeight{XDR_int64(v)}
 }
 func (XdrType_BlockHeight) XdrTypeName() string { return "BlockHeight" }
-func (v XdrType_BlockHeight) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+func (v XdrType_BlockHeight) XdrUnwrap() XdrType { return v.XdrType_int64 }
 type XdrType_BlockHash struct {
 	XdrType_SHA256Hash
 }
