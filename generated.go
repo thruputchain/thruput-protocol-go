@@ -142,6 +142,8 @@ type Catchup1 interface {
 	Catchup_blocks(context.Context, SignedCatchupBlocksRequest) (SignedCatchupBlocksResult, error)
 }
 
+type Milliseconds = int64
+
 // ValidatorConfig holds the network configuration of a validator.
 type ValidatorConfig struct {
 	Private_info ValidatorPrivateInfo
@@ -153,23 +155,41 @@ type WalletConfig struct {
 	Users []WalletUser
 }
 
+type DiscoveryConfig struct {
+	Advertise_interval_msec Milliseconds
+	Advertise_par uint32
+	Snapshot_ttl_msec Milliseconds
+}
+
+type RouterConfig struct {
+	Tree_fan_out uint32
+}
+
 type BroadcastConfig struct {
 	// milliseconds
-	Multicast_tree_ttl_msec uint32
+	Multicast_tree_ttl_msec Milliseconds
 	Chunk_size uint64
 }
 
 type SpectraConfig struct {
 	Num_payload_channels uint32
 	Num_parity_channels uint32
-	Partial_ttl_msec uint64
+	Partial_ttl_msec Milliseconds
+}
+
+type MempoolConfig struct {
+	Proposed_batch_ttl_msec Milliseconds
+	Transaction_ttl_msec Milliseconds
 }
 
 type Config struct {
 	Validator_config *ValidatorConfig
 	Wallet_config *WalletConfig
+	Discovery_config *DiscoveryConfig
+	Router_config *RouterConfig
 	Broadcast_config *BroadcastConfig
 	Spectra_config *SpectraConfig
+	Mempool_config *MempoolConfig
 }
 
 type ContractBlob = []byte
@@ -2125,6 +2145,14 @@ func (c Catchup1_Client) Catchup_blocks(ctx context.Context, a1 SignedCatchupBlo
 	}
 	return *proc.Res, nil
 }
+type XdrType_Milliseconds struct {
+	XdrType_int64
+}
+func XDR_Milliseconds(v *Milliseconds) XdrType_Milliseconds {
+	return XdrType_Milliseconds{XDR_int64(v)}
+}
+func (XdrType_Milliseconds) XdrTypeName() string { return "Milliseconds" }
+func (v XdrType_Milliseconds) XdrUnwrap() XdrType { return v.XdrType_int64 }
 type _XdrVec_unbounded_ValidatorPublicInfo []ValidatorPublicInfo
 func (_XdrVec_unbounded_ValidatorPublicInfo) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -2261,6 +2289,32 @@ func (v *WalletConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%susers", name), (*_XdrVec_unbounded_WalletUser)(&v.Users))
 }
 func XDR_WalletConfig(v *WalletConfig) *WalletConfig { return v }
+type XdrType_DiscoveryConfig = *DiscoveryConfig
+func (v *DiscoveryConfig) XdrPointer() interface{} { return v }
+func (DiscoveryConfig) XdrTypeName() string { return "DiscoveryConfig" }
+func (v DiscoveryConfig) XdrValue() interface{} { return v }
+func (v *DiscoveryConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DiscoveryConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sadvertise_interval_msec", name), XDR_Milliseconds(&v.Advertise_interval_msec))
+	x.Marshal(x.Sprintf("%sadvertise_par", name), XDR_uint32(&v.Advertise_par))
+	x.Marshal(x.Sprintf("%ssnapshot_ttl_msec", name), XDR_Milliseconds(&v.Snapshot_ttl_msec))
+}
+func XDR_DiscoveryConfig(v *DiscoveryConfig) *DiscoveryConfig { return v }
+type XdrType_RouterConfig = *RouterConfig
+func (v *RouterConfig) XdrPointer() interface{} { return v }
+func (RouterConfig) XdrTypeName() string { return "RouterConfig" }
+func (v RouterConfig) XdrValue() interface{} { return v }
+func (v *RouterConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *RouterConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stree_fan_out", name), XDR_uint32(&v.Tree_fan_out))
+}
+func XDR_RouterConfig(v *RouterConfig) *RouterConfig { return v }
 type XdrType_BroadcastConfig = *BroadcastConfig
 func (v *BroadcastConfig) XdrPointer() interface{} { return v }
 func (BroadcastConfig) XdrTypeName() string { return "BroadcastConfig" }
@@ -2270,7 +2324,7 @@ func (v *BroadcastConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%smulticast_tree_ttl_msec", name), XDR_uint32(&v.Multicast_tree_ttl_msec))
+	x.Marshal(x.Sprintf("%smulticast_tree_ttl_msec", name), XDR_Milliseconds(&v.Multicast_tree_ttl_msec))
 	x.Marshal(x.Sprintf("%schunk_size", name), XDR_uint64(&v.Chunk_size))
 }
 func XDR_BroadcastConfig(v *BroadcastConfig) *BroadcastConfig { return v }
@@ -2285,9 +2339,22 @@ func (v *SpectraConfig) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%snum_payload_channels", name), XDR_uint32(&v.Num_payload_channels))
 	x.Marshal(x.Sprintf("%snum_parity_channels", name), XDR_uint32(&v.Num_parity_channels))
-	x.Marshal(x.Sprintf("%spartial_ttl_msec", name), XDR_uint64(&v.Partial_ttl_msec))
+	x.Marshal(x.Sprintf("%spartial_ttl_msec", name), XDR_Milliseconds(&v.Partial_ttl_msec))
 }
 func XDR_SpectraConfig(v *SpectraConfig) *SpectraConfig { return v }
+type XdrType_MempoolConfig = *MempoolConfig
+func (v *MempoolConfig) XdrPointer() interface{} { return v }
+func (MempoolConfig) XdrTypeName() string { return "MempoolConfig" }
+func (v MempoolConfig) XdrValue() interface{} { return v }
+func (v *MempoolConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *MempoolConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sproposed_batch_ttl_msec", name), XDR_Milliseconds(&v.Proposed_batch_ttl_msec))
+	x.Marshal(x.Sprintf("%stransaction_ttl_msec", name), XDR_Milliseconds(&v.Transaction_ttl_msec))
+}
+func XDR_MempoolConfig(v *MempoolConfig) *MempoolConfig { return v }
 type _XdrPtr_ValidatorConfig struct {
 	p **ValidatorConfig
 }
@@ -2430,6 +2497,148 @@ func (v _XdrPtr_WalletConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_WalletConfig) XdrTypeName() string { return "WalletConfig*" }
 func (v _XdrPtr_WalletConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_WalletConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_DiscoveryConfig struct {
+	p **DiscoveryConfig
+}
+type _ptrflag_DiscoveryConfig _XdrPtr_DiscoveryConfig
+func (v _ptrflag_DiscoveryConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_DiscoveryConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("DiscoveryConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_DiscoveryConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_DiscoveryConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(DiscoveryConfig)
+		}
+	default:
+		XdrPanic("*DiscoveryConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_DiscoveryConfig) XdrTypeName() string { return "DiscoveryConfig?" }
+func (v _ptrflag_DiscoveryConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_DiscoveryConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_DiscoveryConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_DiscoveryConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_DiscoveryConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_DiscoveryConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(DiscoveryConfig)
+	}
+}
+func (v _XdrPtr_DiscoveryConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_DiscoveryConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_DiscoveryConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_DiscoveryConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_DiscoveryConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_DiscoveryConfig) XdrTypeName() string { return "DiscoveryConfig*" }
+func (v _XdrPtr_DiscoveryConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_DiscoveryConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_RouterConfig struct {
+	p **RouterConfig
+}
+type _ptrflag_RouterConfig _XdrPtr_RouterConfig
+func (v _ptrflag_RouterConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_RouterConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("RouterConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_RouterConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_RouterConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(RouterConfig)
+		}
+	default:
+		XdrPanic("*RouterConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_RouterConfig) XdrTypeName() string { return "RouterConfig?" }
+func (v _ptrflag_RouterConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_RouterConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_RouterConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_RouterConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_RouterConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_RouterConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(RouterConfig)
+	}
+}
+func (v _XdrPtr_RouterConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_RouterConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_RouterConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_RouterConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_RouterConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_RouterConfig) XdrTypeName() string { return "RouterConfig*" }
+func (v _XdrPtr_RouterConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_RouterConfig) XdrValue() interface{} { return *v.p }
 type _XdrPtr_BroadcastConfig struct {
 	p **BroadcastConfig
 }
@@ -2572,6 +2781,77 @@ func (v _XdrPtr_SpectraConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_SpectraConfig) XdrTypeName() string { return "SpectraConfig*" }
 func (v _XdrPtr_SpectraConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_SpectraConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_MempoolConfig struct {
+	p **MempoolConfig
+}
+type _ptrflag_MempoolConfig _XdrPtr_MempoolConfig
+func (v _ptrflag_MempoolConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_MempoolConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("MempoolConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_MempoolConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_MempoolConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(MempoolConfig)
+		}
+	default:
+		XdrPanic("*MempoolConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_MempoolConfig) XdrTypeName() string { return "MempoolConfig?" }
+func (v _ptrflag_MempoolConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_MempoolConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_MempoolConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_MempoolConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_MempoolConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_MempoolConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(MempoolConfig)
+	}
+}
+func (v _XdrPtr_MempoolConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_MempoolConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_MempoolConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_MempoolConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_MempoolConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_MempoolConfig) XdrTypeName() string { return "MempoolConfig*" }
+func (v _XdrPtr_MempoolConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_MempoolConfig) XdrValue() interface{} { return *v.p }
 type XdrType_Config = *Config
 func (v *Config) XdrPointer() interface{} { return v }
 func (Config) XdrTypeName() string { return "Config" }
@@ -2583,8 +2863,11 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%svalidator_config", name), _XdrPtr_ValidatorConfig{&v.Validator_config})
 	x.Marshal(x.Sprintf("%swallet_config", name), _XdrPtr_WalletConfig{&v.Wallet_config})
+	x.Marshal(x.Sprintf("%sdiscovery_config", name), _XdrPtr_DiscoveryConfig{&v.Discovery_config})
+	x.Marshal(x.Sprintf("%srouter_config", name), _XdrPtr_RouterConfig{&v.Router_config})
 	x.Marshal(x.Sprintf("%sbroadcast_config", name), _XdrPtr_BroadcastConfig{&v.Broadcast_config})
 	x.Marshal(x.Sprintf("%sspectra_config", name), _XdrPtr_SpectraConfig{&v.Spectra_config})
+	x.Marshal(x.Sprintf("%smempool_config", name), _XdrPtr_MempoolConfig{&v.Mempool_config})
 }
 func XDR_Config(v *Config) *Config { return v }
 type XdrType_ContractBlob struct {
