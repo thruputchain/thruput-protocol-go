@@ -152,6 +152,7 @@ type ValidatorConfig struct {
 }
 
 type WalletConfig struct {
+	Secret_key JWTSecretKey
 	Users []WalletUser
 }
 
@@ -274,7 +275,7 @@ type Coordinator1 interface {
 type DbCoord1 interface {
 	Dbcoord_null(context.Context, ) error
 	Dbcoord_open_snapshot(context.Context, BlockID, BlockID) (RPCError, error)
-	Dbcoord_commit_snapshot(context.Context, BlockID) error
+	Dbcoord_commit_snapshot(context.Context, BlockID) (RPCError, error)
 	Dbcoord_close_snapshot(context.Context, BlockID) (RPCError, error)
 }
 
@@ -344,13 +345,15 @@ type ExecutorCoord1 interface {
 
 type DatabaseToExecutorInterfaceV1 interface {
 	Try_reserve_delta(context.Context, BlockID, TransactionID, AddressAndKey, StorageDelta, StorageItemRPCFlagSet) (ExpectedStorageCost, error)
-	Commit_transaction(context.Context, BlockID, TransactionID) error
-	Abort_transaction(context.Context, BlockID, TransactionID) error
+	Commit_transaction(context.Context, BlockID, TransactionID) (RPCError, error)
+	Abort_transaction(context.Context, BlockID, TransactionID) (RPCError, error)
 	Push_new_subtransaction(context.Context, BlockID, TransactionID) (RPCError, error)
 	Pop_subtransactions(context.Context, BlockID, TransactionID, uint32) (RPCError, error)
 	Get_snapshot_item(context.Context, BlockID, AddressAndKey) (ExpectedStorageItem, error)
-	Commit_contract_create(context.Context, BlockID, Contract) error
-	Commit_contract_deploy(context.Context, BlockID, ContractAddress, SHA256Hash) error
+	Get_next_retrocausal_queue_block(context.Context, BlockID, AddressAndKey, uint64) (ExpectedRetrocausalQueueBlock, error)
+	Get_concurrent_retrocausal_queue_entry(context.Context, BlockID, AddressAndKey, uint32) (ExpectedQueueEntry, error)
+	Commit_contract_create(context.Context, BlockID, Contract) (RPCError, error)
+	Commit_contract_deploy(context.Context, BlockID, ContractAddress, SHA256Hash) (RPCError, error)
 	Get_contract(context.Context, BlockID, SHA256Hash) (ExpectedContract, error)
 	Get_deployment(context.Context, BlockID, ContractAddress) (ExpectedDeployment, error)
 }
@@ -380,9 +383,16 @@ const (
 	// Runtime exceeded its gas budget.
 	KInvokeOutOfGas InvokeErrorCode = 2
 	// Nondeterministic error during invocation (e.g. malloc error)
+	// Signals a serious system issue or a serious bug in our code and should be
+	// diagnosed ASAP.
 	KInvokeUnrecoverable InvokeErrorCode = 3
 	// Discovered during validation that proposer submitted bad data.
 	KInvokeValidationFailure InvokeErrorCode = 4
+	// The transaction was aborted due to an external reason (such as the current
+	// block being discarded),
+	// but this is not the result of a totally unrecoverable error. This is to be
+	// expected during normal system operation.
+	KInvokeAbortTransaction InvokeErrorCode = 5
 )
 
 // HostFunctionErrorCode categorizes errors returned from system calls. The
@@ -412,6 +422,8 @@ const (
 	//
 	// Result: the WebAssembly runtime immediately returns an
 	// InvokeErrorCode::kUnrecoverable
+	// Signals a serious system issue or a serious bug in our code and should be
+	// diagnosed ASAP.
 	KHostUnrecoverable HostFnErrorCode = 2
 	// Return from a WebAssembly invocation to the caller.  Registers a byte
 	// buffer to be passed back to the caller.
@@ -432,6 +444,13 @@ const (
 	// Result: the WebAssembly runtime immediately returns an
 	// InvokeErrorCode::kValidationFailure
 	KHostValidationFailure HostFnErrorCode = 5
+	// The transaction was aborted due to an external reason (such as the current
+	// block being discarded), but this is not the result of a totally
+	// unrecoverable error. This is to be expected during normal system operation.
+	//
+	// Result: the WebAssembly runtime immediately returns an
+	// InvokeErrorCode::kAbortTransaction
+	KHostAbortTransaction HostFnErrorCode = 6
 )
 
 type MultiplexMessageType int32
@@ -538,6 +557,8 @@ const (
 	KRPCValidationFailure RPCError = 8
 	// Unimplemented RPC
 	KRPCUnimplemented RPCError = 9
+	// No retrocausal queue block or entryfound
+	KRPCNoQueueEntry RPCError = 10
 )
 
 // Flags modifying one Executor->DB storage item RPC
@@ -599,6 +620,26 @@ type ExpectedStorageItem struct {
 	// The union discriminant Error selects among the following arms:
 	//   KRPCNone:
 	//      Item() *StorageItem
+	//   default:
+	//      void
+	Error RPCError
+	_u interface{}
+}
+
+type ExpectedRetrocausalQueueBlock struct {
+	// The union discriminant Error selects among the following arms:
+	//   KRPCNone:
+	//      Queue_block() *RetrocausalQueueBlock
+	//   default:
+	//      void
+	Error RPCError
+	_u interface{}
+}
+
+type ExpectedQueueEntry struct {
+	// The union discriminant Error selects among the following arms:
+	//   KRPCNone:
+	//      Queue_entry() *QueueEntry
 	//   default:
 	//      void
 	Error RPCError
@@ -955,6 +996,8 @@ type LogEntry struct {
 	Source_address ContractAddress
 	Message []byte // bound KMaxLogMessageLen
 }
+
+type JWTSecretKey = []byte
 
 type WalletUser struct {
 	Login string
@@ -2286,6 +2329,7 @@ func (v *WalletConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%ssecret_key", name), XDR_JWTSecretKey(&v.Secret_key))
 	x.Marshal(x.Sprintf("%susers", name), (*_XdrVec_unbounded_WalletUser)(&v.Users))
 }
 func XDR_WalletConfig(v *WalletConfig) *WalletConfig { return v }
@@ -3525,7 +3569,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dbcoord_open_snapshot{} // XXX
 
 type xdrProc_Dbcoord_commit_snapshot struct {
 	Arg *BlockID
-	Res *XdrVoid
+	Res *RPCError
 }
 func (xdrProc_Dbcoord_commit_snapshot) Prog() uint32 { return 2129102984 }
 func (xdrProc_Dbcoord_commit_snapshot) Vers() uint32 { return 1 }
@@ -3541,9 +3585,9 @@ func (p *xdrProc_Dbcoord_commit_snapshot) GetArg() XdrType {
 }
 func (p *xdrProc_Dbcoord_commit_snapshot) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(RPCError)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_RPCError(p.Res)
 }
 var _ XdrProc = &xdrProc_Dbcoord_commit_snapshot{} // XXX
 
@@ -3561,7 +3605,9 @@ func (p *xdrSrvProc_Dbcoord_commit_snapshot) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dbcoord_commit_snapshot) Do() {
-	err := p.Srv.Dbcoord_commit_snapshot(p.Ctx, *p.Arg)
+	r, err := p.Srv.Dbcoord_commit_snapshot(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -3680,13 +3726,13 @@ func (c DbCoord1_Client) Dbcoord_open_snapshot(ctx context.Context, a1 BlockID, 
 	}
 	return *proc.Res, nil
 }
-func (c DbCoord1_Client) Dbcoord_commit_snapshot(ctx context.Context, a1 BlockID) error {
+func (c DbCoord1_Client) Dbcoord_commit_snapshot(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
 	var proc xdrProc_Dbcoord_commit_snapshot
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c DbCoord1_Client) Dbcoord_close_snapshot(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
 	var proc xdrProc_Dbcoord_close_snapshot
@@ -4776,7 +4822,7 @@ var _ XdrType = &xdrProcArg_Commit_transaction{} // XXX
 
 type xdrProc_Commit_transaction struct {
 	Arg *xdrProcArg_Commit_transaction
-	Res *XdrVoid
+	Res *RPCError
 }
 func (xdrProc_Commit_transaction) Prog() uint32 { return 44444444 }
 func (xdrProc_Commit_transaction) Vers() uint32 { return 1 }
@@ -4792,9 +4838,9 @@ func (p *xdrProc_Commit_transaction) GetArg() XdrType {
 }
 func (p *xdrProc_Commit_transaction) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(RPCError)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_RPCError(p.Res)
 }
 var _ XdrProc = &xdrProc_Commit_transaction{} // XXX
 
@@ -4812,7 +4858,9 @@ func (p *xdrSrvProc_Commit_transaction) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Commit_transaction) Do() {
-	err := p.Srv.Commit_transaction(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Commit_transaction(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -4841,7 +4889,7 @@ var _ XdrType = &xdrProcArg_Abort_transaction{} // XXX
 
 type xdrProc_Abort_transaction struct {
 	Arg *xdrProcArg_Abort_transaction
-	Res *XdrVoid
+	Res *RPCError
 }
 func (xdrProc_Abort_transaction) Prog() uint32 { return 44444444 }
 func (xdrProc_Abort_transaction) Vers() uint32 { return 1 }
@@ -4857,9 +4905,9 @@ func (p *xdrProc_Abort_transaction) GetArg() XdrType {
 }
 func (p *xdrProc_Abort_transaction) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(RPCError)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_RPCError(p.Res)
 }
 var _ XdrProc = &xdrProc_Abort_transaction{} // XXX
 
@@ -4877,7 +4925,9 @@ func (p *xdrSrvProc_Abort_transaction) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Abort_transaction) Do() {
-	err := p.Srv.Abort_transaction(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Abort_transaction(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -5088,6 +5138,146 @@ func (p *xdrSrvProc_Get_snapshot_item) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_snapshot_item{} // XXX
 
+type xdrProcArg_Get_next_retrocausal_queue_block struct {
+	a1 *BlockID
+	a2 *AddressAndKey
+	a3 *uint64
+}
+func (v *xdrProcArg_Get_next_retrocausal_queue_block) XdrPointer() interface{} { return v }
+func (xdrProcArg_Get_next_retrocausal_queue_block) XdrTypeName() string { return "xdrProcArg_Get_next_retrocausal_queue_block" }
+func (v xdrProcArg_Get_next_retrocausal_queue_block) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Get_next_retrocausal_queue_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Get_next_retrocausal_queue_block) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(AddressAndKey) }
+	XDR_AddressAndKey(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(uint64) }
+	XDR_uint64(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
+}
+func XDR_xdrProcArg_Get_next_retrocausal_queue_block(v *xdrProcArg_Get_next_retrocausal_queue_block) *xdrProcArg_Get_next_retrocausal_queue_block { return v }
+var _ XdrType = &xdrProcArg_Get_next_retrocausal_queue_block{} // XXX
+
+type xdrProc_Get_next_retrocausal_queue_block struct {
+	Arg *xdrProcArg_Get_next_retrocausal_queue_block
+	Res *ExpectedRetrocausalQueueBlock
+}
+func (xdrProc_Get_next_retrocausal_queue_block) Prog() uint32 { return 44444444 }
+func (xdrProc_Get_next_retrocausal_queue_block) Vers() uint32 { return 1 }
+func (xdrProc_Get_next_retrocausal_queue_block) Proc() uint32 { return 101 }
+func (xdrProc_Get_next_retrocausal_queue_block) ProgName() string { return "DatabaseToExecutorInterface" }
+func (xdrProc_Get_next_retrocausal_queue_block) VersName() string { return "DatabaseToExecutorInterfaceV1" }
+func (xdrProc_Get_next_retrocausal_queue_block) ProcName() string { return "get_next_retrocausal_queue_block" }
+func (p *xdrProc_Get_next_retrocausal_queue_block) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Get_next_retrocausal_queue_block)
+	}
+	return XDR_xdrProcArg_Get_next_retrocausal_queue_block(p.Arg)
+}
+func (p *xdrProc_Get_next_retrocausal_queue_block) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(ExpectedRetrocausalQueueBlock)
+	}
+	return XDR_ExpectedRetrocausalQueueBlock(p.Res)
+}
+var _ XdrProc = &xdrProc_Get_next_retrocausal_queue_block{} // XXX
+
+type xdrSrvProc_Get_next_retrocausal_queue_block struct {
+	xdrProc_Get_next_retrocausal_queue_block
+	Srv DatabaseToExecutorInterfaceV1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Get_next_retrocausal_queue_block) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DatabaseToExecutorInterfaceV1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Get_next_retrocausal_queue_block) Do() {
+	r, err := p.Srv.Get_next_retrocausal_queue_block(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Get_next_retrocausal_queue_block{} // XXX
+
+type xdrProcArg_Get_concurrent_retrocausal_queue_entry struct {
+	a1 *BlockID
+	a2 *AddressAndKey
+	a3 *uint32
+}
+func (v *xdrProcArg_Get_concurrent_retrocausal_queue_entry) XdrPointer() interface{} { return v }
+func (xdrProcArg_Get_concurrent_retrocausal_queue_entry) XdrTypeName() string { return "xdrProcArg_Get_concurrent_retrocausal_queue_entry" }
+func (v xdrProcArg_Get_concurrent_retrocausal_queue_entry) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Get_concurrent_retrocausal_queue_entry) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Get_concurrent_retrocausal_queue_entry) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(AddressAndKey) }
+	XDR_AddressAndKey(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(uint32) }
+	XDR_uint32(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
+}
+func XDR_xdrProcArg_Get_concurrent_retrocausal_queue_entry(v *xdrProcArg_Get_concurrent_retrocausal_queue_entry) *xdrProcArg_Get_concurrent_retrocausal_queue_entry { return v }
+var _ XdrType = &xdrProcArg_Get_concurrent_retrocausal_queue_entry{} // XXX
+
+type xdrProc_Get_concurrent_retrocausal_queue_entry struct {
+	Arg *xdrProcArg_Get_concurrent_retrocausal_queue_entry
+	Res *ExpectedQueueEntry
+}
+func (xdrProc_Get_concurrent_retrocausal_queue_entry) Prog() uint32 { return 44444444 }
+func (xdrProc_Get_concurrent_retrocausal_queue_entry) Vers() uint32 { return 1 }
+func (xdrProc_Get_concurrent_retrocausal_queue_entry) Proc() uint32 { return 102 }
+func (xdrProc_Get_concurrent_retrocausal_queue_entry) ProgName() string { return "DatabaseToExecutorInterface" }
+func (xdrProc_Get_concurrent_retrocausal_queue_entry) VersName() string { return "DatabaseToExecutorInterfaceV1" }
+func (xdrProc_Get_concurrent_retrocausal_queue_entry) ProcName() string { return "get_concurrent_retrocausal_queue_entry" }
+func (p *xdrProc_Get_concurrent_retrocausal_queue_entry) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Get_concurrent_retrocausal_queue_entry)
+	}
+	return XDR_xdrProcArg_Get_concurrent_retrocausal_queue_entry(p.Arg)
+}
+func (p *xdrProc_Get_concurrent_retrocausal_queue_entry) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(ExpectedQueueEntry)
+	}
+	return XDR_ExpectedQueueEntry(p.Res)
+}
+var _ XdrProc = &xdrProc_Get_concurrent_retrocausal_queue_entry{} // XXX
+
+type xdrSrvProc_Get_concurrent_retrocausal_queue_entry struct {
+	xdrProc_Get_concurrent_retrocausal_queue_entry
+	Srv DatabaseToExecutorInterfaceV1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Get_concurrent_retrocausal_queue_entry) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DatabaseToExecutorInterfaceV1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Get_concurrent_retrocausal_queue_entry) Do() {
+	r, err := p.Srv.Get_concurrent_retrocausal_queue_entry(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Get_concurrent_retrocausal_queue_entry{} // XXX
+
 type xdrProcArg_Commit_contract_create struct {
 	a1 *BlockID
 	a2 *Contract
@@ -5110,11 +5300,11 @@ var _ XdrType = &xdrProcArg_Commit_contract_create{} // XXX
 
 type xdrProc_Commit_contract_create struct {
 	Arg *xdrProcArg_Commit_contract_create
-	Res *XdrVoid
+	Res *RPCError
 }
 func (xdrProc_Commit_contract_create) Prog() uint32 { return 44444444 }
 func (xdrProc_Commit_contract_create) Vers() uint32 { return 1 }
-func (xdrProc_Commit_contract_create) Proc() uint32 { return 101 }
+func (xdrProc_Commit_contract_create) Proc() uint32 { return 200 }
 func (xdrProc_Commit_contract_create) ProgName() string { return "DatabaseToExecutorInterface" }
 func (xdrProc_Commit_contract_create) VersName() string { return "DatabaseToExecutorInterfaceV1" }
 func (xdrProc_Commit_contract_create) ProcName() string { return "commit_contract_create" }
@@ -5126,9 +5316,9 @@ func (p *xdrProc_Commit_contract_create) GetArg() XdrType {
 }
 func (p *xdrProc_Commit_contract_create) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(RPCError)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_RPCError(p.Res)
 }
 var _ XdrProc = &xdrProc_Commit_contract_create{} // XXX
 
@@ -5146,7 +5336,9 @@ func (p *xdrSrvProc_Commit_contract_create) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Commit_contract_create) Do() {
-	err := p.Srv.Commit_contract_create(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Commit_contract_create(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -5178,11 +5370,11 @@ var _ XdrType = &xdrProcArg_Commit_contract_deploy{} // XXX
 
 type xdrProc_Commit_contract_deploy struct {
 	Arg *xdrProcArg_Commit_contract_deploy
-	Res *XdrVoid
+	Res *RPCError
 }
 func (xdrProc_Commit_contract_deploy) Prog() uint32 { return 44444444 }
 func (xdrProc_Commit_contract_deploy) Vers() uint32 { return 1 }
-func (xdrProc_Commit_contract_deploy) Proc() uint32 { return 102 }
+func (xdrProc_Commit_contract_deploy) Proc() uint32 { return 201 }
 func (xdrProc_Commit_contract_deploy) ProgName() string { return "DatabaseToExecutorInterface" }
 func (xdrProc_Commit_contract_deploy) VersName() string { return "DatabaseToExecutorInterfaceV1" }
 func (xdrProc_Commit_contract_deploy) ProcName() string { return "commit_contract_deploy" }
@@ -5194,9 +5386,9 @@ func (p *xdrProc_Commit_contract_deploy) GetArg() XdrType {
 }
 func (p *xdrProc_Commit_contract_deploy) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(RPCError)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_RPCError(p.Res)
 }
 var _ XdrProc = &xdrProc_Commit_contract_deploy{} // XXX
 
@@ -5214,7 +5406,9 @@ func (p *xdrSrvProc_Commit_contract_deploy) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Commit_contract_deploy) Do() {
-	err := p.Srv.Commit_contract_deploy(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	r, err := p.Srv.Commit_contract_deploy(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -5247,7 +5441,7 @@ type xdrProc_Get_contract struct {
 }
 func (xdrProc_Get_contract) Prog() uint32 { return 44444444 }
 func (xdrProc_Get_contract) Vers() uint32 { return 1 }
-func (xdrProc_Get_contract) Proc() uint32 { return 103 }
+func (xdrProc_Get_contract) Proc() uint32 { return 202 }
 func (xdrProc_Get_contract) ProgName() string { return "DatabaseToExecutorInterface" }
 func (xdrProc_Get_contract) VersName() string { return "DatabaseToExecutorInterfaceV1" }
 func (xdrProc_Get_contract) ProcName() string { return "get_contract" }
@@ -5314,7 +5508,7 @@ type xdrProc_Get_deployment struct {
 }
 func (xdrProc_Get_deployment) Prog() uint32 { return 44444444 }
 func (xdrProc_Get_deployment) Vers() uint32 { return 1 }
-func (xdrProc_Get_deployment) Proc() uint32 { return 104 }
+func (xdrProc_Get_deployment) Proc() uint32 { return 203 }
 func (xdrProc_Get_deployment) ProgName() string { return "DatabaseToExecutorInterface" }
 func (xdrProc_Get_deployment) VersName() string { return "DatabaseToExecutorInterfaceV1" }
 func (xdrProc_Get_deployment) ProcName() string { return "get_deployment" }
@@ -5371,12 +5565,16 @@ func init() {
 		case 100:
 			return &xdrProc_Get_snapshot_item{}
 		case 101:
-			return &xdrProc_Commit_contract_create{}
+			return &xdrProc_Get_next_retrocausal_queue_block{}
 		case 102:
+			return &xdrProc_Get_concurrent_retrocausal_queue_entry{}
+		case 200:
+			return &xdrProc_Commit_contract_create{}
+		case 201:
 			return &xdrProc_Commit_contract_deploy{}
-		case 103:
+		case 202:
 			return &xdrProc_Get_contract{}
-		case 104:
+		case 203:
 			return &xdrProc_Get_deployment{}
 		}
 		return nil
@@ -5404,13 +5602,17 @@ func (s DatabaseToExecutorInterfaceV1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Pop_subtransactions{ Srv: s.Srv }
 	case 100:  // get_snapshot_item
 		return &xdrSrvProc_Get_snapshot_item{ Srv: s.Srv }
-	case 101:  // commit_contract_create
+	case 101:  // get_next_retrocausal_queue_block
+		return &xdrSrvProc_Get_next_retrocausal_queue_block{ Srv: s.Srv }
+	case 102:  // get_concurrent_retrocausal_queue_entry
+		return &xdrSrvProc_Get_concurrent_retrocausal_queue_entry{ Srv: s.Srv }
+	case 200:  // commit_contract_create
 		return &xdrSrvProc_Commit_contract_create{ Srv: s.Srv }
-	case 102:  // commit_contract_deploy
+	case 201:  // commit_contract_deploy
 		return &xdrSrvProc_Commit_contract_deploy{ Srv: s.Srv }
-	case 103:  // get_contract
+	case 202:  // get_contract
 		return &xdrSrvProc_Get_contract{ Srv: s.Srv }
-	case 104:  // get_deployment
+	case 203:  // get_deployment
 		return &xdrSrvProc_Get_deployment{ Srv: s.Srv }
 	default:
 		return nil
@@ -5440,25 +5642,25 @@ func (c DatabaseToExecutorInterfaceV1_Client) Try_reserve_delta(ctx context.Cont
 	}
 	return *proc.Res, nil
 }
-func (c DatabaseToExecutorInterfaceV1_Client) Commit_transaction(ctx context.Context, a1 BlockID, a2 TransactionID) error {
+func (c DatabaseToExecutorInterfaceV1_Client) Commit_transaction(ctx context.Context, a1 BlockID, a2 TransactionID) (r RPCError, _ error) {
 	var proc xdrProc_Commit_transaction
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
-func (c DatabaseToExecutorInterfaceV1_Client) Abort_transaction(ctx context.Context, a1 BlockID, a2 TransactionID) error {
+func (c DatabaseToExecutorInterfaceV1_Client) Abort_transaction(ctx context.Context, a1 BlockID, a2 TransactionID) (r RPCError, _ error) {
 	var proc xdrProc_Abort_transaction
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c DatabaseToExecutorInterfaceV1_Client) Push_new_subtransaction(ctx context.Context, a1 BlockID, a2 TransactionID) (r RPCError, _ error) {
 	var proc xdrProc_Push_new_subtransaction
@@ -5491,26 +5693,48 @@ func (c DatabaseToExecutorInterfaceV1_Client) Get_snapshot_item(ctx context.Cont
 	}
 	return *proc.Res, nil
 }
-func (c DatabaseToExecutorInterfaceV1_Client) Commit_contract_create(ctx context.Context, a1 BlockID, a2 Contract) error {
+func (c DatabaseToExecutorInterfaceV1_Client) Get_next_retrocausal_queue_block(ctx context.Context, a1 BlockID, a2 AddressAndKey, a3 uint64) (r ExpectedRetrocausalQueueBlock, _ error) {
+	var proc xdrProc_Get_next_retrocausal_queue_block
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
+	proc.Arg.a3 = &a3
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DatabaseToExecutorInterfaceV1_Client) Get_concurrent_retrocausal_queue_entry(ctx context.Context, a1 BlockID, a2 AddressAndKey, a3 uint32) (r ExpectedQueueEntry, _ error) {
+	var proc xdrProc_Get_concurrent_retrocausal_queue_entry
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
+	proc.Arg.a3 = &a3
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DatabaseToExecutorInterfaceV1_Client) Commit_contract_create(ctx context.Context, a1 BlockID, a2 Contract) (r RPCError, _ error) {
 	var proc xdrProc_Commit_contract_create
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
-func (c DatabaseToExecutorInterfaceV1_Client) Commit_contract_deploy(ctx context.Context, a1 BlockID, a2 ContractAddress, a3 SHA256Hash) error {
+func (c DatabaseToExecutorInterfaceV1_Client) Commit_contract_deploy(ctx context.Context, a1 BlockID, a2 ContractAddress, a3 SHA256Hash) (r RPCError, _ error) {
 	var proc xdrProc_Commit_contract_deploy
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c DatabaseToExecutorInterfaceV1_Client) Get_contract(ctx context.Context, a1 BlockID, a2 SHA256Hash) (r ExpectedContract, _ error) {
 	var proc xdrProc_Get_contract
@@ -5538,6 +5762,7 @@ var _XdrNames_InvokeErrorCode = map[int32]string{
 	int32(KInvokeOutOfGas): "kInvokeOutOfGas",
 	int32(KInvokeUnrecoverable): "kInvokeUnrecoverable",
 	int32(KInvokeValidationFailure): "kInvokeValidationFailure",
+	int32(KInvokeAbortTransaction): "kInvokeAbortTransaction",
 }
 var _XdrValues_InvokeErrorCode = map[string]int32{
 	"kInvokeNone": int32(KInvokeNone),
@@ -5545,6 +5770,7 @@ var _XdrValues_InvokeErrorCode = map[string]int32{
 	"kInvokeOutOfGas": int32(KInvokeOutOfGas),
 	"kInvokeUnrecoverable": int32(KInvokeUnrecoverable),
 	"kInvokeValidationFailure": int32(KInvokeValidationFailure),
+	"kInvokeAbortTransaction": int32(KInvokeAbortTransaction),
 }
 func (InvokeErrorCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_InvokeErrorCode
@@ -5587,6 +5813,7 @@ var _XdrNames_HostFnErrorCode = map[int32]string{
 	int32(KHostReturn): "kHostReturn",
 	int32(KHostExit): "kHostExit",
 	int32(KHostValidationFailure): "kHostValidationFailure",
+	int32(KHostAbortTransaction): "kHostAbortTransaction",
 }
 var _XdrValues_HostFnErrorCode = map[string]int32{
 	"kHostNoneOrRecoverable": int32(KHostNoneOrRecoverable),
@@ -5595,6 +5822,7 @@ var _XdrValues_HostFnErrorCode = map[string]int32{
 	"kHostReturn": int32(KHostReturn),
 	"kHostExit": int32(KHostExit),
 	"kHostValidationFailure": int32(KHostValidationFailure),
+	"kHostAbortTransaction": int32(KHostAbortTransaction),
 }
 func (HostFnErrorCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_HostFnErrorCode
@@ -6047,6 +6275,7 @@ var _XdrNames_RPCError = map[int32]string{
 	int32(KRPCTransactionFailed): "kRPCTransactionFailed",
 	int32(KRPCValidationFailure): "kRPCValidationFailure",
 	int32(KRPCUnimplemented): "kRPCUnimplemented",
+	int32(KRPCNoQueueEntry): "kRPCNoQueueEntry",
 }
 var _XdrValues_RPCError = map[string]int32{
 	"kRPCNone": int32(KRPCNone),
@@ -6059,6 +6288,7 @@ var _XdrValues_RPCError = map[string]int32{
 	"kRPCTransactionFailed": int32(KRPCTransactionFailed),
 	"kRPCValidationFailure": int32(KRPCValidationFailure),
 	"kRPCUnimplemented": int32(KRPCUnimplemented),
+	"kRPCNoQueueEntry": int32(KRPCNoQueueEntry),
 }
 func (RPCError) XdrEnumNames() map[int32]string {
 	return _XdrNames_RPCError
@@ -6462,6 +6692,130 @@ func (u *ExpectedStorageItem) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_ExpectedStorageItem(v *ExpectedStorageItem) *ExpectedStorageItem { return v}
+func (_ ExpectedRetrocausalQueueBlock) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *ExpectedRetrocausalQueueBlock) Queue_block() *RetrocausalQueueBlock {
+	switch u.Error {
+	case KRPCNone:
+		if v, ok := u._u.(*RetrocausalQueueBlock); ok {
+			return v
+		} else {
+			var zero RetrocausalQueueBlock
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ExpectedRetrocausalQueueBlock.Queue_block accessed when Error == %v", u.Error)
+		return nil
+	}
+}
+func (u ExpectedRetrocausalQueueBlock) XdrValid() bool {
+	return true
+}
+func (u *ExpectedRetrocausalQueueBlock) XdrUnionTag() XdrNum32 {
+	return XDR_RPCError(&u.Error)
+}
+func (u *ExpectedRetrocausalQueueBlock) XdrUnionTagName() string {
+	return "Error"
+}
+func (u *ExpectedRetrocausalQueueBlock) XdrUnionBody() XdrType {
+	switch u.Error {
+	case KRPCNone:
+		return XDR_RetrocausalQueueBlock(u.Queue_block())
+	default:
+		return nil
+	}
+}
+func (u *ExpectedRetrocausalQueueBlock) XdrUnionBodyName() string {
+	switch u.Error {
+	case KRPCNone:
+		return "Queue_block"
+	default:
+		return ""
+	}
+}
+type XdrType_ExpectedRetrocausalQueueBlock = *ExpectedRetrocausalQueueBlock
+func (v *ExpectedRetrocausalQueueBlock) XdrPointer() interface{} { return v }
+func (ExpectedRetrocausalQueueBlock) XdrTypeName() string { return "ExpectedRetrocausalQueueBlock" }
+func (v ExpectedRetrocausalQueueBlock) XdrValue() interface{} { return v }
+func (v *ExpectedRetrocausalQueueBlock) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *ExpectedRetrocausalQueueBlock) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
+	switch u.Error {
+	case KRPCNone:
+		x.Marshal(x.Sprintf("%squeue_block", name), XDR_RetrocausalQueueBlock(u.Queue_block()))
+		return
+	default:
+		return
+	}
+}
+func XDR_ExpectedRetrocausalQueueBlock(v *ExpectedRetrocausalQueueBlock) *ExpectedRetrocausalQueueBlock { return v}
+func (_ ExpectedQueueEntry) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *ExpectedQueueEntry) Queue_entry() *QueueEntry {
+	switch u.Error {
+	case KRPCNone:
+		if v, ok := u._u.(*QueueEntry); ok {
+			return v
+		} else {
+			var zero QueueEntry
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ExpectedQueueEntry.Queue_entry accessed when Error == %v", u.Error)
+		return nil
+	}
+}
+func (u ExpectedQueueEntry) XdrValid() bool {
+	return true
+}
+func (u *ExpectedQueueEntry) XdrUnionTag() XdrNum32 {
+	return XDR_RPCError(&u.Error)
+}
+func (u *ExpectedQueueEntry) XdrUnionTagName() string {
+	return "Error"
+}
+func (u *ExpectedQueueEntry) XdrUnionBody() XdrType {
+	switch u.Error {
+	case KRPCNone:
+		return XDR_QueueEntry(u.Queue_entry())
+	default:
+		return nil
+	}
+}
+func (u *ExpectedQueueEntry) XdrUnionBodyName() string {
+	switch u.Error {
+	case KRPCNone:
+		return "Queue_entry"
+	default:
+		return ""
+	}
+}
+type XdrType_ExpectedQueueEntry = *ExpectedQueueEntry
+func (v *ExpectedQueueEntry) XdrPointer() interface{} { return v }
+func (ExpectedQueueEntry) XdrTypeName() string { return "ExpectedQueueEntry" }
+func (v ExpectedQueueEntry) XdrValue() interface{} { return v }
+func (v *ExpectedQueueEntry) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *ExpectedQueueEntry) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
+	switch u.Error {
+	case KRPCNone:
+		x.Marshal(x.Sprintf("%squeue_entry", name), XDR_QueueEntry(u.Queue_entry()))
+		return
+	default:
+		return
+	}
+}
+func XDR_ExpectedQueueEntry(v *ExpectedQueueEntry) *ExpectedQueueEntry { return v}
 var _XdrNames_ShardResult = map[int32]string{
 	int32(ShardOK): "ShardOK",
 }
@@ -8566,6 +8920,14 @@ func (v *LogEntry) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%smessage", name), XdrVecOpaque{&v.Message, KMaxLogMessageLen})
 }
 func XDR_LogEntry(v *LogEntry) *LogEntry { return v }
+type XdrType_JWTSecretKey struct {
+	XdrVecOpaque
+}
+func XDR_JWTSecretKey(v *JWTSecretKey) XdrType_JWTSecretKey {
+	return XdrType_JWTSecretKey{XdrVecOpaque{v, 0xffffffff}}
+}
+func (XdrType_JWTSecretKey) XdrTypeName() string { return "JWTSecretKey" }
+func (v XdrType_JWTSecretKey) XdrUnwrap() XdrType { return v.XdrVecOpaque }
 type XdrType_WalletUser = *WalletUser
 func (v *WalletUser) XdrPointer() interface{} { return v }
 func (WalletUser) XdrTypeName() string { return "WalletUser" }
