@@ -119,13 +119,13 @@ type CatchupSpan struct {
 
 type CatchupBlocksRequest struct {
 	Timestamp Timestamp
-	Span CatchupSpan
+	Spans []CatchupSpan
 }
 
 type SignedCatchupBlocksRequest struct {
 	Signer ValidatorPublicInfo
 	Signature Signature
-	Requests []CatchupBlocksRequest
+	Request CatchupBlocksRequest
 }
 
 type CatchupBlocksResult struct {
@@ -1949,33 +1949,20 @@ func (v *CatchupSpan) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sto_block_height", name), XDR_BlockHeight(&v.To_block_height))
 }
 func XDR_CatchupSpan(v *CatchupSpan) *CatchupSpan { return v }
-type XdrType_CatchupBlocksRequest = *CatchupBlocksRequest
-func (v *CatchupBlocksRequest) XdrPointer() interface{} { return v }
-func (CatchupBlocksRequest) XdrTypeName() string { return "CatchupBlocksRequest" }
-func (v CatchupBlocksRequest) XdrValue() interface{} { return v }
-func (v *CatchupBlocksRequest) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *CatchupBlocksRequest) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
-	x.Marshal(x.Sprintf("%sspan", name), XDR_CatchupSpan(&v.Span))
-}
-func XDR_CatchupBlocksRequest(v *CatchupBlocksRequest) *CatchupBlocksRequest { return v }
-type _XdrVec_unbounded_CatchupBlocksRequest []CatchupBlocksRequest
-func (_XdrVec_unbounded_CatchupBlocksRequest) XdrBound() uint32 {
+type _XdrVec_unbounded_CatchupSpan []CatchupSpan
+func (_XdrVec_unbounded_CatchupSpan) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_CatchupBlocksRequest) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_CatchupSpan) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_CatchupBlocksRequest length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_CatchupSpan length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_CatchupBlocksRequest length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_CatchupSpan length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_CatchupBlocksRequest) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_CatchupBlocksRequest) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_CatchupSpan) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_CatchupSpan) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -1992,31 +1979,44 @@ func (v *_XdrVec_unbounded_CatchupBlocksRequest) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]CatchupBlocksRequest, int(length), newcap)
+	nv := make([]CatchupSpan, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_CatchupBlocksRequest) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_CatchupSpan) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_CatchupBlocksRequest(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_CatchupSpan(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_CatchupBlocksRequest) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_CatchupSpan) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_CatchupBlocksRequest) XdrTypeName() string { return "CatchupBlocksRequest<>" }
-func (v *_XdrVec_unbounded_CatchupBlocksRequest) XdrPointer() interface{} { return (*[]CatchupBlocksRequest)(v) }
-func (v _XdrVec_unbounded_CatchupBlocksRequest) XdrValue() interface{} { return ([]CatchupBlocksRequest)(v) }
-func (v *_XdrVec_unbounded_CatchupBlocksRequest) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_XdrVec_unbounded_CatchupSpan) XdrTypeName() string { return "CatchupSpan<>" }
+func (v *_XdrVec_unbounded_CatchupSpan) XdrPointer() interface{} { return (*[]CatchupSpan)(v) }
+func (v _XdrVec_unbounded_CatchupSpan) XdrValue() interface{} { return ([]CatchupSpan)(v) }
+func (v *_XdrVec_unbounded_CatchupSpan) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_CatchupBlocksRequest = *CatchupBlocksRequest
+func (v *CatchupBlocksRequest) XdrPointer() interface{} { return v }
+func (CatchupBlocksRequest) XdrTypeName() string { return "CatchupBlocksRequest" }
+func (v CatchupBlocksRequest) XdrValue() interface{} { return v }
+func (v *CatchupBlocksRequest) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *CatchupBlocksRequest) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
+	x.Marshal(x.Sprintf("%sspans", name), (*_XdrVec_unbounded_CatchupSpan)(&v.Spans))
+}
+func XDR_CatchupBlocksRequest(v *CatchupBlocksRequest) *CatchupBlocksRequest { return v }
 type XdrType_SignedCatchupBlocksRequest = *SignedCatchupBlocksRequest
 func (v *SignedCatchupBlocksRequest) XdrPointer() interface{} { return v }
 func (SignedCatchupBlocksRequest) XdrTypeName() string { return "SignedCatchupBlocksRequest" }
@@ -2028,7 +2028,7 @@ func (v *SignedCatchupBlocksRequest) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%ssigner", name), XDR_ValidatorPublicInfo(&v.Signer))
 	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
-	x.Marshal(x.Sprintf("%srequests", name), (*_XdrVec_unbounded_CatchupBlocksRequest)(&v.Requests))
+	x.Marshal(x.Sprintf("%srequest", name), XDR_CatchupBlocksRequest(&v.Request))
 }
 func XDR_SignedCatchupBlocksRequest(v *SignedCatchupBlocksRequest) *SignedCatchupBlocksRequest { return v }
 type _XdrVec_unbounded_CatchupBlock []CatchupBlock
