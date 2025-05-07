@@ -467,7 +467,8 @@ type MultiplexMessage struct {
 	_u interface{}
 }
 
-// BlockHeight is the height of a block. It is signed to prevent overflows in calculations.
+// BlockHeight is the height of a block. It is signed to prevent overflows in
+// calculations.
 type BlockHeight = int64
 
 type BlockHash = SHA256Hash
@@ -655,7 +656,7 @@ type Shard1 interface {
 
 type SoloNodeID = [32]byte
 
-type SoloSlotIndex = uint64
+type SoloSlotIndex = int64
 
 type SoloValue = []byte
 
@@ -7011,13 +7012,13 @@ func XDR_SoloNodeID(v *SoloNodeID) XdrType_SoloNodeID {
 func (XdrType_SoloNodeID) XdrTypeName() string { return "SoloNodeID" }
 func (v XdrType_SoloNodeID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_SoloSlotIndex struct {
-	XdrType_uint64
+	XdrType_int64
 }
 func XDR_SoloSlotIndex(v *SoloSlotIndex) XdrType_SoloSlotIndex {
-	return XdrType_SoloSlotIndex{XDR_uint64(v)}
+	return XdrType_SoloSlotIndex{XDR_int64(v)}
 }
 func (XdrType_SoloSlotIndex) XdrTypeName() string { return "SoloSlotIndex" }
-func (v XdrType_SoloSlotIndex) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+func (v XdrType_SoloSlotIndex) XdrUnwrap() XdrType { return v.XdrType_int64 }
 type XdrType_SoloValue struct {
 	XdrVecOpaque
 }
