@@ -111,10 +111,15 @@ type CatchupBlock struct {
 	Proposed_transactions []ProposedTransaction
 }
 
+type CatchupSpan struct {
+	From_block_height BlockHeight
+	// not including
+	To_block_height BlockHeight
+}
+
 type CatchupBlocksRequest struct {
 	Timestamp Timestamp
-	From_block_height BlockHeight
-	To_block_height BlockHeight
+	Span CatchupSpan
 }
 
 type SignedCatchupBlocksRequest struct {
@@ -885,6 +890,8 @@ type NondeterministicProposalData struct {
 	// the length of the nondeterministic_bits string, in bits
 	// (nondeterminstic_bits.size() returns the rounded-up length in bytes)
 	Nondeterministic_bit_count uint32
+	// sequence of queue entries observed by the proposer
+	Observed_queue_entry_sequence []QueueEntry
 }
 
 // A signed transaction, with the nondeterministic data from the proposer
@@ -1929,6 +1936,19 @@ func (v *CatchupBlock) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposed_transactions", name), (*_XdrVec_unbounded_ProposedTransaction)(&v.Proposed_transactions))
 }
 func XDR_CatchupBlock(v *CatchupBlock) *CatchupBlock { return v }
+type XdrType_CatchupSpan = *CatchupSpan
+func (v *CatchupSpan) XdrPointer() interface{} { return v }
+func (CatchupSpan) XdrTypeName() string { return "CatchupSpan" }
+func (v CatchupSpan) XdrValue() interface{} { return v }
+func (v *CatchupSpan) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *CatchupSpan) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sfrom_block_height", name), XDR_BlockHeight(&v.From_block_height))
+	x.Marshal(x.Sprintf("%sto_block_height", name), XDR_BlockHeight(&v.To_block_height))
+}
+func XDR_CatchupSpan(v *CatchupSpan) *CatchupSpan { return v }
 type XdrType_CatchupBlocksRequest = *CatchupBlocksRequest
 func (v *CatchupBlocksRequest) XdrPointer() interface{} { return v }
 func (CatchupBlocksRequest) XdrTypeName() string { return "CatchupBlocksRequest" }
@@ -1939,8 +1959,7 @@ func (v *CatchupBlocksRequest) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
-	x.Marshal(x.Sprintf("%sfrom_block_height", name), XDR_BlockHeight(&v.From_block_height))
-	x.Marshal(x.Sprintf("%sto_block_height", name), XDR_BlockHeight(&v.To_block_height))
+	x.Marshal(x.Sprintf("%sspan", name), XDR_CatchupSpan(&v.Span))
 }
 func XDR_CatchupBlocksRequest(v *CatchupBlocksRequest) *CatchupBlocksRequest { return v }
 type XdrType_SignedCatchupBlocksRequest = *SignedCatchupBlocksRequest
@@ -8462,6 +8481,7 @@ func (v *NondeterministicProposalData) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%snondeterministic_bits", name), XdrVecOpaque{&v.Nondeterministic_bits, 0xffffffff})
 	x.Marshal(x.Sprintf("%snondeterministic_bit_count", name), XDR_uint32(&v.Nondeterministic_bit_count))
+	x.Marshal(x.Sprintf("%sobserved_queue_entry_sequence", name), (*_XdrVec_unbounded_QueueEntry)(&v.Observed_queue_entry_sequence))
 }
 func XDR_NondeterministicProposalData(v *NondeterministicProposalData) *NondeterministicProposalData { return v }
 type XdrType_ProposedTransaction = *ProposedTransaction
