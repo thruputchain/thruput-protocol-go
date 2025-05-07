@@ -279,6 +279,7 @@ type DbCoord1 interface {
 	Dbcoord_open_snapshot(context.Context, BlockID, BlockID) (RPCError, error)
 	Dbcoord_commit_snapshot(context.Context, BlockID) (RPCError, error)
 	Dbcoord_close_snapshot(context.Context, BlockID) (RPCError, error)
+	Dbcoord_abandon_snapshot(context.Context, BlockID) (RPCError, error)
 }
 
 type ValidatorID = [32]byte
@@ -3734,6 +3735,53 @@ func (p *xdrSrvProc_Dbcoord_close_snapshot) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbcoord_close_snapshot{} // XXX
 
+type xdrProc_Dbcoord_abandon_snapshot struct {
+	Arg *BlockID
+	Res *RPCError
+}
+func (xdrProc_Dbcoord_abandon_snapshot) Prog() uint32 { return 2129102984 }
+func (xdrProc_Dbcoord_abandon_snapshot) Vers() uint32 { return 1 }
+func (xdrProc_Dbcoord_abandon_snapshot) Proc() uint32 { return 40 }
+func (xdrProc_Dbcoord_abandon_snapshot) ProgName() string { return "DbCoord" }
+func (xdrProc_Dbcoord_abandon_snapshot) VersName() string { return "DbCoord1" }
+func (xdrProc_Dbcoord_abandon_snapshot) ProcName() string { return "dbcoord_abandon_snapshot" }
+func (p *xdrProc_Dbcoord_abandon_snapshot) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(BlockID)
+	}
+	return XDR_BlockID(p.Arg)
+}
+func (p *xdrProc_Dbcoord_abandon_snapshot) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(RPCError)
+	}
+	return XDR_RPCError(p.Res)
+}
+var _ XdrProc = &xdrProc_Dbcoord_abandon_snapshot{} // XXX
+
+type xdrSrvProc_Dbcoord_abandon_snapshot struct {
+	xdrProc_Dbcoord_abandon_snapshot
+	Srv DbCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Dbcoord_abandon_snapshot) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DbCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Dbcoord_abandon_snapshot) Do() {
+	r, err := p.Srv.Dbcoord_abandon_snapshot(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Dbcoord_abandon_snapshot{} // XXX
+
 func init() {
 	XdrCatalog[2129102984<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -3745,6 +3793,8 @@ func init() {
 			return &xdrProc_Dbcoord_commit_snapshot{}
 		case 30:
 			return &xdrProc_Dbcoord_close_snapshot{}
+		case 40:
+			return &xdrProc_Dbcoord_abandon_snapshot{}
 		}
 		return nil
 	}
@@ -3767,6 +3817,8 @@ func (s DbCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbcoord_commit_snapshot{ Srv: s.Srv }
 	case 30:  // dbcoord_close_snapshot
 		return &xdrSrvProc_Dbcoord_close_snapshot{ Srv: s.Srv }
+	case 40:  // dbcoord_abandon_snapshot
+		return &xdrSrvProc_Dbcoord_abandon_snapshot{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -3809,6 +3861,14 @@ func (c DbCoord1_Client) Dbcoord_commit_snapshot(ctx context.Context, a1 BlockID
 }
 func (c DbCoord1_Client) Dbcoord_close_snapshot(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
 	var proc xdrProc_Dbcoord_close_snapshot
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DbCoord1_Client) Dbcoord_abandon_snapshot(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
+	var proc xdrProc_Dbcoord_abandon_snapshot
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
