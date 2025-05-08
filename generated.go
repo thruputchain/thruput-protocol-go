@@ -15,10 +15,10 @@ var _ context.Context
 
 type BatchHash = SHA256Hash
 
+// BatchHeader is included in Proposals.
 type BatchHeader struct {
-	Target_block_hash BlockHash
-	Target_prev_block_hash BlockHash
-	Target_block_height BlockHeight
+	Batch_hash BatchHash
+	Batch_size int64
 }
 
 type BatchTransactions struct {
@@ -490,7 +490,7 @@ type Proposal struct {
 	Block_height BlockHeight
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
-	Proposed_transaction_batches []BatchHash
+	Proposed_transaction_batches []BatchHeader
 }
 
 const KQueueEntryMaxLen = 256
@@ -1069,9 +1069,8 @@ func (v *BatchHeader) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%starget_block_hash", name), XDR_BlockHash(&v.Target_block_hash))
-	x.Marshal(x.Sprintf("%starget_prev_block_hash", name), XDR_BlockHash(&v.Target_prev_block_hash))
-	x.Marshal(x.Sprintf("%starget_block_height", name), XDR_BlockHeight(&v.Target_block_height))
+	x.Marshal(x.Sprintf("%sbatch_hash", name), XDR_BatchHash(&v.Batch_hash))
+	x.Marshal(x.Sprintf("%sbatch_size", name), XDR_int64(&v.Batch_size))
 }
 func XDR_BatchHeader(v *BatchHeader) *BatchHeader { return v }
 type _XdrVec_unbounded_ProposedTransaction []ProposedTransaction
@@ -6131,20 +6130,20 @@ func XDR_BlockHash(v *BlockHash) XdrType_BlockHash {
 }
 func (XdrType_BlockHash) XdrTypeName() string { return "BlockHash" }
 func (v XdrType_BlockHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
-type _XdrVec_unbounded_BatchHash []BatchHash
-func (_XdrVec_unbounded_BatchHash) XdrBound() uint32 {
+type _XdrVec_unbounded_BatchHeader []BatchHeader
+func (_XdrVec_unbounded_BatchHeader) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_BatchHash) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_BatchHeader) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_BatchHash length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_BatchHeader length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_BatchHash length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_BatchHeader length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_BatchHash) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_BatchHash) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_BatchHeader) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_BatchHeader) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -6161,31 +6160,31 @@ func (v *_XdrVec_unbounded_BatchHash) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]BatchHash, int(length), newcap)
+	nv := make([]BatchHeader, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_BatchHash) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_BatchHeader) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_BatchHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_BatchHeader(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_BatchHash) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_BatchHeader) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_BatchHash) XdrTypeName() string { return "BatchHash<>" }
-func (v *_XdrVec_unbounded_BatchHash) XdrPointer() interface{} { return (*[]BatchHash)(v) }
-func (v _XdrVec_unbounded_BatchHash) XdrValue() interface{} { return ([]BatchHash)(v) }
-func (v *_XdrVec_unbounded_BatchHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_XdrVec_unbounded_BatchHeader) XdrTypeName() string { return "BatchHeader<>" }
+func (v *_XdrVec_unbounded_BatchHeader) XdrPointer() interface{} { return (*[]BatchHeader)(v) }
+func (v _XdrVec_unbounded_BatchHeader) XdrValue() interface{} { return ([]BatchHeader)(v) }
+func (v *_XdrVec_unbounded_BatchHeader) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_Proposal = *Proposal
 func (v *Proposal) XdrPointer() interface{} { return v }
 func (Proposal) XdrTypeName() string { return "Proposal" }
@@ -6198,7 +6197,7 @@ func (v *Proposal) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
-	x.Marshal(x.Sprintf("%sproposed_transaction_batches", name), (*_XdrVec_unbounded_BatchHash)(&v.Proposed_transaction_batches))
+	x.Marshal(x.Sprintf("%sproposed_transaction_batches", name), (*_XdrVec_unbounded_BatchHeader)(&v.Proposed_transaction_batches))
 }
 func XDR_Proposal(v *Proposal) *Proposal { return v }
 type XdrType_QueueEntry struct {
