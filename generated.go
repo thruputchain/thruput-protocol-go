@@ -16,13 +16,18 @@ var _ context.Context
 type BatchHash = SHA256Hash
 
 type BatchHeader struct {
-	Batch_hash BatchHash
-	Batch_size uint32
+	Target_block_hash BlockHash
+	Target_prev_block_hash BlockHash
+	Target_block_height BlockHeight
+}
+
+type BatchTransactions struct {
+	Transactions []ProposedTransaction
 }
 
 type BatchMessage struct {
 	Batch_header BatchHeader
-	Transactions []ProposedTransaction
+	Batch_transactions BatchTransactions
 }
 
 // unique id that determines the randomness
@@ -980,10 +985,10 @@ type ExtensionPoint struct {
 // 256 bit hash
 type SHA256Hash = [32]byte
 
-// 256 bit contract addresses
+// 256 bit contract address
 type ContractAddress = [32]byte
 
-// arbitrary 32 bytes
+// arbitrary 32-byte key into contract storage
 type StorageKey = [32]byte
 
 const KMaxLogMessageLen = 1024
@@ -1064,8 +1069,9 @@ func (v *BatchHeader) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sbatch_hash", name), XDR_BatchHash(&v.Batch_hash))
-	x.Marshal(x.Sprintf("%sbatch_size", name), XDR_uint32(&v.Batch_size))
+	x.Marshal(x.Sprintf("%starget_block_hash", name), XDR_BlockHash(&v.Target_block_hash))
+	x.Marshal(x.Sprintf("%starget_prev_block_hash", name), XDR_BlockHash(&v.Target_prev_block_hash))
+	x.Marshal(x.Sprintf("%starget_block_height", name), XDR_BlockHeight(&v.Target_block_height))
 }
 func XDR_BatchHeader(v *BatchHeader) *BatchHeader { return v }
 type _XdrVec_unbounded_ProposedTransaction []ProposedTransaction
@@ -1123,6 +1129,18 @@ func (_XdrVec_unbounded_ProposedTransaction) XdrTypeName() string { return "Prop
 func (v *_XdrVec_unbounded_ProposedTransaction) XdrPointer() interface{} { return (*[]ProposedTransaction)(v) }
 func (v _XdrVec_unbounded_ProposedTransaction) XdrValue() interface{} { return ([]ProposedTransaction)(v) }
 func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_BatchTransactions = *BatchTransactions
+func (v *BatchTransactions) XdrPointer() interface{} { return v }
+func (BatchTransactions) XdrTypeName() string { return "BatchTransactions" }
+func (v BatchTransactions) XdrValue() interface{} { return v }
+func (v *BatchTransactions) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BatchTransactions) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_ProposedTransaction)(&v.Transactions))
+}
+func XDR_BatchTransactions(v *BatchTransactions) *BatchTransactions { return v }
 type XdrType_BatchMessage = *BatchMessage
 func (v *BatchMessage) XdrPointer() interface{} { return v }
 func (BatchMessage) XdrTypeName() string { return "BatchMessage" }
@@ -1133,7 +1151,7 @@ func (v *BatchMessage) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sbatch_header", name), XDR_BatchHeader(&v.Batch_header))
-	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_ProposedTransaction)(&v.Transactions))
+	x.Marshal(x.Sprintf("%sbatch_transactions", name), XDR_BatchTransactions(&v.Batch_transactions))
 }
 func XDR_BatchMessage(v *BatchMessage) *BatchMessage { return v }
 type _XdrArray_32_opaque [32]byte
