@@ -873,6 +873,7 @@ type OriginID = [16]byte
 
 type Transaction struct {
 	Id OriginID
+	Created Timestamp
 	Invocation Invocation
 	Contracts_to_deploy []Contract
 }
@@ -8592,6 +8593,7 @@ func (v *Transaction) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sid", name), XDR_OriginID(&v.Id))
+	x.Marshal(x.Sprintf("%screated", name), XDR_Timestamp(&v.Created))
 	x.Marshal(x.Sprintf("%sinvocation", name), XDR_Invocation(&v.Invocation))
 	x.Marshal(x.Sprintf("%scontracts_to_deploy", name), (*_XdrVec_unbounded_Contract)(&v.Contracts_to_deploy))
 }
