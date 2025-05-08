@@ -272,12 +272,28 @@ type Coordinator1 interface {
 	Coordinator_intro_exec(context.Context, ExecCard) (IntroExecResult, error)
 }
 
+type DbResult int32
+const (
+	DbResultOK DbResult = 0
+	DbResultError DbResult = 1
+)
+
+type DbBlockResult struct {
+	// The union discriminant Result selects among the following arms:
+	//   DbResultOK:
+	//      Block_hash() *BlockHash
+	//   default:
+	//      void
+	Result DbResult
+	_u interface{}
+}
+
 type DbCoord1 interface {
 	Dbcoord_null(context.Context, ) error
-	Dbcoord_open_snapshot(context.Context, BlockID, BlockID) (RPCError, error)
-	Dbcoord_commit_snapshot(context.Context, BlockID) (RPCError, error)
-	Dbcoord_close_snapshot(context.Context, BlockID) (RPCError, error)
-	Dbcoord_abandon_snapshot(context.Context, BlockID) (RPCError, error)
+	Dbcoord_open_snapshot(context.Context, BlockID, BlockID) (DbResult, error)
+	Dbcoord_commit_snapshot(context.Context, BlockID) (DbBlockResult, error)
+	Dbcoord_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
+	Dbcoord_abandon_snapshot(context.Context, BlockID) (DbResult, error)
 }
 
 type ValidatorID = [32]byte
@@ -3531,6 +3547,110 @@ func (c Coordinator1_Client) Coordinator_intro_exec(ctx context.Context, a1 Exec
 	}
 	return *proc.Res, nil
 }
+var _XdrNames_DbResult = map[int32]string{
+	int32(DbResultOK): "DbResultOK",
+	int32(DbResultError): "DbResultError",
+}
+var _XdrValues_DbResult = map[string]int32{
+	"DbResultOK": int32(DbResultOK),
+	"DbResultError": int32(DbResultError),
+}
+func (DbResult) XdrEnumNames() map[int32]string {
+	return _XdrNames_DbResult
+}
+func (v DbResult) String() string {
+	if s, ok := _XdrNames_DbResult[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("DbResult#%d", v)
+}
+func (v *DbResult) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_DbResult[stok]; ok {
+			*v = DbResult(val)
+			return nil
+		} else if stok == "DbResult" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid DbResult.", stok))
+	}
+}
+func (v DbResult) GetU32() uint32 { return uint32(v) }
+func (v *DbResult) SetU32(n uint32) { *v = DbResult(n) }
+func (v *DbResult) XdrPointer() interface{} { return v }
+func (DbResult) XdrTypeName() string { return "DbResult" }
+func (v DbResult) XdrValue() interface{} { return v }
+func (v *DbResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_DbResult = *DbResult
+func XDR_DbResult(v *DbResult) *DbResult { return v }
+func (_ DbBlockResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *DbBlockResult) Block_hash() *BlockHash {
+	switch u.Result {
+	case DbResultOK:
+		if v, ok := u._u.(*BlockHash); ok {
+			return v
+		} else {
+			var zero BlockHash
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("DbBlockResult.Block_hash accessed when Result == %v", u.Result)
+		return nil
+	}
+}
+func (u DbBlockResult) XdrValid() bool {
+	return true
+}
+func (u *DbBlockResult) XdrUnionTag() XdrNum32 {
+	return XDR_DbResult(&u.Result)
+}
+func (u *DbBlockResult) XdrUnionTagName() string {
+	return "Result"
+}
+func (u *DbBlockResult) XdrUnionBody() XdrType {
+	switch u.Result {
+	case DbResultOK:
+		return XDR_BlockHash(u.Block_hash())
+	default:
+		return nil
+	}
+}
+func (u *DbBlockResult) XdrUnionBodyName() string {
+	switch u.Result {
+	case DbResultOK:
+		return "Block_hash"
+	default:
+		return ""
+	}
+}
+type XdrType_DbBlockResult = *DbBlockResult
+func (v *DbBlockResult) XdrPointer() interface{} { return v }
+func (DbBlockResult) XdrTypeName() string { return "DbBlockResult" }
+func (v DbBlockResult) XdrValue() interface{} { return v }
+func (v *DbBlockResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *DbBlockResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_DbResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
+	switch u.Result {
+	case DbResultOK:
+		x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(u.Block_hash()))
+		return
+	default:
+		return
+	}
+}
+func XDR_DbBlockResult(v *DbBlockResult) *DbBlockResult { return v}
 
 type xdrProc_Dbcoord_null struct {
 	Arg *XdrVoid
@@ -3599,7 +3719,7 @@ var _ XdrType = &xdrProcArg_Dbcoord_open_snapshot{} // XXX
 
 type xdrProc_Dbcoord_open_snapshot struct {
 	Arg *xdrProcArg_Dbcoord_open_snapshot
-	Res *RPCError
+	Res *DbResult
 }
 func (xdrProc_Dbcoord_open_snapshot) Prog() uint32 { return 2129102984 }
 func (xdrProc_Dbcoord_open_snapshot) Vers() uint32 { return 1 }
@@ -3615,9 +3735,9 @@ func (p *xdrProc_Dbcoord_open_snapshot) GetArg() XdrType {
 }
 func (p *xdrProc_Dbcoord_open_snapshot) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(RPCError)
+		p.Res = new(DbResult)
 	}
-	return XDR_RPCError(p.Res)
+	return XDR_DbResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Dbcoord_open_snapshot{} // XXX
 
@@ -3646,7 +3766,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dbcoord_open_snapshot{} // XXX
 
 type xdrProc_Dbcoord_commit_snapshot struct {
 	Arg *BlockID
-	Res *RPCError
+	Res *DbBlockResult
 }
 func (xdrProc_Dbcoord_commit_snapshot) Prog() uint32 { return 2129102984 }
 func (xdrProc_Dbcoord_commit_snapshot) Vers() uint32 { return 1 }
@@ -3662,9 +3782,9 @@ func (p *xdrProc_Dbcoord_commit_snapshot) GetArg() XdrType {
 }
 func (p *xdrProc_Dbcoord_commit_snapshot) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(RPCError)
+		p.Res = new(DbBlockResult)
 	}
-	return XDR_RPCError(p.Res)
+	return XDR_DbBlockResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Dbcoord_commit_snapshot{} // XXX
 
@@ -3693,7 +3813,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dbcoord_commit_snapshot{} // XXX
 
 type xdrProc_Dbcoord_close_snapshot struct {
 	Arg *BlockID
-	Res *RPCError
+	Res *DbBlockResult
 }
 func (xdrProc_Dbcoord_close_snapshot) Prog() uint32 { return 2129102984 }
 func (xdrProc_Dbcoord_close_snapshot) Vers() uint32 { return 1 }
@@ -3709,9 +3829,9 @@ func (p *xdrProc_Dbcoord_close_snapshot) GetArg() XdrType {
 }
 func (p *xdrProc_Dbcoord_close_snapshot) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(RPCError)
+		p.Res = new(DbBlockResult)
 	}
-	return XDR_RPCError(p.Res)
+	return XDR_DbBlockResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Dbcoord_close_snapshot{} // XXX
 
@@ -3740,7 +3860,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dbcoord_close_snapshot{} // XXX
 
 type xdrProc_Dbcoord_abandon_snapshot struct {
 	Arg *BlockID
-	Res *RPCError
+	Res *DbResult
 }
 func (xdrProc_Dbcoord_abandon_snapshot) Prog() uint32 { return 2129102984 }
 func (xdrProc_Dbcoord_abandon_snapshot) Vers() uint32 { return 1 }
@@ -3756,9 +3876,9 @@ func (p *xdrProc_Dbcoord_abandon_snapshot) GetArg() XdrType {
 }
 func (p *xdrProc_Dbcoord_abandon_snapshot) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(RPCError)
+		p.Res = new(DbResult)
 	}
-	return XDR_RPCError(p.Res)
+	return XDR_DbResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Dbcoord_abandon_snapshot{} // XXX
 
@@ -3844,7 +3964,7 @@ func (c DbCoord1_Client) Dbcoord_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c DbCoord1_Client) Dbcoord_open_snapshot(ctx context.Context, a1 BlockID, a2 BlockID) (r RPCError, _ error) {
+func (c DbCoord1_Client) Dbcoord_open_snapshot(ctx context.Context, a1 BlockID, a2 BlockID) (r DbResult, _ error) {
 	var proc xdrProc_Dbcoord_open_snapshot
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -3854,7 +3974,7 @@ func (c DbCoord1_Client) Dbcoord_open_snapshot(ctx context.Context, a1 BlockID, 
 	}
 	return *proc.Res, nil
 }
-func (c DbCoord1_Client) Dbcoord_commit_snapshot(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
+func (c DbCoord1_Client) Dbcoord_commit_snapshot(ctx context.Context, a1 BlockID) (r DbBlockResult, _ error) {
 	var proc xdrProc_Dbcoord_commit_snapshot
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -3862,7 +3982,7 @@ func (c DbCoord1_Client) Dbcoord_commit_snapshot(ctx context.Context, a1 BlockID
 	}
 	return *proc.Res, nil
 }
-func (c DbCoord1_Client) Dbcoord_close_snapshot(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
+func (c DbCoord1_Client) Dbcoord_close_snapshot(ctx context.Context, a1 BlockID) (r DbBlockResult, _ error) {
 	var proc xdrProc_Dbcoord_close_snapshot
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -3870,7 +3990,7 @@ func (c DbCoord1_Client) Dbcoord_close_snapshot(ctx context.Context, a1 BlockID)
 	}
 	return *proc.Res, nil
 }
-func (c DbCoord1_Client) Dbcoord_abandon_snapshot(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
+func (c DbCoord1_Client) Dbcoord_abandon_snapshot(ctx context.Context, a1 BlockID) (r DbResult, _ error) {
 	var proc xdrProc_Dbcoord_abandon_snapshot
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
