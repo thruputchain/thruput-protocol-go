@@ -869,7 +869,10 @@ type Invocation struct {
 	Calldata Calldata
 }
 
+type OriginID = [16]byte
+
 type Transaction struct {
+	Id OriginID
 	Invocation Invocation
 	Contracts_to_deploy []Contract
 }
@@ -878,6 +881,7 @@ type Transaction struct {
 // (and all the other metadata)
 // for a later PR.
 type SignedTransaction struct {
+	Signature Signature
 	Tx Transaction
 }
 
@@ -8501,6 +8505,28 @@ func (v *Invocation) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scalldata", name), XDR_Calldata(&v.Calldata))
 }
 func XDR_Invocation(v *Invocation) *Invocation { return v }
+type _XdrArray_16_opaque [16]byte
+func (v *_XdrArray_16_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_16_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_16_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_16_opaque) XdrPointer() interface{} { return (*[16]byte)(v) }
+func (v *_XdrArray_16_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_16_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_16_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_16_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 16 // Force error if not const or doesn't fit
+	return bound
+}
+type XdrType_OriginID struct {
+	*_XdrArray_16_opaque
+}
+func XDR_OriginID(v *OriginID) XdrType_OriginID {
+	return XdrType_OriginID{(*_XdrArray_16_opaque)(v)}
+}
+func (XdrType_OriginID) XdrTypeName() string { return "OriginID" }
+func (v XdrType_OriginID) XdrUnwrap() XdrType { return v._XdrArray_16_opaque }
 type _XdrVec_unbounded_Contract []Contract
 func (_XdrVec_unbounded_Contract) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -8565,6 +8591,7 @@ func (v *Transaction) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%sid", name), XDR_OriginID(&v.Id))
 	x.Marshal(x.Sprintf("%sinvocation", name), XDR_Invocation(&v.Invocation))
 	x.Marshal(x.Sprintf("%scontracts_to_deploy", name), (*_XdrVec_unbounded_Contract)(&v.Contracts_to_deploy))
 }
@@ -8578,6 +8605,7 @@ func (v *SignedTransaction) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
 	x.Marshal(x.Sprintf("%stx", name), XDR_Transaction(&v.Tx))
 }
 func XDR_SignedTransaction(v *SignedTransaction) *SignedTransaction { return v }
