@@ -878,6 +878,8 @@ type Transaction struct {
 	Contracts_to_deploy []Contract
 }
 
+type SignedTransactionHash = SHA256Hash
+
 // Deliberately leaving this SignedTransaction object
 // (and all the other metadata)
 // for a later PR.
@@ -8598,6 +8600,14 @@ func (v *Transaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scontracts_to_deploy", name), (*_XdrVec_unbounded_Contract)(&v.Contracts_to_deploy))
 }
 func XDR_Transaction(v *Transaction) *Transaction { return v }
+type XdrType_SignedTransactionHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_SignedTransactionHash(v *SignedTransactionHash) XdrType_SignedTransactionHash {
+	return XdrType_SignedTransactionHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_SignedTransactionHash) XdrTypeName() string { return "SignedTransactionHash" }
+func (v XdrType_SignedTransactionHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type XdrType_SignedTransaction = *SignedTransaction
 func (v *SignedTransaction) XdrPointer() interface{} { return v }
 func (SignedTransaction) XdrTypeName() string { return "SignedTransaction" }
