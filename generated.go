@@ -521,6 +521,10 @@ type Proposal struct {
 	Proposed_transaction_batches []BatchHash
 }
 
+type PrevProposalSummary struct {
+	Block_hash BlockHash
+}
+
 const KQueueEntryMaxLen = 256
 
 type QueueEntry = []byte // bound KQueueEntryMaxLen
@@ -903,6 +907,14 @@ type Invocation struct {
 	Gas_limit GasAmount
 	Calldata Calldata
 }
+
+type InvokeFlag int32
+const (
+	KInvokeFlagNone InvokeFlag = 0
+	KInvokeFlagTryInvoke InvokeFlag = InvokeFlag(0x00000001)
+)
+
+type InvokeFlagSet = int32
 
 type OriginID = [16]byte
 
@@ -6431,6 +6443,18 @@ func (v *Proposal) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposed_transaction_batches", name), (*_XdrVec_unbounded_BatchHash)(&v.Proposed_transaction_batches))
 }
 func XDR_Proposal(v *Proposal) *Proposal { return v }
+type XdrType_PrevProposalSummary = *PrevProposalSummary
+func (v *PrevProposalSummary) XdrPointer() interface{} { return v }
+func (PrevProposalSummary) XdrTypeName() string { return "PrevProposalSummary" }
+func (v PrevProposalSummary) XdrValue() interface{} { return v }
+func (v *PrevProposalSummary) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *PrevProposalSummary) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
+}
+func XDR_PrevProposalSummary(v *PrevProposalSummary) *PrevProposalSummary { return v }
 type XdrType_QueueEntry struct {
 	XdrVecOpaque
 }
@@ -8753,6 +8777,56 @@ func (v *Invocation) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scalldata", name), XDR_Calldata(&v.Calldata))
 }
 func XDR_Invocation(v *Invocation) *Invocation { return v }
+var _XdrNames_InvokeFlag = map[int32]string{
+	int32(KInvokeFlagNone): "kInvokeFlagNone",
+	int32(KInvokeFlagTryInvoke): "kInvokeFlagTryInvoke",
+}
+var _XdrValues_InvokeFlag = map[string]int32{
+	"kInvokeFlagNone": int32(KInvokeFlagNone),
+	"kInvokeFlagTryInvoke": int32(KInvokeFlagTryInvoke),
+}
+func (InvokeFlag) XdrEnumNames() map[int32]string {
+	return _XdrNames_InvokeFlag
+}
+func (v InvokeFlag) String() string {
+	if s, ok := _XdrNames_InvokeFlag[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("InvokeFlag#%d", v)
+}
+func (v *InvokeFlag) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_InvokeFlag[stok]; ok {
+			*v = InvokeFlag(val)
+			return nil
+		} else if stok == "InvokeFlag" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid InvokeFlag.", stok))
+	}
+}
+func (v InvokeFlag) GetU32() uint32 { return uint32(v) }
+func (v *InvokeFlag) SetU32(n uint32) { *v = InvokeFlag(n) }
+func (v *InvokeFlag) XdrPointer() interface{} { return v }
+func (InvokeFlag) XdrTypeName() string { return "InvokeFlag" }
+func (v InvokeFlag) XdrValue() interface{} { return v }
+func (v *InvokeFlag) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_InvokeFlag = *InvokeFlag
+func XDR_InvokeFlag(v *InvokeFlag) *InvokeFlag { return v }
+type XdrType_InvokeFlagSet struct {
+	XdrType_int32
+}
+func XDR_InvokeFlagSet(v *InvokeFlagSet) XdrType_InvokeFlagSet {
+	return XdrType_InvokeFlagSet{XDR_int32(v)}
+}
+func (XdrType_InvokeFlagSet) XdrTypeName() string { return "InvokeFlagSet" }
+func (v XdrType_InvokeFlagSet) XdrUnwrap() XdrType { return v.XdrType_int32 }
 type _XdrArray_16_opaque [16]byte
 func (v *_XdrArray_16_opaque) GetByteSlice() []byte { return v[:] }
 func (v *_XdrArray_16_opaque) XdrTypeName() string { return "opaque[]" }
