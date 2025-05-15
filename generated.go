@@ -288,6 +288,16 @@ type DbBlockResult struct {
 	_u interface{}
 }
 
+type DbCatchupResult struct {
+	// The union discriminant Result selects among the following arms:
+	//   DbResultOK:
+	//      Catchup_block() *CatchupBlock
+	//   default:
+	//      void
+	Result DbResult
+	_u interface{}
+}
+
 type DbCoord1 interface {
 	Dbcoord_null(context.Context, ) error
 	Dbcoord_create_snapshot(context.Context, BlockID, BlockID, BlockExecutionMode) (DbResult, error)
@@ -295,6 +305,7 @@ type DbCoord1 interface {
 	Dbcoord_commit_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbcoord_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbcoord_abandon_snapshot(context.Context, BlockID) (DbResult, error)
+	Dbcoord_catchup(context.Context, BlockHeight) (DbCatchupResult, error)
 }
 
 type ValidatorID = [32]byte
@@ -3710,6 +3721,68 @@ func (u *DbBlockResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_DbBlockResult(v *DbBlockResult) *DbBlockResult { return v}
+func (_ DbCatchupResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *DbCatchupResult) Catchup_block() *CatchupBlock {
+	switch u.Result {
+	case DbResultOK:
+		if v, ok := u._u.(*CatchupBlock); ok {
+			return v
+		} else {
+			var zero CatchupBlock
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("DbCatchupResult.Catchup_block accessed when Result == %v", u.Result)
+		return nil
+	}
+}
+func (u DbCatchupResult) XdrValid() bool {
+	return true
+}
+func (u *DbCatchupResult) XdrUnionTag() XdrNum32 {
+	return XDR_DbResult(&u.Result)
+}
+func (u *DbCatchupResult) XdrUnionTagName() string {
+	return "Result"
+}
+func (u *DbCatchupResult) XdrUnionBody() XdrType {
+	switch u.Result {
+	case DbResultOK:
+		return XDR_CatchupBlock(u.Catchup_block())
+	default:
+		return nil
+	}
+}
+func (u *DbCatchupResult) XdrUnionBodyName() string {
+	switch u.Result {
+	case DbResultOK:
+		return "Catchup_block"
+	default:
+		return ""
+	}
+}
+type XdrType_DbCatchupResult = *DbCatchupResult
+func (v *DbCatchupResult) XdrPointer() interface{} { return v }
+func (DbCatchupResult) XdrTypeName() string { return "DbCatchupResult" }
+func (v DbCatchupResult) XdrValue() interface{} { return v }
+func (v *DbCatchupResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *DbCatchupResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_DbResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
+	switch u.Result {
+	case DbResultOK:
+		x.Marshal(x.Sprintf("%scatchup_block", name), XDR_CatchupBlock(u.Catchup_block()))
+		return
+	default:
+		return
+	}
+}
+func XDR_DbCatchupResult(v *DbCatchupResult) *DbCatchupResult { return v}
 
 type xdrProc_Dbcoord_null struct {
 	Arg *XdrVoid
@@ -4014,6 +4087,53 @@ func (p *xdrSrvProc_Dbcoord_abandon_snapshot) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbcoord_abandon_snapshot{} // XXX
 
+type xdrProc_Dbcoord_catchup struct {
+	Arg *BlockHeight
+	Res *DbCatchupResult
+}
+func (xdrProc_Dbcoord_catchup) Prog() uint32 { return 2129102984 }
+func (xdrProc_Dbcoord_catchup) Vers() uint32 { return 1 }
+func (xdrProc_Dbcoord_catchup) Proc() uint32 { return 50 }
+func (xdrProc_Dbcoord_catchup) ProgName() string { return "DbCoord" }
+func (xdrProc_Dbcoord_catchup) VersName() string { return "DbCoord1" }
+func (xdrProc_Dbcoord_catchup) ProcName() string { return "dbcoord_catchup" }
+func (p *xdrProc_Dbcoord_catchup) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(BlockHeight)
+	}
+	return XDR_BlockHeight(p.Arg)
+}
+func (p *xdrProc_Dbcoord_catchup) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(DbCatchupResult)
+	}
+	return XDR_DbCatchupResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Dbcoord_catchup{} // XXX
+
+type xdrSrvProc_Dbcoord_catchup struct {
+	xdrProc_Dbcoord_catchup
+	Srv DbCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Dbcoord_catchup) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DbCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Dbcoord_catchup) Do() {
+	r, err := p.Srv.Dbcoord_catchup(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Dbcoord_catchup{} // XXX
+
 func init() {
 	XdrCatalog[2129102984<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -4029,6 +4149,8 @@ func init() {
 			return &xdrProc_Dbcoord_close_snapshot{}
 		case 40:
 			return &xdrProc_Dbcoord_abandon_snapshot{}
+		case 50:
+			return &xdrProc_Dbcoord_catchup{}
 		}
 		return nil
 	}
@@ -4055,6 +4177,8 @@ func (s DbCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbcoord_close_snapshot{ Srv: s.Srv }
 	case 40:  // dbcoord_abandon_snapshot
 		return &xdrSrvProc_Dbcoord_abandon_snapshot{ Srv: s.Srv }
+	case 50:  // dbcoord_catchup
+		return &xdrSrvProc_Dbcoord_catchup{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -4114,6 +4238,14 @@ func (c DbCoord1_Client) Dbcoord_close_snapshot(ctx context.Context, a1 BlockID)
 }
 func (c DbCoord1_Client) Dbcoord_abandon_snapshot(ctx context.Context, a1 BlockID) (r DbResult, _ error) {
 	var proc xdrProc_Dbcoord_abandon_snapshot
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DbCoord1_Client) Dbcoord_catchup(ctx context.Context, a1 BlockHeight) (r DbCatchupResult, _ error) {
+	var proc xdrProc_Dbcoord_catchup
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
