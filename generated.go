@@ -144,6 +144,8 @@ type Catchup1 interface {
 
 type Milliseconds = int64
 
+type Seconds = int64
+
 // ValidatorConfig holds the network configuration of a validator.
 type ValidatorConfig struct {
 	Private_info ValidatorPrivateInfo
@@ -183,6 +185,10 @@ type MempoolConfig struct {
 	Transaction_ttl_msec Milliseconds
 }
 
+type CatchupConfig struct {
+	Catchup_block_ttl_sec Seconds
+}
+
 type Config struct {
 	Validator_config *ValidatorConfig
 	Wallet_config *WalletConfig
@@ -191,6 +197,7 @@ type Config struct {
 	Broadcast_config *BroadcastConfig
 	Spectra_config *SpectraConfig
 	Mempool_config *MempoolConfig
+	Catchup_config *CatchupConfig
 }
 
 type ContractBlob = []byte
@@ -222,7 +229,8 @@ type ContractDeploymentHashPreimage struct {
 	Contract_hash SHA256Hash
 }
 
-// ServerAddress is an IP (or hostname) and port address, separated by a colon.
+// ServerAddress is an IP (or hostname) and port address, separated by a
+// colon.
 type ServerAddress = string
 
 // UPID is a globally unique process identifier (function of start time, place
@@ -245,7 +253,8 @@ type ExecCard struct {
 	Address ServerAddress
 }
 
-// ShardCard uniquely describes a database shard instance and its initial state.
+// ShardCard uniquely describes a database shard instance and its initial
+// state.
 type ShardCard struct {
 	Protocol Protocol
 	Upid UPID
@@ -1075,11 +1084,30 @@ type SHA256Hash = [32]byte
 type ContractAddress = [32]byte
 
 // arbitrary 32-byte key into contract storage
-type StorageKey = [32]byte
+// This is the key type that contracts directly manipulate
+type StorageKeyContractData = [32]byte
+
+type StorageKeyType int32
+const (
+	KStorageKeyTypeContractData StorageKeyType = 0
+	KStorageKeyTypeFreeNativeTokenBalance StorageKeyType = 1
+)
+
+type StorageKey struct {
+	// The union discriminant Type selects among the following arms:
+	//   KStorageKeyTypeContractData:
+	//      Contract_data_key() *StorageKeyContractData
+	Type StorageKeyType
+	_u interface{}
+}
 
 const KMaxLogMessageLen = 1024
 
 const KMaxReturnBufferLen = 1024
+
+const KTotalHogSupply = 62_500_000_000
+
+const KHogDivisibility = 10_000_000
 
 // in global storage:
 // [contract address + storage key] = 64 bytes
@@ -2359,6 +2387,14 @@ func XDR_Milliseconds(v *Milliseconds) XdrType_Milliseconds {
 }
 func (XdrType_Milliseconds) XdrTypeName() string { return "Milliseconds" }
 func (v XdrType_Milliseconds) XdrUnwrap() XdrType { return v.XdrType_int64 }
+type XdrType_Seconds struct {
+	XdrType_int64
+}
+func XDR_Seconds(v *Seconds) XdrType_Seconds {
+	return XdrType_Seconds{XDR_int64(v)}
+}
+func (XdrType_Seconds) XdrTypeName() string { return "Seconds" }
+func (v XdrType_Seconds) XdrUnwrap() XdrType { return v.XdrType_int64 }
 type _XdrVec_unbounded_ValidatorPublicInfo []ValidatorPublicInfo
 func (_XdrVec_unbounded_ValidatorPublicInfo) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -2562,6 +2598,18 @@ func (v *MempoolConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stransaction_ttl_msec", name), XDR_Milliseconds(&v.Transaction_ttl_msec))
 }
 func XDR_MempoolConfig(v *MempoolConfig) *MempoolConfig { return v }
+type XdrType_CatchupConfig = *CatchupConfig
+func (v *CatchupConfig) XdrPointer() interface{} { return v }
+func (CatchupConfig) XdrTypeName() string { return "CatchupConfig" }
+func (v CatchupConfig) XdrValue() interface{} { return v }
+func (v *CatchupConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *CatchupConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%scatchup_block_ttl_sec", name), XDR_Seconds(&v.Catchup_block_ttl_sec))
+}
+func XDR_CatchupConfig(v *CatchupConfig) *CatchupConfig { return v }
 type _XdrPtr_ValidatorConfig struct {
 	p **ValidatorConfig
 }
@@ -3059,6 +3107,77 @@ func (v _XdrPtr_MempoolConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_MempoolConfig) XdrTypeName() string { return "MempoolConfig*" }
 func (v _XdrPtr_MempoolConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_MempoolConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_CatchupConfig struct {
+	p **CatchupConfig
+}
+type _ptrflag_CatchupConfig _XdrPtr_CatchupConfig
+func (v _ptrflag_CatchupConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_CatchupConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("CatchupConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_CatchupConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_CatchupConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(CatchupConfig)
+		}
+	default:
+		XdrPanic("*CatchupConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_CatchupConfig) XdrTypeName() string { return "CatchupConfig?" }
+func (v _ptrflag_CatchupConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_CatchupConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_CatchupConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_CatchupConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_CatchupConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_CatchupConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(CatchupConfig)
+	}
+}
+func (v _XdrPtr_CatchupConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_CatchupConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_CatchupConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_CatchupConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_CatchupConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_CatchupConfig) XdrTypeName() string { return "CatchupConfig*" }
+func (v _XdrPtr_CatchupConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_CatchupConfig) XdrValue() interface{} { return *v.p }
 type XdrType_Config = *Config
 func (v *Config) XdrPointer() interface{} { return v }
 func (Config) XdrTypeName() string { return "Config" }
@@ -3075,6 +3194,7 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sbroadcast_config", name), _XdrPtr_BroadcastConfig{&v.Broadcast_config})
 	x.Marshal(x.Sprintf("%sspectra_config", name), _XdrPtr_SpectraConfig{&v.Spectra_config})
 	x.Marshal(x.Sprintf("%smempool_config", name), _XdrPtr_MempoolConfig{&v.Mempool_config})
+	x.Marshal(x.Sprintf("%scatchup_config", name), _XdrPtr_CatchupConfig{&v.Catchup_config})
 }
 func XDR_Config(v *Config) *Config { return v }
 type XdrType_ContractBlob struct {
@@ -9738,14 +9858,122 @@ func XDR_ContractAddress(v *ContractAddress) XdrType_ContractAddress {
 }
 func (XdrType_ContractAddress) XdrTypeName() string { return "ContractAddress" }
 func (v XdrType_ContractAddress) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
-type XdrType_StorageKey struct {
+type XdrType_StorageKeyContractData struct {
 	*_XdrArray_32_opaque
 }
-func XDR_StorageKey(v *StorageKey) XdrType_StorageKey {
-	return XdrType_StorageKey{(*_XdrArray_32_opaque)(v)}
+func XDR_StorageKeyContractData(v *StorageKeyContractData) XdrType_StorageKeyContractData {
+	return XdrType_StorageKeyContractData{(*_XdrArray_32_opaque)(v)}
 }
-func (XdrType_StorageKey) XdrTypeName() string { return "StorageKey" }
-func (v XdrType_StorageKey) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+func (XdrType_StorageKeyContractData) XdrTypeName() string { return "StorageKeyContractData" }
+func (v XdrType_StorageKeyContractData) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+var _XdrNames_StorageKeyType = map[int32]string{
+	int32(KStorageKeyTypeContractData): "kStorageKeyTypeContractData",
+	int32(KStorageKeyTypeFreeNativeTokenBalance): "kStorageKeyTypeFreeNativeTokenBalance",
+}
+var _XdrValues_StorageKeyType = map[string]int32{
+	"kStorageKeyTypeContractData": int32(KStorageKeyTypeContractData),
+	"kStorageKeyTypeFreeNativeTokenBalance": int32(KStorageKeyTypeFreeNativeTokenBalance),
+}
+func (StorageKeyType) XdrEnumNames() map[int32]string {
+	return _XdrNames_StorageKeyType
+}
+func (v StorageKeyType) String() string {
+	if s, ok := _XdrNames_StorageKeyType[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("StorageKeyType#%d", v)
+}
+func (v *StorageKeyType) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_StorageKeyType[stok]; ok {
+			*v = StorageKeyType(val)
+			return nil
+		} else if stok == "StorageKeyType" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid StorageKeyType.", stok))
+	}
+}
+func (v StorageKeyType) GetU32() uint32 { return uint32(v) }
+func (v *StorageKeyType) SetU32(n uint32) { *v = StorageKeyType(n) }
+func (v *StorageKeyType) XdrPointer() interface{} { return v }
+func (StorageKeyType) XdrTypeName() string { return "StorageKeyType" }
+func (v StorageKeyType) XdrValue() interface{} { return v }
+func (v *StorageKeyType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_StorageKeyType = *StorageKeyType
+func XDR_StorageKeyType(v *StorageKeyType) *StorageKeyType { return v }
+var _XdrTags_StorageKey = map[int32]bool{
+	XdrToI32(KStorageKeyTypeContractData): true,
+}
+func (_ StorageKey) XdrValidTags() map[int32]bool {
+	return _XdrTags_StorageKey
+}
+func (u *StorageKey) Contract_data_key() *StorageKeyContractData {
+	switch u.Type {
+	case KStorageKeyTypeContractData:
+		if v, ok := u._u.(*StorageKeyContractData); ok {
+			return v
+		} else {
+			var zero StorageKeyContractData
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageKey.Contract_data_key accessed when Type == %v", u.Type)
+		return nil
+	}
+}
+func (u StorageKey) XdrValid() bool {
+	switch u.Type {
+	case KStorageKeyTypeContractData:
+		return true
+	}
+	return false
+}
+func (u *StorageKey) XdrUnionTag() XdrNum32 {
+	return XDR_StorageKeyType(&u.Type)
+}
+func (u *StorageKey) XdrUnionTagName() string {
+	return "Type"
+}
+func (u *StorageKey) XdrUnionBody() XdrType {
+	switch u.Type {
+	case KStorageKeyTypeContractData:
+		return XDR_StorageKeyContractData(u.Contract_data_key())
+	}
+	return nil
+}
+func (u *StorageKey) XdrUnionBodyName() string {
+	switch u.Type {
+	case KStorageKeyTypeContractData:
+		return "Contract_data_key"
+	}
+	return ""
+}
+type XdrType_StorageKey = *StorageKey
+func (v *StorageKey) XdrPointer() interface{} { return v }
+func (StorageKey) XdrTypeName() string { return "StorageKey" }
+func (v StorageKey) XdrValue() interface{} { return v }
+func (v *StorageKey) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *StorageKey) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_StorageKeyType(&u.Type).XdrMarshal(x, x.Sprintf("%stype", name))
+	switch u.Type {
+	case KStorageKeyTypeContractData:
+		x.Marshal(x.Sprintf("%scontract_data_key", name), XDR_StorageKeyContractData(u.Contract_data_key()))
+		return
+	}
+	XdrPanic("invalid Type (%v) in StorageKey", u.Type)
+}
+func XDR_StorageKey(v *StorageKey) *StorageKey { return v}
 type XdrType_AddressAndKey = *AddressAndKey
 func (v *AddressAndKey) XdrPointer() interface{} { return v }
 func (AddressAndKey) XdrTypeName() string { return "AddressAndKey" }
