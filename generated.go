@@ -198,6 +198,7 @@ type Config struct {
 	Spectra_config *SpectraConfig
 	Mempool_config *MempoolConfig
 	Catchup_config *CatchupConfig
+	Solo_config *SoloConfig
 }
 
 type ContractBlob = []byte
@@ -728,6 +729,11 @@ const (
 type Shard1 interface {
 	Shard_null(context.Context, ) error
 	Shard_restore(context.Context, BlockHeight) (ShardResult, error)
+}
+
+type SoloConfig struct {
+	Leader ValidatorPublicInfo
+	Quorum []ValidatorPublicInfo
 }
 
 type SoloNodeID = [32]byte
@@ -3178,6 +3184,77 @@ func (v _XdrPtr_CatchupConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_CatchupConfig) XdrTypeName() string { return "CatchupConfig*" }
 func (v _XdrPtr_CatchupConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_CatchupConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_SoloConfig struct {
+	p **SoloConfig
+}
+type _ptrflag_SoloConfig _XdrPtr_SoloConfig
+func (v _ptrflag_SoloConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_SoloConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("SoloConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_SoloConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_SoloConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(SoloConfig)
+		}
+	default:
+		XdrPanic("*SoloConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_SoloConfig) XdrTypeName() string { return "SoloConfig?" }
+func (v _ptrflag_SoloConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_SoloConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_SoloConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_SoloConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_SoloConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_SoloConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(SoloConfig)
+	}
+}
+func (v _XdrPtr_SoloConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_SoloConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_SoloConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_SoloConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_SoloConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_SoloConfig) XdrTypeName() string { return "SoloConfig*" }
+func (v _XdrPtr_SoloConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_SoloConfig) XdrValue() interface{} { return *v.p }
 type XdrType_Config = *Config
 func (v *Config) XdrPointer() interface{} { return v }
 func (Config) XdrTypeName() string { return "Config" }
@@ -3195,6 +3272,7 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sspectra_config", name), _XdrPtr_SpectraConfig{&v.Spectra_config})
 	x.Marshal(x.Sprintf("%smempool_config", name), _XdrPtr_MempoolConfig{&v.Mempool_config})
 	x.Marshal(x.Sprintf("%scatchup_config", name), _XdrPtr_CatchupConfig{&v.Catchup_config})
+	x.Marshal(x.Sprintf("%ssolo_config", name), _XdrPtr_SoloConfig{&v.Solo_config})
 }
 func XDR_Config(v *Config) *Config { return v }
 type XdrType_ContractBlob struct {
@@ -7807,6 +7885,19 @@ func (c Shard1_Client) Shard_restore(ctx context.Context, a1 BlockHeight) (r Sha
 	}
 	return *proc.Res, nil
 }
+type XdrType_SoloConfig = *SoloConfig
+func (v *SoloConfig) XdrPointer() interface{} { return v }
+func (SoloConfig) XdrTypeName() string { return "SoloConfig" }
+func (v SoloConfig) XdrValue() interface{} { return v }
+func (v *SoloConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SoloConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sleader", name), XDR_ValidatorPublicInfo(&v.Leader))
+	x.Marshal(x.Sprintf("%squorum", name), (*_XdrVec_unbounded_ValidatorPublicInfo)(&v.Quorum))
+}
+func XDR_SoloConfig(v *SoloConfig) *SoloConfig { return v }
 type XdrType_SoloNodeID struct {
 	*_XdrArray_32_opaque
 }
