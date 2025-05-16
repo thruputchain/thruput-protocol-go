@@ -308,8 +308,25 @@ type DbCatchupResult struct {
 	_u interface{}
 }
 
+type DbTip struct {
+	Height BlockHeight
+	Hash BlockHash
+	Id BlockID
+}
+
+type DbTipResult struct {
+	// The union discriminant Result selects among the following arms:
+	//   DbResultOK:
+	//      Db_tip() *DbTip
+	//   default:
+	//      void
+	Result DbResult
+	_u interface{}
+}
+
 type DbCoord1 interface {
 	Dbcoord_null(context.Context, ) error
+	Dbcoord_get_tip(context.Context, ) (DbTipResult, error)
 	Dbcoord_create_snapshot(context.Context, BlockID, BlockID, BlockExecutionMode) (DbResult, error)
 	Dbcoord_open_snapshot(context.Context, BlockID) (DbResult, error)
 	Dbcoord_commit_snapshot(context.Context, BlockID) (DbBlockResult, error)
@@ -3981,6 +3998,82 @@ func (u *DbCatchupResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_DbCatchupResult(v *DbCatchupResult) *DbCatchupResult { return v}
+type XdrType_DbTip = *DbTip
+func (v *DbTip) XdrPointer() interface{} { return v }
+func (DbTip) XdrTypeName() string { return "DbTip" }
+func (v DbTip) XdrValue() interface{} { return v }
+func (v *DbTip) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DbTip) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
+	x.Marshal(x.Sprintf("%shash", name), XDR_BlockHash(&v.Hash))
+	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
+}
+func XDR_DbTip(v *DbTip) *DbTip { return v }
+func (_ DbTipResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *DbTipResult) Db_tip() *DbTip {
+	switch u.Result {
+	case DbResultOK:
+		if v, ok := u._u.(*DbTip); ok {
+			return v
+		} else {
+			var zero DbTip
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("DbTipResult.Db_tip accessed when Result == %v", u.Result)
+		return nil
+	}
+}
+func (u DbTipResult) XdrValid() bool {
+	return true
+}
+func (u *DbTipResult) XdrUnionTag() XdrNum32 {
+	return XDR_DbResult(&u.Result)
+}
+func (u *DbTipResult) XdrUnionTagName() string {
+	return "Result"
+}
+func (u *DbTipResult) XdrUnionBody() XdrType {
+	switch u.Result {
+	case DbResultOK:
+		return XDR_DbTip(u.Db_tip())
+	default:
+		return nil
+	}
+}
+func (u *DbTipResult) XdrUnionBodyName() string {
+	switch u.Result {
+	case DbResultOK:
+		return "Db_tip"
+	default:
+		return ""
+	}
+}
+type XdrType_DbTipResult = *DbTipResult
+func (v *DbTipResult) XdrPointer() interface{} { return v }
+func (DbTipResult) XdrTypeName() string { return "DbTipResult" }
+func (v DbTipResult) XdrValue() interface{} { return v }
+func (v *DbTipResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *DbTipResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_DbResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
+	switch u.Result {
+	case DbResultOK:
+		x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(u.Db_tip()))
+		return
+	default:
+		return
+	}
+}
+func XDR_DbTipResult(v *DbTipResult) *DbTipResult { return v}
 
 type xdrProc_Dbcoord_null struct {
 	Arg *XdrVoid
@@ -4026,6 +4119,53 @@ func (p *xdrSrvProc_Dbcoord_null) Do() {
 	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbcoord_null{} // XXX
+
+type xdrProc_Dbcoord_get_tip struct {
+	Arg *XdrVoid
+	Res *DbTipResult
+}
+func (xdrProc_Dbcoord_get_tip) Prog() uint32 { return 2129102984 }
+func (xdrProc_Dbcoord_get_tip) Vers() uint32 { return 1 }
+func (xdrProc_Dbcoord_get_tip) Proc() uint32 { return 1 }
+func (xdrProc_Dbcoord_get_tip) ProgName() string { return "DbCoord" }
+func (xdrProc_Dbcoord_get_tip) VersName() string { return "DbCoord1" }
+func (xdrProc_Dbcoord_get_tip) ProcName() string { return "dbcoord_get_tip" }
+func (p *xdrProc_Dbcoord_get_tip) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Arg)
+}
+func (p *xdrProc_Dbcoord_get_tip) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(DbTipResult)
+	}
+	return XDR_DbTipResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Dbcoord_get_tip{} // XXX
+
+type xdrSrvProc_Dbcoord_get_tip struct {
+	xdrProc_Dbcoord_get_tip
+	Srv DbCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Dbcoord_get_tip) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DbCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Dbcoord_get_tip) Do() {
+	r, err := p.Srv.Dbcoord_get_tip(p.Ctx, )
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Dbcoord_get_tip{} // XXX
 
 type xdrProcArg_Dbcoord_create_snapshot struct {
 	a1 *BlockID
@@ -4337,6 +4477,8 @@ func init() {
 		switch(p) {
 		case 0:
 			return &xdrProc_Dbcoord_null{}
+		case 1:
+			return &xdrProc_Dbcoord_get_tip{}
 		case 10:
 			return &xdrProc_Dbcoord_create_snapshot{}
 		case 11:
@@ -4365,6 +4507,8 @@ func (s DbCoord1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // dbcoord_null
 		return &xdrSrvProc_Dbcoord_null{ Srv: s.Srv }
+	case 1:  // dbcoord_get_tip
+		return &xdrSrvProc_Dbcoord_get_tip{ Srv: s.Srv }
 	case 10:  // dbcoord_create_snapshot
 		return &xdrSrvProc_Dbcoord_create_snapshot{ Srv: s.Srv }
 	case 11:  // dbcoord_open_snapshot
@@ -4398,6 +4542,13 @@ func (c DbCoord1_Client) Dbcoord_null(ctx context.Context, ) error {
 		return err
 	}
 	return nil
+}
+func (c DbCoord1_Client) Dbcoord_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
+	var proc xdrProc_Dbcoord_get_tip
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
 }
 func (c DbCoord1_Client) Dbcoord_create_snapshot(ctx context.Context, a1 BlockID, a2 BlockID, a3 BlockExecutionMode) (r DbResult, _ error) {
 	var proc xdrProc_Dbcoord_create_snapshot
