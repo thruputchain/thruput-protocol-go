@@ -139,7 +139,7 @@ type SignedCatchupBlocksResult struct {
 
 type Catchup1 interface {
 	Catchup_null(context.Context, ) error
-	Catchup_blocks(context.Context, SignedCatchupBlocksRequest) (SignedCatchupBlocksResult, error)
+	Catchup_solicit(context.Context, SignedCatchupBlocksRequest) (SignedCatchupBlocksResult, error)
 }
 
 type Milliseconds = int64
@@ -2283,36 +2283,36 @@ func (p *xdrSrvProc_Catchup_null) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Catchup_null{} // XXX
 
-type xdrProc_Catchup_blocks struct {
+type xdrProc_Catchup_solicit struct {
 	Arg *SignedCatchupBlocksRequest
 	Res *SignedCatchupBlocksResult
 }
-func (xdrProc_Catchup_blocks) Prog() uint32 { return 1126280141 }
-func (xdrProc_Catchup_blocks) Vers() uint32 { return 1 }
-func (xdrProc_Catchup_blocks) Proc() uint32 { return 10 }
-func (xdrProc_Catchup_blocks) ProgName() string { return "Catchup" }
-func (xdrProc_Catchup_blocks) VersName() string { return "Catchup1" }
-func (xdrProc_Catchup_blocks) ProcName() string { return "catchup_blocks" }
-func (p *xdrProc_Catchup_blocks) GetArg() XdrType {
+func (xdrProc_Catchup_solicit) Prog() uint32 { return 1126280141 }
+func (xdrProc_Catchup_solicit) Vers() uint32 { return 1 }
+func (xdrProc_Catchup_solicit) Proc() uint32 { return 10 }
+func (xdrProc_Catchup_solicit) ProgName() string { return "Catchup" }
+func (xdrProc_Catchup_solicit) VersName() string { return "Catchup1" }
+func (xdrProc_Catchup_solicit) ProcName() string { return "catchup_solicit" }
+func (p *xdrProc_Catchup_solicit) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(SignedCatchupBlocksRequest)
 	}
 	return XDR_SignedCatchupBlocksRequest(p.Arg)
 }
-func (p *xdrProc_Catchup_blocks) GetRes() XdrType {
+func (p *xdrProc_Catchup_solicit) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(SignedCatchupBlocksResult)
 	}
 	return XDR_SignedCatchupBlocksResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Catchup_blocks{} // XXX
+var _ XdrProc = &xdrProc_Catchup_solicit{} // XXX
 
-type xdrSrvProc_Catchup_blocks struct {
-	xdrProc_Catchup_blocks
+type xdrSrvProc_Catchup_solicit struct {
+	xdrProc_Catchup_solicit
 	Srv Catchup1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Catchup_blocks) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Catchup_solicit) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) Catchup1
 	}); ok {
@@ -2320,15 +2320,15 @@ func (p *xdrSrvProc_Catchup_blocks) SetContext(ctx context.Context) {
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Catchup_blocks) Do() {
-	r, err := p.Srv.Catchup_blocks(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Catchup_solicit) Do() {
+	r, err := p.Srv.Catchup_solicit(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Catchup_blocks{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Catchup_solicit{} // XXX
 
 func init() {
 	XdrCatalog[1126280141<<32|1] = func(p uint32) XdrProc {
@@ -2336,7 +2336,7 @@ func init() {
 		case 0:
 			return &xdrProc_Catchup_null{}
 		case 10:
-			return &xdrProc_Catchup_blocks{}
+			return &xdrProc_Catchup_solicit{}
 		}
 		return nil
 	}
@@ -2353,8 +2353,8 @@ func (s Catchup1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // catchup_null
 		return &xdrSrvProc_Catchup_null{ Srv: s.Srv }
-	case 10:  // catchup_blocks
-		return &xdrSrvProc_Catchup_blocks{ Srv: s.Srv }
+	case 10:  // catchup_solicit
+		return &xdrSrvProc_Catchup_solicit{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -2377,8 +2377,8 @@ func (c Catchup1_Client) Catchup_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c Catchup1_Client) Catchup_blocks(ctx context.Context, a1 SignedCatchupBlocksRequest) (r SignedCatchupBlocksResult, _ error) {
-	var proc xdrProc_Catchup_blocks
+func (c Catchup1_Client) Catchup_solicit(ctx context.Context, a1 SignedCatchupBlocksRequest) (r SignedCatchupBlocksResult, _ error) {
+	var proc xdrProc_Catchup_solicit
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
