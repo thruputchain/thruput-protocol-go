@@ -187,6 +187,7 @@ type MempoolConfig struct {
 
 type CatchupConfig struct {
 	Catchup_block_ttl_sec Seconds
+	Catchup_block_age BlockHeight
 }
 
 type Config struct {
@@ -852,7 +853,6 @@ const (
 	KItemTypeBytestring StorageItemType = 0
 	KItemTypeNonnegativeInt StorageItemType = 1
 	KItemTypeRetrocausalQueue StorageItemType = 2
-	KItemTypeAssetBalance StorageItemType = 3
 	KItemTypeDeleted StorageItemType = -1
 )
 
@@ -868,8 +868,6 @@ type StorageItem struct {
 	//      Nnint() *Int128_xdr
 	//   KItemTypeRetrocausalQueue:
 	//      void
-	//   KItemTypeAssetBalance:
-	//      Asset_balance() *Uint128_xdr
 	Type StorageItemType
 	_u interface{}
 }
@@ -880,7 +878,6 @@ const (
 	KDeltaTypeNonnegativeIntSetAdd StorageDeltaType = 1
 	KDeltaTypeDelete StorageDeltaType = 2
 	KDeltaTypeRetrocausalQueue StorageDeltaType = 3
-	KDeltaTypeAssetTransfer StorageDeltaType = 4
 )
 
 type NonnegativeInt128SetAddArgs struct {
@@ -898,8 +895,6 @@ type StorageDelta struct {
 	//      void
 	//   KDeltaTypeRetrocausalQueue:
 	//      Retrocausal_queue() *RetrocausalQueueDelta
-	//   KDeltaTypeAssetTransfer:
-	//      Transfer_amount() *Int128_xdr
 	Type StorageDeltaType
 	_u interface{}
 }
@@ -925,21 +920,19 @@ const (
 	KPermanentExclusiveLock StorageLockType = 3
 )
 
-type AssetBalanceLock struct {
-	// positive
-	Asset_add_amount Int128_xdr
-	// negative
-	Asset_subtract_amount Int128_xdr
+type NNIntBoundsLock struct {
+	// nonnegative
+	Add_amount Int128_xdr
+	// nonpositive
+	Subtract_amount Int128_xdr
 }
 
 type TypeSpecificLock struct {
 	// The union discriminant Item_type selects among the following arms:
 	//   KItemTypeNonnegativeInt:
-	//      Nnint_subtracted_amount() *Int128_xdr
+	//      Nnint_bounds_lock() *NNIntBoundsLock
 	//   KItemTypeRetrocausalQueue:
 	//      Consume_lock() *uint32
-	//   KItemTypeAssetBalance:
-	//      Asset_balance_lock() *AssetBalanceLock
 	//   default:
 	//      void
 	Item_type StorageItemType
@@ -1120,6 +1113,8 @@ type StorageKey struct {
 	// The union discriminant Type selects among the following arms:
 	//   KStorageKeyTypeContractData:
 	//      Contract_data_key() *StorageKeyContractData
+	//   KStorageKeyTypeFreeNativeTokenBalance:
+	//      void
 	Type StorageKeyType
 	_u interface{}
 }
@@ -2631,6 +2626,7 @@ func (v *CatchupConfig) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%scatchup_block_ttl_sec", name), XDR_Seconds(&v.Catchup_block_ttl_sec))
+	x.Marshal(x.Sprintf("%scatchup_block_age", name), XDR_BlockHeight(&v.Catchup_block_age))
 }
 func XDR_CatchupConfig(v *CatchupConfig) *CatchupConfig { return v }
 type _XdrPtr_ValidatorConfig struct {
@@ -8747,14 +8743,12 @@ var _XdrNames_StorageItemType = map[int32]string{
 	int32(KItemTypeBytestring): "kItemTypeBytestring",
 	int32(KItemTypeNonnegativeInt): "kItemTypeNonnegativeInt",
 	int32(KItemTypeRetrocausalQueue): "kItemTypeRetrocausalQueue",
-	int32(KItemTypeAssetBalance): "kItemTypeAssetBalance",
 	int32(KItemTypeDeleted): "kItemTypeDeleted",
 }
 var _XdrValues_StorageItemType = map[string]int32{
 	"kItemTypeBytestring": int32(KItemTypeBytestring),
 	"kItemTypeNonnegativeInt": int32(KItemTypeNonnegativeInt),
 	"kItemTypeRetrocausalQueue": int32(KItemTypeRetrocausalQueue),
-	"kItemTypeAssetBalance": int32(KItemTypeAssetBalance),
 	"kItemTypeDeleted": int32(KItemTypeDeleted),
 }
 func (StorageItemType) XdrEnumNames() map[int32]string {
@@ -8803,7 +8797,6 @@ var _XdrTags_StorageItem = map[int32]bool{
 	XdrToI32(KItemTypeBytestring): true,
 	XdrToI32(KItemTypeNonnegativeInt): true,
 	XdrToI32(KItemTypeRetrocausalQueue): true,
-	XdrToI32(KItemTypeAssetBalance): true,
 }
 func (_ StorageItem) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageItem
@@ -8838,24 +8831,9 @@ func (u *StorageItem) Nnint() *Int128_xdr {
 		return nil
 	}
 }
-func (u *StorageItem) Asset_balance() *Uint128_xdr {
-	switch u.Type {
-	case KItemTypeAssetBalance:
-		if v, ok := u._u.(*Uint128_xdr); ok {
-			return v
-		} else {
-			var zero Uint128_xdr
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("StorageItem.Asset_balance accessed when Type == %v", u.Type)
-		return nil
-	}
-}
 func (u StorageItem) XdrValid() bool {
 	switch u.Type {
-	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue,KItemTypeAssetBalance:
+	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue:
 		return true
 	}
 	return false
@@ -8874,8 +8852,6 @@ func (u *StorageItem) XdrUnionBody() XdrType {
 		return XDR_Int128_xdr(u.Nnint())
 	case KItemTypeRetrocausalQueue:
 		return nil
-	case KItemTypeAssetBalance:
-		return XDR_Uint128_xdr(u.Asset_balance())
 	}
 	return nil
 }
@@ -8887,8 +8863,6 @@ func (u *StorageItem) XdrUnionBodyName() string {
 		return "Nnint"
 	case KItemTypeRetrocausalQueue:
 		return ""
-	case KItemTypeAssetBalance:
-		return "Asset_balance"
 	}
 	return ""
 }
@@ -8911,9 +8885,6 @@ func (u *StorageItem) XdrRecurse(x XDR, name string) {
 		return
 	case KItemTypeRetrocausalQueue:
 		return
-	case KItemTypeAssetBalance:
-		x.Marshal(x.Sprintf("%sasset_balance", name), XDR_Uint128_xdr(u.Asset_balance()))
-		return
 	}
 	XdrPanic("invalid Type (%v) in StorageItem", u.Type)
 }
@@ -8923,14 +8894,12 @@ var _XdrNames_StorageDeltaType = map[int32]string{
 	int32(KDeltaTypeNonnegativeIntSetAdd): "kDeltaTypeNonnegativeIntSetAdd",
 	int32(KDeltaTypeDelete): "kDeltaTypeDelete",
 	int32(KDeltaTypeRetrocausalQueue): "kDeltaTypeRetrocausalQueue",
-	int32(KDeltaTypeAssetTransfer): "kDeltaTypeAssetTransfer",
 }
 var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeBytestringSet": int32(KDeltaTypeBytestringSet),
 	"kDeltaTypeNonnegativeIntSetAdd": int32(KDeltaTypeNonnegativeIntSetAdd),
 	"kDeltaTypeDelete": int32(KDeltaTypeDelete),
 	"kDeltaTypeRetrocausalQueue": int32(KDeltaTypeRetrocausalQueue),
-	"kDeltaTypeAssetTransfer": int32(KDeltaTypeAssetTransfer),
 }
 func (StorageDeltaType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageDeltaType
@@ -8984,7 +8953,6 @@ var _XdrTags_StorageDelta = map[int32]bool{
 	XdrToI32(KDeltaTypeNonnegativeIntSetAdd): true,
 	XdrToI32(KDeltaTypeDelete): true,
 	XdrToI32(KDeltaTypeRetrocausalQueue): true,
-	XdrToI32(KDeltaTypeAssetTransfer): true,
 }
 func (_ StorageDelta) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageDelta
@@ -9034,24 +9002,9 @@ func (u *StorageDelta) Retrocausal_queue() *RetrocausalQueueDelta {
 		return nil
 	}
 }
-func (u *StorageDelta) Transfer_amount() *Int128_xdr {
-	switch u.Type {
-	case KDeltaTypeAssetTransfer:
-		if v, ok := u._u.(*Int128_xdr); ok {
-			return v
-		} else {
-			var zero Int128_xdr
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("StorageDelta.Transfer_amount accessed when Type == %v", u.Type)
-		return nil
-	}
-}
 func (u StorageDelta) XdrValid() bool {
 	switch u.Type {
-	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeAssetTransfer:
+	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue:
 		return true
 	}
 	return false
@@ -9072,8 +9025,6 @@ func (u *StorageDelta) XdrUnionBody() XdrType {
 		return nil
 	case KDeltaTypeRetrocausalQueue:
 		return XDR_RetrocausalQueueDelta(u.Retrocausal_queue())
-	case KDeltaTypeAssetTransfer:
-		return XDR_Int128_xdr(u.Transfer_amount())
 	}
 	return nil
 }
@@ -9087,8 +9038,6 @@ func (u *StorageDelta) XdrUnionBodyName() string {
 		return ""
 	case KDeltaTypeRetrocausalQueue:
 		return "Retrocausal_queue"
-	case KDeltaTypeAssetTransfer:
-		return "Transfer_amount"
 	}
 	return ""
 }
@@ -9113,9 +9062,6 @@ func (u *StorageDelta) XdrRecurse(x XDR, name string) {
 		return
 	case KDeltaTypeRetrocausalQueue:
 		x.Marshal(x.Sprintf("%sretrocausal_queue", name), XDR_RetrocausalQueueDelta(u.Retrocausal_queue()))
-		return
-	case KDeltaTypeAssetTransfer:
-		x.Marshal(x.Sprintf("%stransfer_amount", name), XDR_Int128_xdr(u.Transfer_amount()))
 		return
 	}
 	XdrPanic("invalid Type (%v) in StorageDelta", u.Type)
@@ -9251,34 +9197,34 @@ func (v StorageLockType) XdrValue() interface{} { return v }
 func (v *StorageLockType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_StorageLockType = *StorageLockType
 func XDR_StorageLockType(v *StorageLockType) *StorageLockType { return v }
-type XdrType_AssetBalanceLock = *AssetBalanceLock
-func (v *AssetBalanceLock) XdrPointer() interface{} { return v }
-func (AssetBalanceLock) XdrTypeName() string { return "AssetBalanceLock" }
-func (v AssetBalanceLock) XdrValue() interface{} { return v }
-func (v *AssetBalanceLock) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *AssetBalanceLock) XdrRecurse(x XDR, name string) {
+type XdrType_NNIntBoundsLock = *NNIntBoundsLock
+func (v *NNIntBoundsLock) XdrPointer() interface{} { return v }
+func (NNIntBoundsLock) XdrTypeName() string { return "NNIntBoundsLock" }
+func (v NNIntBoundsLock) XdrValue() interface{} { return v }
+func (v *NNIntBoundsLock) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NNIntBoundsLock) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sasset_add_amount", name), XDR_Int128_xdr(&v.Asset_add_amount))
-	x.Marshal(x.Sprintf("%sasset_subtract_amount", name), XDR_Int128_xdr(&v.Asset_subtract_amount))
+	x.Marshal(x.Sprintf("%sadd_amount", name), XDR_Int128_xdr(&v.Add_amount))
+	x.Marshal(x.Sprintf("%ssubtract_amount", name), XDR_Int128_xdr(&v.Subtract_amount))
 }
-func XDR_AssetBalanceLock(v *AssetBalanceLock) *AssetBalanceLock { return v }
+func XDR_NNIntBoundsLock(v *NNIntBoundsLock) *NNIntBoundsLock { return v }
 func (_ TypeSpecificLock) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *TypeSpecificLock) Nnint_subtracted_amount() *Int128_xdr {
+func (u *TypeSpecificLock) Nnint_bounds_lock() *NNIntBoundsLock {
 	switch u.Item_type {
 	case KItemTypeNonnegativeInt:
-		if v, ok := u._u.(*Int128_xdr); ok {
+		if v, ok := u._u.(*NNIntBoundsLock); ok {
 			return v
 		} else {
-			var zero Int128_xdr
+			var zero NNIntBoundsLock
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("TypeSpecificLock.Nnint_subtracted_amount accessed when Item_type == %v", u.Item_type)
+		XdrPanic("TypeSpecificLock.Nnint_bounds_lock accessed when Item_type == %v", u.Item_type)
 		return nil
 	}
 }
@@ -9298,21 +9244,6 @@ func (u *TypeSpecificLock) Consume_lock() *uint32 {
 		return nil
 	}
 }
-func (u *TypeSpecificLock) Asset_balance_lock() *AssetBalanceLock {
-	switch u.Item_type {
-	case KItemTypeAssetBalance:
-		if v, ok := u._u.(*AssetBalanceLock); ok {
-			return v
-		} else {
-			var zero AssetBalanceLock
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("TypeSpecificLock.Asset_balance_lock accessed when Item_type == %v", u.Item_type)
-		return nil
-	}
-}
 func (u TypeSpecificLock) XdrValid() bool {
 	return true
 }
@@ -9325,11 +9256,9 @@ func (u *TypeSpecificLock) XdrUnionTagName() string {
 func (u *TypeSpecificLock) XdrUnionBody() XdrType {
 	switch u.Item_type {
 	case KItemTypeNonnegativeInt:
-		return XDR_Int128_xdr(u.Nnint_subtracted_amount())
+		return XDR_NNIntBoundsLock(u.Nnint_bounds_lock())
 	case KItemTypeRetrocausalQueue:
 		return XDR_uint32(u.Consume_lock())
-	case KItemTypeAssetBalance:
-		return XDR_AssetBalanceLock(u.Asset_balance_lock())
 	default:
 		return nil
 	}
@@ -9337,11 +9266,9 @@ func (u *TypeSpecificLock) XdrUnionBody() XdrType {
 func (u *TypeSpecificLock) XdrUnionBodyName() string {
 	switch u.Item_type {
 	case KItemTypeNonnegativeInt:
-		return "Nnint_subtracted_amount"
+		return "Nnint_bounds_lock"
 	case KItemTypeRetrocausalQueue:
 		return "Consume_lock"
-	case KItemTypeAssetBalance:
-		return "Asset_balance_lock"
 	default:
 		return ""
 	}
@@ -9358,13 +9285,10 @@ func (u *TypeSpecificLock) XdrRecurse(x XDR, name string) {
 	XDR_StorageItemType(&u.Item_type).XdrMarshal(x, x.Sprintf("%sitem_type", name))
 	switch u.Item_type {
 	case KItemTypeNonnegativeInt:
-		x.Marshal(x.Sprintf("%snnint_subtracted_amount", name), XDR_Int128_xdr(u.Nnint_subtracted_amount()))
+		x.Marshal(x.Sprintf("%snnint_bounds_lock", name), XDR_NNIntBoundsLock(u.Nnint_bounds_lock()))
 		return
 	case KItemTypeRetrocausalQueue:
 		x.Marshal(x.Sprintf("%sconsume_lock", name), XDR_uint32(u.Consume_lock()))
-		return
-	case KItemTypeAssetBalance:
-		x.Marshal(x.Sprintf("%sasset_balance_lock", name), XDR_AssetBalanceLock(u.Asset_balance_lock()))
 		return
 	default:
 		return
@@ -10152,6 +10076,7 @@ type XdrType_StorageKeyType = *StorageKeyType
 func XDR_StorageKeyType(v *StorageKeyType) *StorageKeyType { return v }
 var _XdrTags_StorageKey = map[int32]bool{
 	XdrToI32(KStorageKeyTypeContractData): true,
+	XdrToI32(KStorageKeyTypeFreeNativeTokenBalance): true,
 }
 func (_ StorageKey) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageKey
@@ -10173,7 +10098,7 @@ func (u *StorageKey) Contract_data_key() *StorageKeyContractData {
 }
 func (u StorageKey) XdrValid() bool {
 	switch u.Type {
-	case KStorageKeyTypeContractData:
+	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance:
 		return true
 	}
 	return false
@@ -10188,6 +10113,8 @@ func (u *StorageKey) XdrUnionBody() XdrType {
 	switch u.Type {
 	case KStorageKeyTypeContractData:
 		return XDR_StorageKeyContractData(u.Contract_data_key())
+	case KStorageKeyTypeFreeNativeTokenBalance:
+		return nil
 	}
 	return nil
 }
@@ -10195,6 +10122,8 @@ func (u *StorageKey) XdrUnionBodyName() string {
 	switch u.Type {
 	case KStorageKeyTypeContractData:
 		return "Contract_data_key"
+	case KStorageKeyTypeFreeNativeTokenBalance:
+		return ""
 	}
 	return ""
 }
@@ -10211,6 +10140,8 @@ func (u *StorageKey) XdrRecurse(x XDR, name string) {
 	switch u.Type {
 	case KStorageKeyTypeContractData:
 		x.Marshal(x.Sprintf("%scontract_data_key", name), XDR_StorageKeyContractData(u.Contract_data_key()))
+		return
+	case KStorageKeyTypeFreeNativeTokenBalance:
 		return
 	}
 	XdrPanic("invalid Type (%v) in StorageKey", u.Type)
