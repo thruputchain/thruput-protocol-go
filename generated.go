@@ -190,6 +190,10 @@ type CatchupConfig struct {
 	Catchup_block_age BlockHeight
 }
 
+type BatonConfig struct {
+	Heartbeat_msec Milliseconds
+}
+
 type Config struct {
 	Validator_config *ValidatorConfig
 	Wallet_config *WalletConfig
@@ -200,6 +204,7 @@ type Config struct {
 	Mempool_config *MempoolConfig
 	Catchup_config *CatchupConfig
 	Solo_config *SoloConfig
+	Baton_config *BatonConfig
 }
 
 type ContractBlob = []byte
@@ -2629,6 +2634,18 @@ func (v *CatchupConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scatchup_block_age", name), XDR_BlockHeight(&v.Catchup_block_age))
 }
 func XDR_CatchupConfig(v *CatchupConfig) *CatchupConfig { return v }
+type XdrType_BatonConfig = *BatonConfig
+func (v *BatonConfig) XdrPointer() interface{} { return v }
+func (BatonConfig) XdrTypeName() string { return "BatonConfig" }
+func (v BatonConfig) XdrValue() interface{} { return v }
+func (v *BatonConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BatonConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sheartbeat_msec", name), XDR_Milliseconds(&v.Heartbeat_msec))
+}
+func XDR_BatonConfig(v *BatonConfig) *BatonConfig { return v }
 type _XdrPtr_ValidatorConfig struct {
 	p **ValidatorConfig
 }
@@ -3268,6 +3285,77 @@ func (v _XdrPtr_SoloConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_SoloConfig) XdrTypeName() string { return "SoloConfig*" }
 func (v _XdrPtr_SoloConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_SoloConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_BatonConfig struct {
+	p **BatonConfig
+}
+type _ptrflag_BatonConfig _XdrPtr_BatonConfig
+func (v _ptrflag_BatonConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_BatonConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("BatonConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_BatonConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_BatonConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(BatonConfig)
+		}
+	default:
+		XdrPanic("*BatonConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_BatonConfig) XdrTypeName() string { return "BatonConfig?" }
+func (v _ptrflag_BatonConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_BatonConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_BatonConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_BatonConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_BatonConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_BatonConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(BatonConfig)
+	}
+}
+func (v _XdrPtr_BatonConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_BatonConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_BatonConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_BatonConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_BatonConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_BatonConfig) XdrTypeName() string { return "BatonConfig*" }
+func (v _XdrPtr_BatonConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_BatonConfig) XdrValue() interface{} { return *v.p }
 type XdrType_Config = *Config
 func (v *Config) XdrPointer() interface{} { return v }
 func (Config) XdrTypeName() string { return "Config" }
@@ -3286,6 +3374,7 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%smempool_config", name), _XdrPtr_MempoolConfig{&v.Mempool_config})
 	x.Marshal(x.Sprintf("%scatchup_config", name), _XdrPtr_CatchupConfig{&v.Catchup_config})
 	x.Marshal(x.Sprintf("%ssolo_config", name), _XdrPtr_SoloConfig{&v.Solo_config})
+	x.Marshal(x.Sprintf("%sbaton_config", name), _XdrPtr_BatonConfig{&v.Baton_config})
 }
 func XDR_Config(v *Config) *Config { return v }
 type XdrType_ContractBlob struct {
