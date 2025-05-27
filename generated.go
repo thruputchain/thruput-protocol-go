@@ -23,6 +23,21 @@ type BatchMessage struct {
 	Batch_transactions BatchTransactions
 }
 
+type BagHash = SHA256Hash
+
+type BagSet struct {
+	Bag_hash BagHash
+	Bag_bitmap []byte
+}
+
+type BagTransactions struct {
+	Transactions []SignedTransaction
+}
+
+type BagMessage struct {
+	Bag_transactions BagTransactions
+}
+
 // unique id that determines the randomness
 // in creating a channel's multicast tree
 type BroadcastChannelID = [32]byte
@@ -1302,6 +1317,106 @@ func (v *BatchMessage) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sbatch_transactions", name), XDR_BatchTransactions(&v.Batch_transactions))
 }
 func XDR_BatchMessage(v *BatchMessage) *BatchMessage { return v }
+type XdrType_BagHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_BagHash(v *BagHash) XdrType_BagHash {
+	return XdrType_BagHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_BagHash) XdrTypeName() string { return "BagHash" }
+func (v XdrType_BagHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_BagSet = *BagSet
+func (v *BagSet) XdrPointer() interface{} { return v }
+func (BagSet) XdrTypeName() string { return "BagSet" }
+func (v BagSet) XdrValue() interface{} { return v }
+func (v *BagSet) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BagSet) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sbag_hash", name), XDR_BagHash(&v.Bag_hash))
+	x.Marshal(x.Sprintf("%sbag_bitmap", name), XdrVecOpaque{&v.Bag_bitmap, 0xffffffff})
+}
+func XDR_BagSet(v *BagSet) *BagSet { return v }
+type _XdrVec_unbounded_SignedTransaction []SignedTransaction
+func (_XdrVec_unbounded_SignedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SignedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SignedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SignedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SignedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SignedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SignedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SignedTransaction) XdrTypeName() string { return "SignedTransaction<>" }
+func (v *_XdrVec_unbounded_SignedTransaction) XdrPointer() interface{} { return (*[]SignedTransaction)(v) }
+func (v _XdrVec_unbounded_SignedTransaction) XdrValue() interface{} { return ([]SignedTransaction)(v) }
+func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_BagTransactions = *BagTransactions
+func (v *BagTransactions) XdrPointer() interface{} { return v }
+func (BagTransactions) XdrTypeName() string { return "BagTransactions" }
+func (v BagTransactions) XdrValue() interface{} { return v }
+func (v *BagTransactions) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BagTransactions) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Transactions))
+}
+func XDR_BagTransactions(v *BagTransactions) *BagTransactions { return v }
+type XdrType_BagMessage = *BagMessage
+func (v *BagMessage) XdrPointer() interface{} { return v }
+func (BagMessage) XdrTypeName() string { return "BagMessage" }
+func (v BagMessage) XdrValue() interface{} { return v }
+func (v *BagMessage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BagMessage) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sbag_transactions", name), XDR_BagTransactions(&v.Bag_transactions))
+}
+func XDR_BagMessage(v *BagMessage) *BagMessage { return v }
 type _XdrArray_32_opaque [32]byte
 func (v *_XdrArray_32_opaque) GetByteSlice() []byte { return v[:] }
 func (v *_XdrArray_32_opaque) XdrTypeName() string { return "opaque[]" }
@@ -10379,61 +10494,6 @@ func (v *WalletUser) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spassword_hash", name), XDR_SHA256Hash(&v.Password_hash))
 }
 func XDR_WalletUser(v *WalletUser) *WalletUser { return v }
-type _XdrVec_unbounded_SignedTransaction []SignedTransaction
-func (_XdrVec_unbounded_SignedTransaction) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_SignedTransaction) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_SignedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_SignedTransaction) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]SignedTransaction, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_SignedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_SignedTransaction) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_SignedTransaction) XdrTypeName() string { return "SignedTransaction<>" }
-func (v *_XdrVec_unbounded_SignedTransaction) XdrPointer() interface{} { return (*[]SignedTransaction)(v) }
-func (v _XdrVec_unbounded_SignedTransaction) XdrValue() interface{} { return ([]SignedTransaction)(v) }
-func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_WalletSubmit = *WalletSubmit
 func (v *WalletSubmit) XdrPointer() interface{} { return v }
 func (WalletSubmit) XdrTypeName() string { return "WalletSubmit" }
