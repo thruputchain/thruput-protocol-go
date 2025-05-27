@@ -236,6 +236,28 @@ type ContractDeploymentHashPreimage struct {
 	Contract_hash SHA256Hash
 }
 
+// This type must be a valid "identifier" as defined in RFC 4506,
+// Section 6.2: "An identifier is a letter followed by an optional sequence
+// of letters, digits, or underbar ('_')."  It must also obey Section 6.4,
+// which lists keywords that may not be used as identifiers.
+type Identifier = string
+
+// This type must be a valid version number as defined at
+// https://semver.org/.  For example, "0.1.3" or "1.0.0-alpha+001".
+type SemVer = string
+
+type ContractInterfaceIDPreimage struct {
+	Name Identifier
+	Vers SemVer
+}
+
+type ContractEntrypointID struct {
+	// This field is computed as SHA256(ContractInterfaceIDPreimage)[0..6]
+	Contract_interface_id [6]byte
+	// The meaning of this field is defined by the contract-interface author
+	Contract_method_id [2]byte
+}
+
 // ServerAddress is an IP (or hostname) and port address, separated by a
 // colon.
 type ServerAddress = string
@@ -972,7 +994,7 @@ type ReturnBuffer = []byte
 
 type Invocation struct {
 	Invoked_address ContractAddress
-	Method uint32
+	Method MethodID
 	Gas_limit GasAmount
 	Calldata Calldata
 }
@@ -1046,11 +1068,11 @@ type RuntimeMemoryOffset = uint32
 // uint32_t
 type RuntimeMemoryLength = uint32
 
-// uint64_t
+// TODO(geoff): consider using a smaller type for GasAmount
 type GasAmount = uint64
 
-// uint32_t
-type MethodID = uint32
+// uint64_t
+type MethodID = uint64
 
 // ed25519 sig len is 512 bits
 type Ed25519Signature = [64]byte
@@ -1115,21 +1137,25 @@ const (
 )
 
 type StorageKey struct {
-	// The union discriminant Type selects among the following arms:
+	// The union discriminant Key_type selects among the following arms:
 	//   KStorageKeyTypeContractData:
 	//      Contract_data_key() *StorageKeyContractData
 	//   KStorageKeyTypeFreeNativeTokenBalance:
 	//      void
-	Type StorageKeyType
+	Key_type StorageKeyType
 	_u interface{}
 }
 
+// #[rust(const=u32)]
 const KMaxLogMessageLen = 1024
 
+// #[rust(const=u32)]
 const KMaxReturnBufferLen = 1024
 
+// #[rust(const=u64)]
 const KTotalHogSupply = 62_500_000_000
 
+// #[rust(const=u32)]
 const KHogDivisibility = 10_000_000
 
 // in global storage:
@@ -3549,6 +3575,76 @@ func (v *ContractDeploymentHashPreimage) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scontract_hash", name), XDR_SHA256Hash(&v.Contract_hash))
 }
 func XDR_ContractDeploymentHashPreimage(v *ContractDeploymentHashPreimage) *ContractDeploymentHashPreimage { return v }
+type XdrType_Identifier struct {
+	XdrString
+}
+func XDR_Identifier(v *Identifier) XdrType_Identifier {
+	return XdrType_Identifier{XdrString{v, 0xffffffff}}
+}
+func (XdrType_Identifier) XdrTypeName() string { return "Identifier" }
+func (v XdrType_Identifier) XdrUnwrap() XdrType { return v.XdrString }
+type XdrType_SemVer struct {
+	XdrString
+}
+func XDR_SemVer(v *SemVer) XdrType_SemVer {
+	return XdrType_SemVer{XdrString{v, 0xffffffff}}
+}
+func (XdrType_SemVer) XdrTypeName() string { return "SemVer" }
+func (v XdrType_SemVer) XdrUnwrap() XdrType { return v.XdrString }
+type XdrType_ContractInterfaceIDPreimage = *ContractInterfaceIDPreimage
+func (v *ContractInterfaceIDPreimage) XdrPointer() interface{} { return v }
+func (ContractInterfaceIDPreimage) XdrTypeName() string { return "ContractInterfaceIDPreimage" }
+func (v ContractInterfaceIDPreimage) XdrValue() interface{} { return v }
+func (v *ContractInterfaceIDPreimage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ContractInterfaceIDPreimage) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sname", name), XDR_Identifier(&v.Name))
+	x.Marshal(x.Sprintf("%svers", name), XDR_SemVer(&v.Vers))
+}
+func XDR_ContractInterfaceIDPreimage(v *ContractInterfaceIDPreimage) *ContractInterfaceIDPreimage { return v }
+type _XdrArray_6_opaque [6]byte
+func (v *_XdrArray_6_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_6_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_6_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_6_opaque) XdrPointer() interface{} { return (*[6]byte)(v) }
+func (v *_XdrArray_6_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_6_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_6_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_6_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 6 // Force error if not const or doesn't fit
+	return bound
+}
+type _XdrArray_2_opaque [2]byte
+func (v *_XdrArray_2_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_2_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_2_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_2_opaque) XdrPointer() interface{} { return (*[2]byte)(v) }
+func (v *_XdrArray_2_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_2_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_2_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_2_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 2 // Force error if not const or doesn't fit
+	return bound
+}
+type XdrType_ContractEntrypointID = *ContractEntrypointID
+func (v *ContractEntrypointID) XdrPointer() interface{} { return v }
+func (ContractEntrypointID) XdrTypeName() string { return "ContractEntrypointID" }
+func (v ContractEntrypointID) XdrValue() interface{} { return v }
+func (v *ContractEntrypointID) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ContractEntrypointID) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%scontract_interface_id", name), (*_XdrArray_6_opaque)(&v.Contract_interface_id))
+	x.Marshal(x.Sprintf("%scontract_method_id", name), (*_XdrArray_2_opaque)(&v.Contract_method_id))
+}
+func XDR_ContractEntrypointID(v *ContractEntrypointID) *ContractEntrypointID { return v }
 type XdrType_ServerAddress struct {
 	XdrString
 }
@@ -9510,7 +9606,7 @@ func (v *Invocation) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sinvoked_address", name), XDR_ContractAddress(&v.Invoked_address))
-	x.Marshal(x.Sprintf("%smethod", name), XDR_uint32(&v.Method))
+	x.Marshal(x.Sprintf("%smethod", name), XDR_MethodID(&v.Method))
 	x.Marshal(x.Sprintf("%sgas_limit", name), XDR_GasAmount(&v.Gas_limit))
 	x.Marshal(x.Sprintf("%scalldata", name), XDR_Calldata(&v.Calldata))
 }
@@ -9764,13 +9860,13 @@ func XDR_GasAmount(v *GasAmount) XdrType_GasAmount {
 func (XdrType_GasAmount) XdrTypeName() string { return "GasAmount" }
 func (v XdrType_GasAmount) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type XdrType_MethodID struct {
-	XdrType_uint32
+	XdrType_uint64
 }
 func XDR_MethodID(v *MethodID) XdrType_MethodID {
-	return XdrType_MethodID{XDR_uint32(v)}
+	return XdrType_MethodID{XDR_uint64(v)}
 }
 func (XdrType_MethodID) XdrTypeName() string { return "MethodID" }
-func (v XdrType_MethodID) XdrUnwrap() XdrType { return v.XdrType_uint32 }
+func (v XdrType_MethodID) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type _XdrArray_64_opaque [64]byte
 func (v *_XdrArray_64_opaque) GetByteSlice() []byte { return v[:] }
 func (v *_XdrArray_64_opaque) XdrTypeName() string { return "opaque[]" }
@@ -10171,7 +10267,7 @@ func (_ StorageKey) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageKey
 }
 func (u *StorageKey) Contract_data_key() *StorageKeyContractData {
-	switch u.Type {
+	switch u.Key_type {
 	case KStorageKeyTypeContractData:
 		if v, ok := u._u.(*StorageKeyContractData); ok {
 			return v
@@ -10181,25 +10277,25 @@ func (u *StorageKey) Contract_data_key() *StorageKeyContractData {
 			return &zero
 		}
 	default:
-		XdrPanic("StorageKey.Contract_data_key accessed when Type == %v", u.Type)
+		XdrPanic("StorageKey.Contract_data_key accessed when Key_type == %v", u.Key_type)
 		return nil
 	}
 }
 func (u StorageKey) XdrValid() bool {
-	switch u.Type {
+	switch u.Key_type {
 	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance:
 		return true
 	}
 	return false
 }
 func (u *StorageKey) XdrUnionTag() XdrNum32 {
-	return XDR_StorageKeyType(&u.Type)
+	return XDR_StorageKeyType(&u.Key_type)
 }
 func (u *StorageKey) XdrUnionTagName() string {
-	return "Type"
+	return "Key_type"
 }
 func (u *StorageKey) XdrUnionBody() XdrType {
-	switch u.Type {
+	switch u.Key_type {
 	case KStorageKeyTypeContractData:
 		return XDR_StorageKeyContractData(u.Contract_data_key())
 	case KStorageKeyTypeFreeNativeTokenBalance:
@@ -10208,7 +10304,7 @@ func (u *StorageKey) XdrUnionBody() XdrType {
 	return nil
 }
 func (u *StorageKey) XdrUnionBodyName() string {
-	switch u.Type {
+	switch u.Key_type {
 	case KStorageKeyTypeContractData:
 		return "Contract_data_key"
 	case KStorageKeyTypeFreeNativeTokenBalance:
@@ -10225,15 +10321,15 @@ func (u *StorageKey) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	XDR_StorageKeyType(&u.Type).XdrMarshal(x, x.Sprintf("%stype", name))
-	switch u.Type {
+	XDR_StorageKeyType(&u.Key_type).XdrMarshal(x, x.Sprintf("%skey_type", name))
+	switch u.Key_type {
 	case KStorageKeyTypeContractData:
 		x.Marshal(x.Sprintf("%scontract_data_key", name), XDR_StorageKeyContractData(u.Contract_data_key()))
 		return
 	case KStorageKeyTypeFreeNativeTokenBalance:
 		return
 	}
-	XdrPanic("invalid Type (%v) in StorageKey", u.Type)
+	XdrPanic("invalid Key_type (%v) in StorageKey", u.Key_type)
 }
 func XDR_StorageKey(v *StorageKey) *StorageKey { return v}
 type XdrType_AddressAndKey = *AddressAndKey
