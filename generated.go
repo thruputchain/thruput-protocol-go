@@ -603,6 +603,14 @@ type Proposal struct {
 	Proposed_transaction_batches []BatchHash
 }
 
+type Nomination struct {
+	Block_height BlockHeight
+	Block_hash BlockHash
+	Prev_block_hash BlockHash
+	Transaction_hashes []SignedTransactionHash
+	Transaction_nominations []NominatedTransaction
+}
+
 type PrevProposalSummary struct {
 	Block_hash BlockHash
 }
@@ -7318,6 +7326,132 @@ func (v *Proposal) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposed_transaction_batches", name), (*_XdrVec_unbounded_BatchHash)(&v.Proposed_transaction_batches))
 }
 func XDR_Proposal(v *Proposal) *Proposal { return v }
+type _XdrVec_unbounded_SignedTransactionHash []SignedTransactionHash
+func (_XdrVec_unbounded_SignedTransactionHash) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SignedTransactionHash) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SignedTransactionHash) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SignedTransactionHash) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SignedTransactionHash, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SignedTransactionHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SignedTransactionHash) XdrTypeName() string { return "SignedTransactionHash<>" }
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrPointer() interface{} { return (*[]SignedTransactionHash)(v) }
+func (v _XdrVec_unbounded_SignedTransactionHash) XdrValue() interface{} { return ([]SignedTransactionHash)(v) }
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type _XdrVec_unbounded_NominatedTransaction []NominatedTransaction
+func (_XdrVec_unbounded_NominatedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_NominatedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_NominatedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_NominatedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]NominatedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_NominatedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_NominatedTransaction) XdrTypeName() string { return "NominatedTransaction<>" }
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrPointer() interface{} { return (*[]NominatedTransaction)(v) }
+func (v _XdrVec_unbounded_NominatedTransaction) XdrValue() interface{} { return ([]NominatedTransaction)(v) }
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_Nomination = *Nomination
+func (v *Nomination) XdrPointer() interface{} { return v }
+func (Nomination) XdrTypeName() string { return "Nomination" }
+func (v Nomination) XdrValue() interface{} { return v }
+func (v *Nomination) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Nomination) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
+	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
+	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
+	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Transaction_hashes))
+	x.Marshal(x.Sprintf("%stransaction_nominations", name), (*_XdrVec_unbounded_NominatedTransaction)(&v.Transaction_nominations))
+}
+func XDR_Nomination(v *Nomination) *Nomination { return v }
 type XdrType_PrevProposalSummary = *PrevProposalSummary
 func (v *PrevProposalSummary) XdrPointer() interface{} { return v }
 func (PrevProposalSummary) XdrTypeName() string { return "PrevProposalSummary" }
