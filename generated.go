@@ -1018,6 +1018,7 @@ type InvokeFlag int32
 const (
 	KInvokeFlagNone InvokeFlag = 0
 	KInvokeFlagTryInvoke InvokeFlag = InvokeFlag(0x00000001)
+	KInvokeFlagReadOnly InvokeFlag = InvokeFlag(0x00000002)
 )
 
 type InvokeFlagSet = int32
@@ -1060,6 +1061,12 @@ type NondeterministicProposalData struct {
 // TODO(petar): Should the signature capture the non-deterministic data?
 type ProposedTransaction struct {
 	Signed_tx SignedTransaction
+	Nondeterministic_proposal_data NondeterministicProposalData
+}
+
+// Nominations, included in SCP messages, include only the ND data.
+// The transactions themselves are disseminated through the overlay.
+type NominatedTransaction struct {
 	Nondeterministic_proposal_data NondeterministicProposalData
 }
 
@@ -9729,10 +9736,12 @@ func XDR_Invocation(v *Invocation) *Invocation { return v }
 var _XdrNames_InvokeFlag = map[int32]string{
 	int32(KInvokeFlagNone): "kInvokeFlagNone",
 	int32(KInvokeFlagTryInvoke): "kInvokeFlagTryInvoke",
+	int32(KInvokeFlagReadOnly): "kInvokeFlagReadOnly",
 }
 var _XdrValues_InvokeFlag = map[string]int32{
 	"kInvokeFlagNone": int32(KInvokeFlagNone),
 	"kInvokeFlagTryInvoke": int32(KInvokeFlagTryInvoke),
+	"kInvokeFlagReadOnly": int32(KInvokeFlagReadOnly),
 }
 func (InvokeFlag) XdrEnumNames() map[int32]string {
 	return _XdrNames_InvokeFlag
@@ -9916,6 +9925,18 @@ func (v *ProposedTransaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snondeterministic_proposal_data", name), XDR_NondeterministicProposalData(&v.Nondeterministic_proposal_data))
 }
 func XDR_ProposedTransaction(v *ProposedTransaction) *ProposedTransaction { return v }
+type XdrType_NominatedTransaction = *NominatedTransaction
+func (v *NominatedTransaction) XdrPointer() interface{} { return v }
+func (NominatedTransaction) XdrTypeName() string { return "NominatedTransaction" }
+func (v NominatedTransaction) XdrValue() interface{} { return v }
+func (v *NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NominatedTransaction) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%snondeterministic_proposal_data", name), XDR_NondeterministicProposalData(&v.Nondeterministic_proposal_data))
+}
+func XDR_NominatedTransaction(v *NominatedTransaction) *NominatedTransaction { return v }
 type XdrType_Uint128_xdr = *Uint128_xdr
 func (v *Uint128_xdr) XdrPointer() interface{} { return v }
 func (Uint128_xdr) XdrTypeName() string { return "Uint128_xdr" }
