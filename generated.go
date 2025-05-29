@@ -188,7 +188,7 @@ type MempoolConfig struct {
 	Proposed_batch_ttl_msec Milliseconds
 	Transaction_ttl_msec Milliseconds
 	Submission_lot_size int64
-	Submission_lot_wait Milliseconds
+	Submission_lot_wait_msec Milliseconds
 }
 
 type CatchupConfig struct {
@@ -2737,7 +2737,7 @@ func (v *MempoolConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposed_batch_ttl_msec", name), XDR_Milliseconds(&v.Proposed_batch_ttl_msec))
 	x.Marshal(x.Sprintf("%stransaction_ttl_msec", name), XDR_Milliseconds(&v.Transaction_ttl_msec))
 	x.Marshal(x.Sprintf("%ssubmission_lot_size", name), XDR_int64(&v.Submission_lot_size))
-	x.Marshal(x.Sprintf("%ssubmission_lot_wait", name), XDR_Milliseconds(&v.Submission_lot_wait))
+	x.Marshal(x.Sprintf("%ssubmission_lot_wait_msec", name), XDR_Milliseconds(&v.Submission_lot_wait_msec))
 }
 func XDR_MempoolConfig(v *MempoolConfig) *MempoolConfig { return v }
 type XdrType_CatchupConfig = *CatchupConfig
