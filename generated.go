@@ -495,10 +495,20 @@ type ExecProposeResult struct {
 	_u interface{}
 }
 
+type SignedTransactionBatch = []SignedTransaction
+
+type ProposedTransactionBatch = []ProposedTransaction
+
+type ExecProposeBatchResult = []ExecProposeResult
+
+type ExecValidateBatchResult = []ExecResult
+
 type ExecutorCoord1 interface {
 	Executorcoord_null(context.Context, ) error
 	Executorcoord_propose_transaction(context.Context, BlockID, SignedTransaction) (ExecProposeResult, error)
 	Executorcoord_validate_transaction(context.Context, BlockID, ProposedTransaction) (ExecResult, error)
+	Executorcoord_propose_batch(context.Context, BlockID, SignedTransactionBatch) (ExecProposeBatchResult, error)
+	Executorcoord_validate_batch(context.Context, BlockID, ProposedTransactionBatch) (ExecValidateBatchResult, error)
 	Executorcoord_open_proposal_block(context.Context, BlockID) (ExecResult, error)
 	Executorcoord_open_validation_block(context.Context, BlockID) (ExecResult, error)
 	Executorcoord_finish_block(context.Context, BlockID) error
@@ -6421,6 +6431,148 @@ func (u *ExecProposeResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_ExecProposeResult(v *ExecProposeResult) *ExecProposeResult { return v}
+type XdrType_SignedTransactionBatch struct {
+	*_XdrVec_unbounded_SignedTransaction
+}
+func XDR_SignedTransactionBatch(v *SignedTransactionBatch) XdrType_SignedTransactionBatch {
+	return XdrType_SignedTransactionBatch{(*_XdrVec_unbounded_SignedTransaction)(v)}
+}
+func (XdrType_SignedTransactionBatch) XdrTypeName() string { return "SignedTransactionBatch" }
+func (v XdrType_SignedTransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SignedTransaction }
+type XdrType_ProposedTransactionBatch struct {
+	*_XdrVec_unbounded_ProposedTransaction
+}
+func XDR_ProposedTransactionBatch(v *ProposedTransactionBatch) XdrType_ProposedTransactionBatch {
+	return XdrType_ProposedTransactionBatch{(*_XdrVec_unbounded_ProposedTransaction)(v)}
+}
+func (XdrType_ProposedTransactionBatch) XdrTypeName() string { return "ProposedTransactionBatch" }
+func (v XdrType_ProposedTransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_ProposedTransaction }
+type _XdrVec_unbounded_ExecProposeResult []ExecProposeResult
+func (_XdrVec_unbounded_ExecProposeResult) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_ExecProposeResult) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_ExecProposeResult length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_ExecProposeResult length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_ExecProposeResult) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_ExecProposeResult) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]ExecProposeResult, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_ExecProposeResult) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_ExecProposeResult(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_ExecProposeResult) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_ExecProposeResult) XdrTypeName() string { return "ExecProposeResult<>" }
+func (v *_XdrVec_unbounded_ExecProposeResult) XdrPointer() interface{} { return (*[]ExecProposeResult)(v) }
+func (v _XdrVec_unbounded_ExecProposeResult) XdrValue() interface{} { return ([]ExecProposeResult)(v) }
+func (v *_XdrVec_unbounded_ExecProposeResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ExecProposeBatchResult struct {
+	*_XdrVec_unbounded_ExecProposeResult
+}
+func XDR_ExecProposeBatchResult(v *ExecProposeBatchResult) XdrType_ExecProposeBatchResult {
+	return XdrType_ExecProposeBatchResult{(*_XdrVec_unbounded_ExecProposeResult)(v)}
+}
+func (XdrType_ExecProposeBatchResult) XdrTypeName() string { return "ExecProposeBatchResult" }
+func (v XdrType_ExecProposeBatchResult) XdrUnwrap() XdrType { return v._XdrVec_unbounded_ExecProposeResult }
+type _XdrVec_unbounded_ExecResult []ExecResult
+func (_XdrVec_unbounded_ExecResult) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_ExecResult) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_ExecResult length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_ExecResult length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_ExecResult) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_ExecResult) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]ExecResult, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_ExecResult) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_ExecResult(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_ExecResult) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_ExecResult) XdrTypeName() string { return "ExecResult<>" }
+func (v *_XdrVec_unbounded_ExecResult) XdrPointer() interface{} { return (*[]ExecResult)(v) }
+func (v _XdrVec_unbounded_ExecResult) XdrValue() interface{} { return ([]ExecResult)(v) }
+func (v *_XdrVec_unbounded_ExecResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ExecValidateBatchResult struct {
+	*_XdrVec_unbounded_ExecResult
+}
+func XDR_ExecValidateBatchResult(v *ExecValidateBatchResult) XdrType_ExecValidateBatchResult {
+	return XdrType_ExecValidateBatchResult{(*_XdrVec_unbounded_ExecResult)(v)}
+}
+func (XdrType_ExecValidateBatchResult) XdrTypeName() string { return "ExecValidateBatchResult" }
+func (v XdrType_ExecValidateBatchResult) XdrUnwrap() XdrType { return v._XdrVec_unbounded_ExecResult }
 
 type xdrProc_Executorcoord_null struct {
 	Arg *XdrVoid
@@ -6600,6 +6752,140 @@ func (p *xdrSrvProc_Executorcoord_validate_transaction) Do() {
 	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Executorcoord_validate_transaction{} // XXX
+
+type xdrProcArg_Executorcoord_propose_batch struct {
+	a1 *BlockID
+	a2 *SignedTransactionBatch
+}
+func (v *xdrProcArg_Executorcoord_propose_batch) XdrPointer() interface{} { return v }
+func (xdrProcArg_Executorcoord_propose_batch) XdrTypeName() string { return "xdrProcArg_Executorcoord_propose_batch" }
+func (v xdrProcArg_Executorcoord_propose_batch) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Executorcoord_propose_batch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Executorcoord_propose_batch) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(SignedTransactionBatch) }
+	XDR_SignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Executorcoord_propose_batch(v *xdrProcArg_Executorcoord_propose_batch) *xdrProcArg_Executorcoord_propose_batch { return v }
+var _ XdrType = &xdrProcArg_Executorcoord_propose_batch{} // XXX
+
+type xdrProc_Executorcoord_propose_batch struct {
+	Arg *xdrProcArg_Executorcoord_propose_batch
+	Res *ExecProposeBatchResult
+}
+func (xdrProc_Executorcoord_propose_batch) Prog() uint32 { return 2129107353 }
+func (xdrProc_Executorcoord_propose_batch) Vers() uint32 { return 1 }
+func (xdrProc_Executorcoord_propose_batch) Proc() uint32 { return 11 }
+func (xdrProc_Executorcoord_propose_batch) ProgName() string { return "ExecutorCoord" }
+func (xdrProc_Executorcoord_propose_batch) VersName() string { return "ExecutorCoord1" }
+func (xdrProc_Executorcoord_propose_batch) ProcName() string { return "executorcoord_propose_batch" }
+func (p *xdrProc_Executorcoord_propose_batch) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Executorcoord_propose_batch)
+	}
+	return XDR_xdrProcArg_Executorcoord_propose_batch(p.Arg)
+}
+func (p *xdrProc_Executorcoord_propose_batch) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(ExecProposeBatchResult)
+	}
+	return XDR_ExecProposeBatchResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Executorcoord_propose_batch{} // XXX
+
+type xdrSrvProc_Executorcoord_propose_batch struct {
+	xdrProc_Executorcoord_propose_batch
+	Srv ExecutorCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Executorcoord_propose_batch) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) ExecutorCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Executorcoord_propose_batch) Do() {
+	r, err := p.Srv.Executorcoord_propose_batch(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Executorcoord_propose_batch{} // XXX
+
+type xdrProcArg_Executorcoord_validate_batch struct {
+	a1 *BlockID
+	a2 *ProposedTransactionBatch
+}
+func (v *xdrProcArg_Executorcoord_validate_batch) XdrPointer() interface{} { return v }
+func (xdrProcArg_Executorcoord_validate_batch) XdrTypeName() string { return "xdrProcArg_Executorcoord_validate_batch" }
+func (v xdrProcArg_Executorcoord_validate_batch) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Executorcoord_validate_batch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Executorcoord_validate_batch) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(ProposedTransactionBatch) }
+	XDR_ProposedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Executorcoord_validate_batch(v *xdrProcArg_Executorcoord_validate_batch) *xdrProcArg_Executorcoord_validate_batch { return v }
+var _ XdrType = &xdrProcArg_Executorcoord_validate_batch{} // XXX
+
+type xdrProc_Executorcoord_validate_batch struct {
+	Arg *xdrProcArg_Executorcoord_validate_batch
+	Res *ExecValidateBatchResult
+}
+func (xdrProc_Executorcoord_validate_batch) Prog() uint32 { return 2129107353 }
+func (xdrProc_Executorcoord_validate_batch) Vers() uint32 { return 1 }
+func (xdrProc_Executorcoord_validate_batch) Proc() uint32 { return 21 }
+func (xdrProc_Executorcoord_validate_batch) ProgName() string { return "ExecutorCoord" }
+func (xdrProc_Executorcoord_validate_batch) VersName() string { return "ExecutorCoord1" }
+func (xdrProc_Executorcoord_validate_batch) ProcName() string { return "executorcoord_validate_batch" }
+func (p *xdrProc_Executorcoord_validate_batch) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Executorcoord_validate_batch)
+	}
+	return XDR_xdrProcArg_Executorcoord_validate_batch(p.Arg)
+}
+func (p *xdrProc_Executorcoord_validate_batch) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(ExecValidateBatchResult)
+	}
+	return XDR_ExecValidateBatchResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Executorcoord_validate_batch{} // XXX
+
+type xdrSrvProc_Executorcoord_validate_batch struct {
+	xdrProc_Executorcoord_validate_batch
+	Srv ExecutorCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Executorcoord_validate_batch) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) ExecutorCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Executorcoord_validate_batch) Do() {
+	r, err := p.Srv.Executorcoord_validate_batch(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Executorcoord_validate_batch{} // XXX
 
 type xdrProc_Executorcoord_open_proposal_block struct {
 	Arg *BlockID
@@ -6794,6 +7080,10 @@ func init() {
 			return &xdrProc_Executorcoord_propose_transaction{}
 		case 20:
 			return &xdrProc_Executorcoord_validate_transaction{}
+		case 11:
+			return &xdrProc_Executorcoord_propose_batch{}
+		case 21:
+			return &xdrProc_Executorcoord_validate_batch{}
 		case 30:
 			return &xdrProc_Executorcoord_open_proposal_block{}
 		case 40:
@@ -6822,6 +7112,10 @@ func (s ExecutorCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Executorcoord_propose_transaction{ Srv: s.Srv }
 	case 20:  // executorcoord_validate_transaction
 		return &xdrSrvProc_Executorcoord_validate_transaction{ Srv: s.Srv }
+	case 11:  // executorcoord_propose_batch
+		return &xdrSrvProc_Executorcoord_propose_batch{ Srv: s.Srv }
+	case 21:  // executorcoord_validate_batch
+		return &xdrSrvProc_Executorcoord_validate_batch{ Srv: s.Srv }
 	case 30:  // executorcoord_open_proposal_block
 		return &xdrSrvProc_Executorcoord_open_proposal_block{ Srv: s.Srv }
 	case 40:  // executorcoord_open_validation_block
@@ -6864,6 +7158,26 @@ func (c ExecutorCoord1_Client) Executorcoord_propose_transaction(ctx context.Con
 }
 func (c ExecutorCoord1_Client) Executorcoord_validate_transaction(ctx context.Context, a1 BlockID, a2 ProposedTransaction) (r ExecResult, _ error) {
 	var proc xdrProc_Executorcoord_validate_transaction
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c ExecutorCoord1_Client) Executorcoord_propose_batch(ctx context.Context, a1 BlockID, a2 SignedTransactionBatch) (r ExecProposeBatchResult, _ error) {
+	var proc xdrProc_Executorcoord_propose_batch
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c ExecutorCoord1_Client) Executorcoord_validate_batch(ctx context.Context, a1 BlockID, a2 ProposedTransactionBatch) (r ExecValidateBatchResult, _ error) {
+	var proc xdrProc_Executorcoord_validate_batch
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
