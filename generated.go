@@ -515,11 +515,21 @@ type ExecutorCoord1 interface {
 	Executorcoord_shutdown(context.Context, ) error
 }
 
+type FlaggedStorageDelta struct {
+	// TODO(geoff): Some of the addrkey field is repetitive;
+	// possibly we can readjust this data structure, if raw bandwidth becomes
+	// important.
+	Addrkey AddressAndKey
+	Delta StorageDelta
+	Flags StorageItemRPCFlagSet
+}
+
+type StorageDeltaBatch = []FlaggedStorageDelta
+
 type DatabaseToExecutorInterfaceV1 interface {
-	Try_reserve_delta(context.Context, BlockID, TransactionID, AddressAndKey, StorageDelta, StorageItemRPCFlagSet) (ExpectedStorageCost, error)
+	Try_push_new_subtransaction(context.Context, BlockID, TransactionID, StorageDeltaBatch) (RPCError, error)
 	Commit_transaction(context.Context, BlockID, TransactionID) (RPCError, error)
 	Abort_transaction(context.Context, BlockID, TransactionID) (RPCError, error)
-	Push_new_subtransaction(context.Context, BlockID, TransactionID) (RPCError, error)
 	Pop_subtransactions(context.Context, BlockID, TransactionID, uint32) (RPCError, error)
 	Get_snapshot_item(context.Context, BlockID, AddressAndKey) (ExpectedStorageItem, error)
 	Get_next_retrocausal_queue_block(context.Context, BlockID, AddressAndKey, uint64) (ExpectedRetrocausalQueueBlock, error)
@@ -1080,6 +1090,7 @@ const (
 	KDeltaTypeDelete StorageDeltaType = 2
 	KDeltaTypeRetrocausalQueue StorageDeltaType = 3
 	KDeltaTypeReplayCacheModify StorageDeltaType = 4
+	KDeltaTypeNonnegativeIntAdd StorageDeltaType = 5
 )
 
 type NonnegativeInt128SetAddArgs struct {
@@ -1098,6 +1109,8 @@ type StorageDelta struct {
 	//      Bytestring() *Bytestring
 	//   KDeltaTypeNonnegativeIntSetAdd:
 	//      Nnint() *NonnegativeInt128SetAddArgs
+	//   KDeltaTypeNonnegativeIntAdd:
+	//      Nnint_add() *Int128_xdr
 	//   KDeltaTypeDelete:
 	//      void
 	//   KDeltaTypeRetrocausalQueue:
@@ -7217,19 +7230,94 @@ func (c ExecutorCoord1_Client) Executorcoord_shutdown(ctx context.Context, ) err
 	}
 	return nil
 }
+type XdrType_FlaggedStorageDelta = *FlaggedStorageDelta
+func (v *FlaggedStorageDelta) XdrPointer() interface{} { return v }
+func (FlaggedStorageDelta) XdrTypeName() string { return "FlaggedStorageDelta" }
+func (v FlaggedStorageDelta) XdrValue() interface{} { return v }
+func (v *FlaggedStorageDelta) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *FlaggedStorageDelta) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%saddrkey", name), XDR_AddressAndKey(&v.Addrkey))
+	x.Marshal(x.Sprintf("%sdelta", name), XDR_StorageDelta(&v.Delta))
+	x.Marshal(x.Sprintf("%sflags", name), XDR_StorageItemRPCFlagSet(&v.Flags))
+}
+func XDR_FlaggedStorageDelta(v *FlaggedStorageDelta) *FlaggedStorageDelta { return v }
+type _XdrVec_unbounded_FlaggedStorageDelta []FlaggedStorageDelta
+func (_XdrVec_unbounded_FlaggedStorageDelta) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_FlaggedStorageDelta) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_FlaggedStorageDelta length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_FlaggedStorageDelta length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_FlaggedStorageDelta) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_FlaggedStorageDelta) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]FlaggedStorageDelta, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_FlaggedStorageDelta) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_FlaggedStorageDelta(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_FlaggedStorageDelta) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_FlaggedStorageDelta) XdrTypeName() string { return "FlaggedStorageDelta<>" }
+func (v *_XdrVec_unbounded_FlaggedStorageDelta) XdrPointer() interface{} { return (*[]FlaggedStorageDelta)(v) }
+func (v _XdrVec_unbounded_FlaggedStorageDelta) XdrValue() interface{} { return ([]FlaggedStorageDelta)(v) }
+func (v *_XdrVec_unbounded_FlaggedStorageDelta) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_StorageDeltaBatch struct {
+	*_XdrVec_unbounded_FlaggedStorageDelta
+}
+func XDR_StorageDeltaBatch(v *StorageDeltaBatch) XdrType_StorageDeltaBatch {
+	return XdrType_StorageDeltaBatch{(*_XdrVec_unbounded_FlaggedStorageDelta)(v)}
+}
+func (XdrType_StorageDeltaBatch) XdrTypeName() string { return "StorageDeltaBatch" }
+func (v XdrType_StorageDeltaBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_FlaggedStorageDelta }
 
-type xdrProcArg_Try_reserve_delta struct {
+type xdrProcArg_Try_push_new_subtransaction struct {
 	a1 *BlockID
 	a2 *TransactionID
-	a3 *AddressAndKey
-	a4 *StorageDelta
-	a5 *StorageItemRPCFlagSet
+	a3 *StorageDeltaBatch
 }
-func (v *xdrProcArg_Try_reserve_delta) XdrPointer() interface{} { return v }
-func (xdrProcArg_Try_reserve_delta) XdrTypeName() string { return "xdrProcArg_Try_reserve_delta" }
-func (v xdrProcArg_Try_reserve_delta) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Try_reserve_delta) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Try_reserve_delta) XdrRecurse(x XDR, name string) {
+func (v *xdrProcArg_Try_push_new_subtransaction) XdrPointer() interface{} { return v }
+func (xdrProcArg_Try_push_new_subtransaction) XdrTypeName() string { return "xdrProcArg_Try_push_new_subtransaction" }
+func (v xdrProcArg_Try_push_new_subtransaction) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Try_push_new_subtransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Try_push_new_subtransaction) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
@@ -7237,46 +7325,42 @@ func (v *xdrProcArg_Try_reserve_delta) XdrRecurse(x XDR, name string) {
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(TransactionID) }
 	XDR_TransactionID(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(AddressAndKey) }
-	XDR_AddressAndKey(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
-	if v.a4 == nil { v.a4 = new(StorageDelta) }
-	XDR_StorageDelta(v.a4).XdrMarshal(x, x.Sprintf("%sa4", name))
-	if v.a5 == nil { v.a5 = new(StorageItemRPCFlagSet) }
-	XDR_StorageItemRPCFlagSet(v.a5).XdrMarshal(x, x.Sprintf("%sa5", name))
+	if v.a3 == nil { v.a3 = new(StorageDeltaBatch) }
+	XDR_StorageDeltaBatch(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
-func XDR_xdrProcArg_Try_reserve_delta(v *xdrProcArg_Try_reserve_delta) *xdrProcArg_Try_reserve_delta { return v }
-var _ XdrType = &xdrProcArg_Try_reserve_delta{} // XXX
+func XDR_xdrProcArg_Try_push_new_subtransaction(v *xdrProcArg_Try_push_new_subtransaction) *xdrProcArg_Try_push_new_subtransaction { return v }
+var _ XdrType = &xdrProcArg_Try_push_new_subtransaction{} // XXX
 
-type xdrProc_Try_reserve_delta struct {
-	Arg *xdrProcArg_Try_reserve_delta
-	Res *ExpectedStorageCost
+type xdrProc_Try_push_new_subtransaction struct {
+	Arg *xdrProcArg_Try_push_new_subtransaction
+	Res *RPCError
 }
-func (xdrProc_Try_reserve_delta) Prog() uint32 { return 44444444 }
-func (xdrProc_Try_reserve_delta) Vers() uint32 { return 1 }
-func (xdrProc_Try_reserve_delta) Proc() uint32 { return 0 }
-func (xdrProc_Try_reserve_delta) ProgName() string { return "DatabaseToExecutorInterface" }
-func (xdrProc_Try_reserve_delta) VersName() string { return "DatabaseToExecutorInterfaceV1" }
-func (xdrProc_Try_reserve_delta) ProcName() string { return "try_reserve_delta" }
-func (p *xdrProc_Try_reserve_delta) GetArg() XdrType {
+func (xdrProc_Try_push_new_subtransaction) Prog() uint32 { return 44444444 }
+func (xdrProc_Try_push_new_subtransaction) Vers() uint32 { return 1 }
+func (xdrProc_Try_push_new_subtransaction) Proc() uint32 { return 0 }
+func (xdrProc_Try_push_new_subtransaction) ProgName() string { return "DatabaseToExecutorInterface" }
+func (xdrProc_Try_push_new_subtransaction) VersName() string { return "DatabaseToExecutorInterfaceV1" }
+func (xdrProc_Try_push_new_subtransaction) ProcName() string { return "try_push_new_subtransaction" }
+func (p *xdrProc_Try_push_new_subtransaction) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Try_reserve_delta)
+		p.Arg = new(xdrProcArg_Try_push_new_subtransaction)
 	}
-	return XDR_xdrProcArg_Try_reserve_delta(p.Arg)
+	return XDR_xdrProcArg_Try_push_new_subtransaction(p.Arg)
 }
-func (p *xdrProc_Try_reserve_delta) GetRes() XdrType {
+func (p *xdrProc_Try_push_new_subtransaction) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(ExpectedStorageCost)
+		p.Res = new(RPCError)
 	}
-	return XDR_ExpectedStorageCost(p.Res)
+	return XDR_RPCError(p.Res)
 }
-var _ XdrProc = &xdrProc_Try_reserve_delta{} // XXX
+var _ XdrProc = &xdrProc_Try_push_new_subtransaction{} // XXX
 
-type xdrSrvProc_Try_reserve_delta struct {
-	xdrProc_Try_reserve_delta
+type xdrSrvProc_Try_push_new_subtransaction struct {
+	xdrProc_Try_push_new_subtransaction
 	Srv DatabaseToExecutorInterfaceV1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Try_reserve_delta) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Try_push_new_subtransaction) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) DatabaseToExecutorInterfaceV1
 	}); ok {
@@ -7284,15 +7368,15 @@ func (p *xdrSrvProc_Try_reserve_delta) SetContext(ctx context.Context) {
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Try_reserve_delta) Do() {
-	r, err := p.Srv.Try_reserve_delta(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3, *p.Arg.a4, *p.Arg.a5)
+func (p *xdrSrvProc_Try_push_new_subtransaction) Do() {
+	r, err := p.Srv.Try_push_new_subtransaction(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Try_reserve_delta{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Try_push_new_subtransaction{} // XXX
 
 type xdrProcArg_Commit_transaction struct {
 	a1 *BlockID
@@ -7428,73 +7512,6 @@ func (p *xdrSrvProc_Abort_transaction) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Abort_transaction{} // XXX
 
-type xdrProcArg_Push_new_subtransaction struct {
-	a1 *BlockID
-	a2 *TransactionID
-}
-func (v *xdrProcArg_Push_new_subtransaction) XdrPointer() interface{} { return v }
-func (xdrProcArg_Push_new_subtransaction) XdrTypeName() string { return "xdrProcArg_Push_new_subtransaction" }
-func (v xdrProcArg_Push_new_subtransaction) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Push_new_subtransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Push_new_subtransaction) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockID) }
-	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(TransactionID) }
-	XDR_TransactionID(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Push_new_subtransaction(v *xdrProcArg_Push_new_subtransaction) *xdrProcArg_Push_new_subtransaction { return v }
-var _ XdrType = &xdrProcArg_Push_new_subtransaction{} // XXX
-
-type xdrProc_Push_new_subtransaction struct {
-	Arg *xdrProcArg_Push_new_subtransaction
-	Res *RPCError
-}
-func (xdrProc_Push_new_subtransaction) Prog() uint32 { return 44444444 }
-func (xdrProc_Push_new_subtransaction) Vers() uint32 { return 1 }
-func (xdrProc_Push_new_subtransaction) Proc() uint32 { return 3 }
-func (xdrProc_Push_new_subtransaction) ProgName() string { return "DatabaseToExecutorInterface" }
-func (xdrProc_Push_new_subtransaction) VersName() string { return "DatabaseToExecutorInterfaceV1" }
-func (xdrProc_Push_new_subtransaction) ProcName() string { return "push_new_subtransaction" }
-func (p *xdrProc_Push_new_subtransaction) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Push_new_subtransaction)
-	}
-	return XDR_xdrProcArg_Push_new_subtransaction(p.Arg)
-}
-func (p *xdrProc_Push_new_subtransaction) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Push_new_subtransaction{} // XXX
-
-type xdrSrvProc_Push_new_subtransaction struct {
-	xdrProc_Push_new_subtransaction
-	Srv DatabaseToExecutorInterfaceV1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Push_new_subtransaction) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) DatabaseToExecutorInterfaceV1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Push_new_subtransaction) Do() {
-	r, err := p.Srv.Push_new_subtransaction(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Push_new_subtransaction{} // XXX
-
 type xdrProcArg_Pop_subtransactions struct {
 	a1 *BlockID
 	a2 *TransactionID
@@ -7524,7 +7541,7 @@ type xdrProc_Pop_subtransactions struct {
 }
 func (xdrProc_Pop_subtransactions) Prog() uint32 { return 44444444 }
 func (xdrProc_Pop_subtransactions) Vers() uint32 { return 1 }
-func (xdrProc_Pop_subtransactions) Proc() uint32 { return 4 }
+func (xdrProc_Pop_subtransactions) Proc() uint32 { return 3 }
 func (xdrProc_Pop_subtransactions) ProgName() string { return "DatabaseToExecutorInterface" }
 func (xdrProc_Pop_subtransactions) VersName() string { return "DatabaseToExecutorInterfaceV1" }
 func (xdrProc_Pop_subtransactions) ProcName() string { return "pop_subtransactions" }
@@ -8047,14 +8064,12 @@ func init() {
 	XdrCatalog[44444444<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
-			return &xdrProc_Try_reserve_delta{}
+			return &xdrProc_Try_push_new_subtransaction{}
 		case 1:
 			return &xdrProc_Commit_transaction{}
 		case 2:
 			return &xdrProc_Abort_transaction{}
 		case 3:
-			return &xdrProc_Push_new_subtransaction{}
-		case 4:
 			return &xdrProc_Pop_subtransactions{}
 		case 100:
 			return &xdrProc_Get_snapshot_item{}
@@ -8084,15 +8099,13 @@ func (DatabaseToExecutorInterfaceV1_Server) ProgName() string { return "Database
 func (DatabaseToExecutorInterfaceV1_Server) VersName() string { return "DatabaseToExecutorInterfaceV1" }
 func (s DatabaseToExecutorInterfaceV1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
-	case 0:  // try_reserve_delta
-		return &xdrSrvProc_Try_reserve_delta{ Srv: s.Srv }
+	case 0:  // try_push_new_subtransaction
+		return &xdrSrvProc_Try_push_new_subtransaction{ Srv: s.Srv }
 	case 1:  // commit_transaction
 		return &xdrSrvProc_Commit_transaction{ Srv: s.Srv }
 	case 2:  // abort_transaction
 		return &xdrSrvProc_Abort_transaction{ Srv: s.Srv }
-	case 3:  // push_new_subtransaction
-		return &xdrSrvProc_Push_new_subtransaction{ Srv: s.Srv }
-	case 4:  // pop_subtransactions
+	case 3:  // pop_subtransactions
 		return &xdrSrvProc_Pop_subtransactions{ Srv: s.Srv }
 	case 100:  // get_snapshot_item
 		return &xdrSrvProc_Get_snapshot_item{ Srv: s.Srv }
@@ -8123,14 +8136,12 @@ func (c DatabaseToExecutorInterfaceV1_Client) WithContext(ctx context.Context) D
 	c.Ctx = ctx
 	return c
 }
-func (c DatabaseToExecutorInterfaceV1_Client) Try_reserve_delta(ctx context.Context, a1 BlockID, a2 TransactionID, a3 AddressAndKey, a4 StorageDelta, a5 StorageItemRPCFlagSet) (r ExpectedStorageCost, _ error) {
-	var proc xdrProc_Try_reserve_delta
+func (c DatabaseToExecutorInterfaceV1_Client) Try_push_new_subtransaction(ctx context.Context, a1 BlockID, a2 TransactionID, a3 StorageDeltaBatch) (r RPCError, _ error) {
+	var proc xdrProc_Try_push_new_subtransaction
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	proc.Arg.a3 = &a3
-	proc.Arg.a4 = &a4
-	proc.Arg.a5 = &a5
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -8148,16 +8159,6 @@ func (c DatabaseToExecutorInterfaceV1_Client) Commit_transaction(ctx context.Con
 }
 func (c DatabaseToExecutorInterfaceV1_Client) Abort_transaction(ctx context.Context, a1 BlockID, a2 TransactionID) (r RPCError, _ error) {
 	var proc xdrProc_Abort_transaction
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c DatabaseToExecutorInterfaceV1_Client) Push_new_subtransaction(ctx context.Context, a1 BlockID, a2 TransactionID) (r RPCError, _ error) {
-	var proc xdrProc_Push_new_subtransaction
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
@@ -11091,6 +11092,7 @@ var _XdrNames_StorageDeltaType = map[int32]string{
 	int32(KDeltaTypeDelete): "kDeltaTypeDelete",
 	int32(KDeltaTypeRetrocausalQueue): "kDeltaTypeRetrocausalQueue",
 	int32(KDeltaTypeReplayCacheModify): "kDeltaTypeReplayCacheModify",
+	int32(KDeltaTypeNonnegativeIntAdd): "kDeltaTypeNonnegativeIntAdd",
 }
 var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeBytestringSet": int32(KDeltaTypeBytestringSet),
@@ -11098,6 +11100,7 @@ var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeDelete": int32(KDeltaTypeDelete),
 	"kDeltaTypeRetrocausalQueue": int32(KDeltaTypeRetrocausalQueue),
 	"kDeltaTypeReplayCacheModify": int32(KDeltaTypeReplayCacheModify),
+	"kDeltaTypeNonnegativeIntAdd": int32(KDeltaTypeNonnegativeIntAdd),
 }
 func (StorageDeltaType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageDeltaType
@@ -11217,6 +11220,7 @@ func XDR_ReplayCacheModifyArgs(v *ReplayCacheModifyArgs) *ReplayCacheModifyArgs 
 var _XdrTags_StorageDelta = map[int32]bool{
 	XdrToI32(KDeltaTypeBytestringSet): true,
 	XdrToI32(KDeltaTypeNonnegativeIntSetAdd): true,
+	XdrToI32(KDeltaTypeNonnegativeIntAdd): true,
 	XdrToI32(KDeltaTypeDelete): true,
 	XdrToI32(KDeltaTypeRetrocausalQueue): true,
 	XdrToI32(KDeltaTypeReplayCacheModify): true,
@@ -11254,6 +11258,21 @@ func (u *StorageDelta) Nnint() *NonnegativeInt128SetAddArgs {
 		return nil
 	}
 }
+func (u *StorageDelta) Nnint_add() *Int128_xdr {
+	switch u.Type {
+	case KDeltaTypeNonnegativeIntAdd:
+		if v, ok := u._u.(*Int128_xdr); ok {
+			return v
+		} else {
+			var zero Int128_xdr
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageDelta.Nnint_add accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u *StorageDelta) Retrocausal_queue() *RetrocausalQueueDelta {
 	switch u.Type {
 	case KDeltaTypeRetrocausalQueue:
@@ -11286,7 +11305,7 @@ func (u *StorageDelta) Replay_cache_modify() *ReplayCacheModifyArgs {
 }
 func (u StorageDelta) XdrValid() bool {
 	switch u.Type {
-	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify:
+	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify:
 		return true
 	}
 	return false
@@ -11303,6 +11322,8 @@ func (u *StorageDelta) XdrUnionBody() XdrType {
 		return XDR_Bytestring(u.Bytestring())
 	case KDeltaTypeNonnegativeIntSetAdd:
 		return XDR_NonnegativeInt128SetAddArgs(u.Nnint())
+	case KDeltaTypeNonnegativeIntAdd:
+		return XDR_Int128_xdr(u.Nnint_add())
 	case KDeltaTypeDelete:
 		return nil
 	case KDeltaTypeRetrocausalQueue:
@@ -11318,6 +11339,8 @@ func (u *StorageDelta) XdrUnionBodyName() string {
 		return "Bytestring"
 	case KDeltaTypeNonnegativeIntSetAdd:
 		return "Nnint"
+	case KDeltaTypeNonnegativeIntAdd:
+		return "Nnint_add"
 	case KDeltaTypeDelete:
 		return ""
 	case KDeltaTypeRetrocausalQueue:
@@ -11343,6 +11366,9 @@ func (u *StorageDelta) XdrRecurse(x XDR, name string) {
 		return
 	case KDeltaTypeNonnegativeIntSetAdd:
 		x.Marshal(x.Sprintf("%snnint", name), XDR_NonnegativeInt128SetAddArgs(u.Nnint()))
+		return
+	case KDeltaTypeNonnegativeIntAdd:
+		x.Marshal(x.Sprintf("%snnint_add", name), XDR_Int128_xdr(u.Nnint_add()))
 		return
 	case KDeltaTypeDelete:
 		return
