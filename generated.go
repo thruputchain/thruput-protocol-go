@@ -174,6 +174,12 @@ type SpectraConfig struct {
 	Partial_ttl_msec Milliseconds
 }
 
+type DogwoodConfig struct {
+	Num_routes DogwoodInt32
+	Route_time_to_live_msec Milliseconds
+	Route_time_to_use_msec Milliseconds
+}
+
 type MempoolConfig struct {
 	Proposed_batch_ttl_msec Milliseconds
 	Transaction_ttl_msec Milliseconds
@@ -197,6 +203,7 @@ type Config struct {
 	Router_config *RouterConfig
 	Broadcast_config *BroadcastConfig
 	Spectra_config *SpectraConfig
+	Dogwood_config *DogwoodConfig
 	Mempool_config *MempoolConfig
 	Catchup_config *CatchupConfig
 	Solo_config *SoloConfig
@@ -623,6 +630,16 @@ const (
 	// diagnosed ASAP.
 	KInvokeUnrecoverable InvokeErrorCode = 3
 	// Discovered during validation that proposer submitted bad data.
+	// If a block contains a transaction with this error, the block does not need
+	// to be discarded.  The transaction that causes this error is discarded,
+	// and the block proposer should be penalized (via whatever out of band
+	// mechanism),
+	// but the rest of the block can still be processed.
+	// Note that this is different from the case of a block proposal with
+	// conflicting transactions;
+	// those errors are discovered _after_ executing the transactions in a block,
+	// and require
+	// discarding the entire block.
 	KInvokeValidationFailure InvokeErrorCode = 4
 	// The transaction was aborted due to an external reason (such as the current
 	// block being discarded),
@@ -2929,6 +2946,20 @@ func (v *SpectraConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spartial_ttl_msec", name), XDR_Milliseconds(&v.Partial_ttl_msec))
 }
 func XDR_SpectraConfig(v *SpectraConfig) *SpectraConfig { return v }
+type XdrType_DogwoodConfig = *DogwoodConfig
+func (v *DogwoodConfig) XdrPointer() interface{} { return v }
+func (DogwoodConfig) XdrTypeName() string { return "DogwoodConfig" }
+func (v DogwoodConfig) XdrValue() interface{} { return v }
+func (v *DogwoodConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%snum_routes", name), XDR_DogwoodInt32(&v.Num_routes))
+	x.Marshal(x.Sprintf("%sroute_time_to_live_msec", name), XDR_Milliseconds(&v.Route_time_to_live_msec))
+	x.Marshal(x.Sprintf("%sroute_time_to_use_msec", name), XDR_Milliseconds(&v.Route_time_to_use_msec))
+}
+func XDR_DogwoodConfig(v *DogwoodConfig) *DogwoodConfig { return v }
 type XdrType_MempoolConfig = *MempoolConfig
 func (v *MempoolConfig) XdrPointer() interface{} { return v }
 func (MempoolConfig) XdrTypeName() string { return "MempoolConfig" }
@@ -3395,6 +3426,77 @@ func (v _XdrPtr_SpectraConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_SpectraConfig) XdrTypeName() string { return "SpectraConfig*" }
 func (v _XdrPtr_SpectraConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_SpectraConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_DogwoodConfig struct {
+	p **DogwoodConfig
+}
+type _ptrflag_DogwoodConfig _XdrPtr_DogwoodConfig
+func (v _ptrflag_DogwoodConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_DogwoodConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("DogwoodConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_DogwoodConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_DogwoodConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(DogwoodConfig)
+		}
+	default:
+		XdrPanic("*DogwoodConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_DogwoodConfig) XdrTypeName() string { return "DogwoodConfig?" }
+func (v _ptrflag_DogwoodConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_DogwoodConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_DogwoodConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_DogwoodConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_DogwoodConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_DogwoodConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(DogwoodConfig)
+	}
+}
+func (v _XdrPtr_DogwoodConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_DogwoodConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_DogwoodConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_DogwoodConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_DogwoodConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_DogwoodConfig) XdrTypeName() string { return "DogwoodConfig*" }
+func (v _XdrPtr_DogwoodConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_DogwoodConfig) XdrValue() interface{} { return *v.p }
 type _XdrPtr_MempoolConfig struct {
 	p **MempoolConfig
 }
@@ -3694,6 +3796,7 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%srouter_config", name), _XdrPtr_RouterConfig{&v.Router_config})
 	x.Marshal(x.Sprintf("%sbroadcast_config", name), _XdrPtr_BroadcastConfig{&v.Broadcast_config})
 	x.Marshal(x.Sprintf("%sspectra_config", name), _XdrPtr_SpectraConfig{&v.Spectra_config})
+	x.Marshal(x.Sprintf("%sdogwood_config", name), _XdrPtr_DogwoodConfig{&v.Dogwood_config})
 	x.Marshal(x.Sprintf("%smempool_config", name), _XdrPtr_MempoolConfig{&v.Mempool_config})
 	x.Marshal(x.Sprintf("%scatchup_config", name), _XdrPtr_CatchupConfig{&v.Catchup_config})
 	x.Marshal(x.Sprintf("%ssolo_config", name), _XdrPtr_SoloConfig{&v.Solo_config})
