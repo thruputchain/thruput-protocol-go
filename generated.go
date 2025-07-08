@@ -460,10 +460,14 @@ type DogwoodChunk struct {
 	Chunk []byte
 }
 
-type DogwoodDelivery struct {
-	Stream DogwoodStream
+type DogwoodPackage struct {
 	Transmission DogwoodTransmission
 	Chunk DogwoodChunk
+}
+
+type DogwoodDelivery struct {
+	Stream DogwoodStream
+	Pkg DogwoodPackage
 }
 
 type DogwoodDeliveryEnvelope struct {
@@ -6008,6 +6012,19 @@ func (v *DogwoodChunk) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%schunk", name), XdrVecOpaque{&v.Chunk, 0xffffffff})
 }
 func XDR_DogwoodChunk(v *DogwoodChunk) *DogwoodChunk { return v }
+type XdrType_DogwoodPackage = *DogwoodPackage
+func (v *DogwoodPackage) XdrPointer() interface{} { return v }
+func (DogwoodPackage) XdrTypeName() string { return "DogwoodPackage" }
+func (v DogwoodPackage) XdrValue() interface{} { return v }
+func (v *DogwoodPackage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodPackage) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransmission", name), XDR_DogwoodTransmission(&v.Transmission))
+	x.Marshal(x.Sprintf("%schunk", name), XDR_DogwoodChunk(&v.Chunk))
+}
+func XDR_DogwoodPackage(v *DogwoodPackage) *DogwoodPackage { return v }
 type XdrType_DogwoodDelivery = *DogwoodDelivery
 func (v *DogwoodDelivery) XdrPointer() interface{} { return v }
 func (DogwoodDelivery) XdrTypeName() string { return "DogwoodDelivery" }
@@ -6018,8 +6035,7 @@ func (v *DogwoodDelivery) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sstream", name), XDR_DogwoodStream(&v.Stream))
-	x.Marshal(x.Sprintf("%stransmission", name), XDR_DogwoodTransmission(&v.Transmission))
-	x.Marshal(x.Sprintf("%schunk", name), XDR_DogwoodChunk(&v.Chunk))
+	x.Marshal(x.Sprintf("%spkg", name), XDR_DogwoodPackage(&v.Pkg))
 }
 func XDR_DogwoodDelivery(v *DogwoodDelivery) *DogwoodDelivery { return v }
 type XdrType_DogwoodDeliveryEnvelope = *DogwoodDeliveryEnvelope
