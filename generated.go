@@ -439,7 +439,11 @@ type DogwoodStreamID = DogwoodInt64
 type DogwoodTransmissionID = DogwoodInt64
 
 type DogwoodStream struct {
+	Source_id ValidatorID
 	Stream_id DogwoodStreamID
+}
+
+type DogwoodRoute struct {
 	Route_hash *DogwoodTreeHash
 	Route_nodes *DogwoodTreeNodes
 }
@@ -467,6 +471,7 @@ type DogwoodPackage struct {
 
 type DogwoodDelivery struct {
 	Stream DogwoodStream
+	Route DogwoodRoute
 	Pkg DogwoodPackage
 }
 
@@ -5825,6 +5830,19 @@ func XDR_DogwoodTransmissionID(v *DogwoodTransmissionID) XdrType_DogwoodTransmis
 }
 func (XdrType_DogwoodTransmissionID) XdrTypeName() string { return "DogwoodTransmissionID" }
 func (v XdrType_DogwoodTransmissionID) XdrUnwrap() XdrType { return v.XdrType_DogwoodInt64 }
+type XdrType_DogwoodStream = *DogwoodStream
+func (v *DogwoodStream) XdrPointer() interface{} { return v }
+func (DogwoodStream) XdrTypeName() string { return "DogwoodStream" }
+func (v DogwoodStream) XdrValue() interface{} { return v }
+func (v *DogwoodStream) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodStream) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssource_id", name), XDR_ValidatorID(&v.Source_id))
+	x.Marshal(x.Sprintf("%sstream_id", name), XDR_DogwoodStreamID(&v.Stream_id))
+}
+func XDR_DogwoodStream(v *DogwoodStream) *DogwoodStream { return v }
 type _XdrPtr_DogwoodTreeHash struct {
 	p **DogwoodTreeHash
 }
@@ -5967,20 +5985,19 @@ func (v _XdrPtr_DogwoodTreeNodes) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes*" }
 func (v _XdrPtr_DogwoodTreeNodes) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_DogwoodTreeNodes) XdrValue() interface{} { return *v.p }
-type XdrType_DogwoodStream = *DogwoodStream
-func (v *DogwoodStream) XdrPointer() interface{} { return v }
-func (DogwoodStream) XdrTypeName() string { return "DogwoodStream" }
-func (v DogwoodStream) XdrValue() interface{} { return v }
-func (v *DogwoodStream) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DogwoodStream) XdrRecurse(x XDR, name string) {
+type XdrType_DogwoodRoute = *DogwoodRoute
+func (v *DogwoodRoute) XdrPointer() interface{} { return v }
+func (DogwoodRoute) XdrTypeName() string { return "DogwoodRoute" }
+func (v DogwoodRoute) XdrValue() interface{} { return v }
+func (v *DogwoodRoute) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodRoute) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sstream_id", name), XDR_DogwoodStreamID(&v.Stream_id))
 	x.Marshal(x.Sprintf("%sroute_hash", name), _XdrPtr_DogwoodTreeHash{&v.Route_hash})
 	x.Marshal(x.Sprintf("%sroute_nodes", name), _XdrPtr_DogwoodTreeNodes{&v.Route_nodes})
 }
-func XDR_DogwoodStream(v *DogwoodStream) *DogwoodStream { return v }
+func XDR_DogwoodRoute(v *DogwoodRoute) *DogwoodRoute { return v }
 type XdrType_DogwoodTransmission = *DogwoodTransmission
 func (v *DogwoodTransmission) XdrPointer() interface{} { return v }
 func (DogwoodTransmission) XdrTypeName() string { return "DogwoodTransmission" }
@@ -6035,6 +6052,7 @@ func (v *DogwoodDelivery) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sstream", name), XDR_DogwoodStream(&v.Stream))
+	x.Marshal(x.Sprintf("%sroute", name), XDR_DogwoodRoute(&v.Route))
 	x.Marshal(x.Sprintf("%spkg", name), XDR_DogwoodPackage(&v.Pkg))
 }
 func XDR_DogwoodDelivery(v *DogwoodDelivery) *DogwoodDelivery { return v }
