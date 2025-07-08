@@ -434,10 +434,6 @@ type DogwoodTreeNode struct {
 
 type DogwoodTreeNodes = []DogwoodTreeNode
 
-type DogwoodRoute struct {
-	Trees []DogwoodTreeNodes
-}
-
 type DogwoodTransmission struct {
 	Num_payload_bytes DogwoodInt64
 	Num_payload_sheaves DogwoodInt32
@@ -452,16 +448,16 @@ type DogwoodHeader struct {
 	Chunk_index DogwoodInt32
 }
 
-type DogwoodDelivery struct {
-	Route DogwoodTreeHash
+type DogwoodChunk struct {
 	Transmission DogwoodTransmission
 	Header DogwoodHeader
 	Chunk []byte
 }
 
-type DogwoodRouteEnvelope struct {
-	Signature Signature
-	Route DogwoodRoute
+type DogwoodDelivery struct {
+	Route_hash *DogwoodTreeHash
+	Route_nodes *DogwoodTreeNodes
+	Chunk DogwoodChunk
 }
 
 type DogwoodDeliveryEnvelope struct {
@@ -471,7 +467,6 @@ type DogwoodDeliveryEnvelope struct {
 
 type Dogwood1 interface {
 	Dogwood_null(context.Context, ) error
-	Dogwood_route(context.Context, DogwoodRouteEnvelope) error
 	Dogwood_deliver(context.Context, DogwoodDeliveryEnvelope) error
 }
 
@@ -5804,73 +5799,6 @@ func XDR_DogwoodTreeNodes(v *DogwoodTreeNodes) XdrType_DogwoodTreeNodes {
 }
 func (XdrType_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes" }
 func (v XdrType_DogwoodTreeNodes) XdrUnwrap() XdrType { return v._XdrVec_unbounded_DogwoodTreeNode }
-type _XdrVec_unbounded_DogwoodTreeNodes []DogwoodTreeNodes
-func (_XdrVec_unbounded_DogwoodTreeNodes) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_DogwoodTreeNodes) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_DogwoodTreeNodes length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_DogwoodTreeNodes length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_DogwoodTreeNodes) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_DogwoodTreeNodes) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]DogwoodTreeNodes, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_DogwoodTreeNodes(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes<>" }
-func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrPointer() interface{} { return (*[]DogwoodTreeNodes)(v) }
-func (v _XdrVec_unbounded_DogwoodTreeNodes) XdrValue() interface{} { return ([]DogwoodTreeNodes)(v) }
-func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_DogwoodRoute = *DogwoodRoute
-func (v *DogwoodRoute) XdrPointer() interface{} { return v }
-func (DogwoodRoute) XdrTypeName() string { return "DogwoodRoute" }
-func (v DogwoodRoute) XdrValue() interface{} { return v }
-func (v *DogwoodRoute) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DogwoodRoute) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%strees", name), (*_XdrVec_unbounded_DogwoodTreeNodes)(&v.Trees))
-}
-func XDR_DogwoodRoute(v *DogwoodRoute) *DogwoodRoute { return v }
 type XdrType_DogwoodTransmission = *DogwoodTransmission
 func (v *DogwoodTransmission) XdrPointer() interface{} { return v }
 func (DogwoodTransmission) XdrTypeName() string { return "DogwoodTransmission" }
@@ -5900,6 +5828,162 @@ func (v *DogwoodHeader) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%schunk_index", name), XDR_DogwoodInt32(&v.Chunk_index))
 }
 func XDR_DogwoodHeader(v *DogwoodHeader) *DogwoodHeader { return v }
+type XdrType_DogwoodChunk = *DogwoodChunk
+func (v *DogwoodChunk) XdrPointer() interface{} { return v }
+func (DogwoodChunk) XdrTypeName() string { return "DogwoodChunk" }
+func (v DogwoodChunk) XdrValue() interface{} { return v }
+func (v *DogwoodChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodChunk) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransmission", name), XDR_DogwoodTransmission(&v.Transmission))
+	x.Marshal(x.Sprintf("%sheader", name), XDR_DogwoodHeader(&v.Header))
+	x.Marshal(x.Sprintf("%schunk", name), XdrVecOpaque{&v.Chunk, 0xffffffff})
+}
+func XDR_DogwoodChunk(v *DogwoodChunk) *DogwoodChunk { return v }
+type _XdrPtr_DogwoodTreeHash struct {
+	p **DogwoodTreeHash
+}
+type _ptrflag_DogwoodTreeHash _XdrPtr_DogwoodTreeHash
+func (v _ptrflag_DogwoodTreeHash) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_DogwoodTreeHash) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("DogwoodTreeHash flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_DogwoodTreeHash) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_DogwoodTreeHash) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(DogwoodTreeHash)
+		}
+	default:
+		XdrPanic("*DogwoodTreeHash present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_DogwoodTreeHash) XdrTypeName() string { return "DogwoodTreeHash?" }
+func (v _ptrflag_DogwoodTreeHash) XdrPointer() interface{} { return nil }
+func (v _ptrflag_DogwoodTreeHash) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_DogwoodTreeHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_DogwoodTreeHash) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_DogwoodTreeHash) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_DogwoodTreeHash) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(DogwoodTreeHash)
+	}
+}
+func (v _XdrPtr_DogwoodTreeHash) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_DogwoodTreeHash(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_DogwoodTreeHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_DogwoodTreeHash) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_DogwoodTreeHash(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_DogwoodTreeHash) XdrTypeName() string { return "DogwoodTreeHash*" }
+func (v _XdrPtr_DogwoodTreeHash) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_DogwoodTreeHash) XdrValue() interface{} { return *v.p }
+type _XdrPtr_DogwoodTreeNodes struct {
+	p **DogwoodTreeNodes
+}
+type _ptrflag_DogwoodTreeNodes _XdrPtr_DogwoodTreeNodes
+func (v _ptrflag_DogwoodTreeNodes) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_DogwoodTreeNodes) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("DogwoodTreeNodes flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_DogwoodTreeNodes) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_DogwoodTreeNodes) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(DogwoodTreeNodes)
+		}
+	default:
+		XdrPanic("*DogwoodTreeNodes present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes?" }
+func (v _ptrflag_DogwoodTreeNodes) XdrPointer() interface{} { return nil }
+func (v _ptrflag_DogwoodTreeNodes) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_DogwoodTreeNodes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_DogwoodTreeNodes) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_DogwoodTreeNodes) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_DogwoodTreeNodes) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(DogwoodTreeNodes)
+	}
+}
+func (v _XdrPtr_DogwoodTreeNodes) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_DogwoodTreeNodes(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_DogwoodTreeNodes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_DogwoodTreeNodes) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_DogwoodTreeNodes(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes*" }
+func (v _XdrPtr_DogwoodTreeNodes) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_DogwoodTreeNodes) XdrValue() interface{} { return *v.p }
 type XdrType_DogwoodDelivery = *DogwoodDelivery
 func (v *DogwoodDelivery) XdrPointer() interface{} { return v }
 func (DogwoodDelivery) XdrTypeName() string { return "DogwoodDelivery" }
@@ -5909,25 +5993,11 @@ func (v *DogwoodDelivery) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sroute", name), XDR_DogwoodTreeHash(&v.Route))
-	x.Marshal(x.Sprintf("%stransmission", name), XDR_DogwoodTransmission(&v.Transmission))
-	x.Marshal(x.Sprintf("%sheader", name), XDR_DogwoodHeader(&v.Header))
-	x.Marshal(x.Sprintf("%schunk", name), XdrVecOpaque{&v.Chunk, 0xffffffff})
+	x.Marshal(x.Sprintf("%sroute_hash", name), _XdrPtr_DogwoodTreeHash{&v.Route_hash})
+	x.Marshal(x.Sprintf("%sroute_nodes", name), _XdrPtr_DogwoodTreeNodes{&v.Route_nodes})
+	x.Marshal(x.Sprintf("%schunk", name), XDR_DogwoodChunk(&v.Chunk))
 }
 func XDR_DogwoodDelivery(v *DogwoodDelivery) *DogwoodDelivery { return v }
-type XdrType_DogwoodRouteEnvelope = *DogwoodRouteEnvelope
-func (v *DogwoodRouteEnvelope) XdrPointer() interface{} { return v }
-func (DogwoodRouteEnvelope) XdrTypeName() string { return "DogwoodRouteEnvelope" }
-func (v DogwoodRouteEnvelope) XdrValue() interface{} { return v }
-func (v *DogwoodRouteEnvelope) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DogwoodRouteEnvelope) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
-	x.Marshal(x.Sprintf("%sroute", name), XDR_DogwoodRoute(&v.Route))
-}
-func XDR_DogwoodRouteEnvelope(v *DogwoodRouteEnvelope) *DogwoodRouteEnvelope { return v }
 type XdrType_DogwoodDeliveryEnvelope = *DogwoodDeliveryEnvelope
 func (v *DogwoodDeliveryEnvelope) XdrPointer() interface{} { return v }
 func (DogwoodDeliveryEnvelope) XdrTypeName() string { return "DogwoodDeliveryEnvelope" }
@@ -5987,58 +6057,13 @@ func (p *xdrSrvProc_Dogwood_null) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dogwood_null{} // XXX
 
-type xdrProc_Dogwood_route struct {
-	Arg *DogwoodRouteEnvelope
-	Res *XdrVoid
-}
-func (xdrProc_Dogwood_route) Prog() uint32 { return 2397577218 }
-func (xdrProc_Dogwood_route) Vers() uint32 { return 1 }
-func (xdrProc_Dogwood_route) Proc() uint32 { return 10 }
-func (xdrProc_Dogwood_route) ProgName() string { return "Dogwood" }
-func (xdrProc_Dogwood_route) VersName() string { return "Dogwood1" }
-func (xdrProc_Dogwood_route) ProcName() string { return "dogwood_route" }
-func (p *xdrProc_Dogwood_route) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(DogwoodRouteEnvelope)
-	}
-	return XDR_DogwoodRouteEnvelope(p.Arg)
-}
-func (p *xdrProc_Dogwood_route) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Res)
-}
-var _ XdrProc = &xdrProc_Dogwood_route{} // XXX
-
-type xdrSrvProc_Dogwood_route struct {
-	xdrProc_Dogwood_route
-	Srv Dogwood1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Dogwood_route) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) Dogwood1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Dogwood_route) Do() {
-	err := p.Srv.Dogwood_route(p.Ctx, *p.Arg)
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Dogwood_route{} // XXX
-
 type xdrProc_Dogwood_deliver struct {
 	Arg *DogwoodDeliveryEnvelope
 	Res *XdrVoid
 }
 func (xdrProc_Dogwood_deliver) Prog() uint32 { return 2397577218 }
 func (xdrProc_Dogwood_deliver) Vers() uint32 { return 1 }
-func (xdrProc_Dogwood_deliver) Proc() uint32 { return 20 }
+func (xdrProc_Dogwood_deliver) Proc() uint32 { return 10 }
 func (xdrProc_Dogwood_deliver) ProgName() string { return "Dogwood" }
 func (xdrProc_Dogwood_deliver) VersName() string { return "Dogwood1" }
 func (xdrProc_Dogwood_deliver) ProcName() string { return "dogwood_deliver" }
@@ -6083,8 +6108,6 @@ func init() {
 		case 0:
 			return &xdrProc_Dogwood_null{}
 		case 10:
-			return &xdrProc_Dogwood_route{}
-		case 20:
 			return &xdrProc_Dogwood_deliver{}
 		}
 		return nil
@@ -6102,9 +6125,7 @@ func (s Dogwood1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // dogwood_null
 		return &xdrSrvProc_Dogwood_null{ Srv: s.Srv }
-	case 10:  // dogwood_route
-		return &xdrSrvProc_Dogwood_route{ Srv: s.Srv }
-	case 20:  // dogwood_deliver
+	case 10:  // dogwood_deliver
 		return &xdrSrvProc_Dogwood_deliver{ Srv: s.Srv }
 	default:
 		return nil
@@ -6123,14 +6144,6 @@ func (c Dogwood1_Client) WithContext(ctx context.Context) Dogwood1 {
 }
 func (c Dogwood1_Client) Dogwood_null(ctx context.Context, ) error {
 	var proc xdrProc_Dogwood_null
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
-	}
-	return nil
-}
-func (c Dogwood1_Client) Dogwood_route(ctx context.Context, a1 DogwoodRouteEnvelope) error {
-	var proc xdrProc_Dogwood_route
-	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
