@@ -434,7 +434,18 @@ type DogwoodTreeNode struct {
 
 type DogwoodTreeNodes = []DogwoodTreeNode
 
+type DogwoodStreamID = DogwoodInt64
+
+type DogwoodTransmissionID = DogwoodInt64
+
+type DogwoodStream struct {
+	Stream_id DogwoodStreamID
+	Route_hash *DogwoodTreeHash
+	Route_nodes *DogwoodTreeNodes
+}
+
 type DogwoodTransmission struct {
+	Transmission_id DogwoodTransmissionID
 	Num_payload_bytes DogwoodInt64
 	Num_payload_sheaves DogwoodInt32
 	Num_parity_sheaves DogwoodInt32
@@ -443,20 +454,15 @@ type DogwoodTransmission struct {
 	Seed DogwoodInt32
 }
 
-type DogwoodHeader struct {
+type DogwoodChunk struct {
 	Sheaf_index DogwoodInt32
 	Chunk_index DogwoodInt32
-}
-
-type DogwoodChunk struct {
-	Transmission DogwoodTransmission
-	Header DogwoodHeader
 	Chunk []byte
 }
 
 type DogwoodDelivery struct {
-	Route_hash *DogwoodTreeHash
-	Route_nodes *DogwoodTreeNodes
+	Stream DogwoodStream
+	Transmission DogwoodTransmission
 	Chunk DogwoodChunk
 }
 
@@ -5799,49 +5805,22 @@ func XDR_DogwoodTreeNodes(v *DogwoodTreeNodes) XdrType_DogwoodTreeNodes {
 }
 func (XdrType_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes" }
 func (v XdrType_DogwoodTreeNodes) XdrUnwrap() XdrType { return v._XdrVec_unbounded_DogwoodTreeNode }
-type XdrType_DogwoodTransmission = *DogwoodTransmission
-func (v *DogwoodTransmission) XdrPointer() interface{} { return v }
-func (DogwoodTransmission) XdrTypeName() string { return "DogwoodTransmission" }
-func (v DogwoodTransmission) XdrValue() interface{} { return v }
-func (v *DogwoodTransmission) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DogwoodTransmission) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%snum_payload_bytes", name), XDR_DogwoodInt64(&v.Num_payload_bytes))
-	x.Marshal(x.Sprintf("%snum_payload_sheaves", name), XDR_DogwoodInt32(&v.Num_payload_sheaves))
-	x.Marshal(x.Sprintf("%snum_parity_sheaves", name), XDR_DogwoodInt32(&v.Num_parity_sheaves))
-	x.Marshal(x.Sprintf("%snum_chunks_per_sheaf", name), XDR_DogwoodInt32(&v.Num_chunks_per_sheaf))
-	x.Marshal(x.Sprintf("%sseed", name), XDR_DogwoodInt32(&v.Seed))
+type XdrType_DogwoodStreamID struct {
+	XdrType_DogwoodInt64
 }
-func XDR_DogwoodTransmission(v *DogwoodTransmission) *DogwoodTransmission { return v }
-type XdrType_DogwoodHeader = *DogwoodHeader
-func (v *DogwoodHeader) XdrPointer() interface{} { return v }
-func (DogwoodHeader) XdrTypeName() string { return "DogwoodHeader" }
-func (v DogwoodHeader) XdrValue() interface{} { return v }
-func (v *DogwoodHeader) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DogwoodHeader) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%ssheaf_index", name), XDR_DogwoodInt32(&v.Sheaf_index))
-	x.Marshal(x.Sprintf("%schunk_index", name), XDR_DogwoodInt32(&v.Chunk_index))
+func XDR_DogwoodStreamID(v *DogwoodStreamID) XdrType_DogwoodStreamID {
+	return XdrType_DogwoodStreamID{XDR_DogwoodInt64(v)}
 }
-func XDR_DogwoodHeader(v *DogwoodHeader) *DogwoodHeader { return v }
-type XdrType_DogwoodChunk = *DogwoodChunk
-func (v *DogwoodChunk) XdrPointer() interface{} { return v }
-func (DogwoodChunk) XdrTypeName() string { return "DogwoodChunk" }
-func (v DogwoodChunk) XdrValue() interface{} { return v }
-func (v *DogwoodChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DogwoodChunk) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%stransmission", name), XDR_DogwoodTransmission(&v.Transmission))
-	x.Marshal(x.Sprintf("%sheader", name), XDR_DogwoodHeader(&v.Header))
-	x.Marshal(x.Sprintf("%schunk", name), XdrVecOpaque{&v.Chunk, 0xffffffff})
+func (XdrType_DogwoodStreamID) XdrTypeName() string { return "DogwoodStreamID" }
+func (v XdrType_DogwoodStreamID) XdrUnwrap() XdrType { return v.XdrType_DogwoodInt64 }
+type XdrType_DogwoodTransmissionID struct {
+	XdrType_DogwoodInt64
 }
-func XDR_DogwoodChunk(v *DogwoodChunk) *DogwoodChunk { return v }
+func XDR_DogwoodTransmissionID(v *DogwoodTransmissionID) XdrType_DogwoodTransmissionID {
+	return XdrType_DogwoodTransmissionID{XDR_DogwoodInt64(v)}
+}
+func (XdrType_DogwoodTransmissionID) XdrTypeName() string { return "DogwoodTransmissionID" }
+func (v XdrType_DogwoodTransmissionID) XdrUnwrap() XdrType { return v.XdrType_DogwoodInt64 }
 type _XdrPtr_DogwoodTreeHash struct {
 	p **DogwoodTreeHash
 }
@@ -5984,6 +5963,51 @@ func (v _XdrPtr_DogwoodTreeNodes) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes*" }
 func (v _XdrPtr_DogwoodTreeNodes) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_DogwoodTreeNodes) XdrValue() interface{} { return *v.p }
+type XdrType_DogwoodStream = *DogwoodStream
+func (v *DogwoodStream) XdrPointer() interface{} { return v }
+func (DogwoodStream) XdrTypeName() string { return "DogwoodStream" }
+func (v DogwoodStream) XdrValue() interface{} { return v }
+func (v *DogwoodStream) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodStream) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sstream_id", name), XDR_DogwoodStreamID(&v.Stream_id))
+	x.Marshal(x.Sprintf("%sroute_hash", name), _XdrPtr_DogwoodTreeHash{&v.Route_hash})
+	x.Marshal(x.Sprintf("%sroute_nodes", name), _XdrPtr_DogwoodTreeNodes{&v.Route_nodes})
+}
+func XDR_DogwoodStream(v *DogwoodStream) *DogwoodStream { return v }
+type XdrType_DogwoodTransmission = *DogwoodTransmission
+func (v *DogwoodTransmission) XdrPointer() interface{} { return v }
+func (DogwoodTransmission) XdrTypeName() string { return "DogwoodTransmission" }
+func (v DogwoodTransmission) XdrValue() interface{} { return v }
+func (v *DogwoodTransmission) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodTransmission) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransmission_id", name), XDR_DogwoodTransmissionID(&v.Transmission_id))
+	x.Marshal(x.Sprintf("%snum_payload_bytes", name), XDR_DogwoodInt64(&v.Num_payload_bytes))
+	x.Marshal(x.Sprintf("%snum_payload_sheaves", name), XDR_DogwoodInt32(&v.Num_payload_sheaves))
+	x.Marshal(x.Sprintf("%snum_parity_sheaves", name), XDR_DogwoodInt32(&v.Num_parity_sheaves))
+	x.Marshal(x.Sprintf("%snum_chunks_per_sheaf", name), XDR_DogwoodInt32(&v.Num_chunks_per_sheaf))
+	x.Marshal(x.Sprintf("%sseed", name), XDR_DogwoodInt32(&v.Seed))
+}
+func XDR_DogwoodTransmission(v *DogwoodTransmission) *DogwoodTransmission { return v }
+type XdrType_DogwoodChunk = *DogwoodChunk
+func (v *DogwoodChunk) XdrPointer() interface{} { return v }
+func (DogwoodChunk) XdrTypeName() string { return "DogwoodChunk" }
+func (v DogwoodChunk) XdrValue() interface{} { return v }
+func (v *DogwoodChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodChunk) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssheaf_index", name), XDR_DogwoodInt32(&v.Sheaf_index))
+	x.Marshal(x.Sprintf("%schunk_index", name), XDR_DogwoodInt32(&v.Chunk_index))
+	x.Marshal(x.Sprintf("%schunk", name), XdrVecOpaque{&v.Chunk, 0xffffffff})
+}
+func XDR_DogwoodChunk(v *DogwoodChunk) *DogwoodChunk { return v }
 type XdrType_DogwoodDelivery = *DogwoodDelivery
 func (v *DogwoodDelivery) XdrPointer() interface{} { return v }
 func (DogwoodDelivery) XdrTypeName() string { return "DogwoodDelivery" }
@@ -5993,8 +6017,8 @@ func (v *DogwoodDelivery) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sroute_hash", name), _XdrPtr_DogwoodTreeHash{&v.Route_hash})
-	x.Marshal(x.Sprintf("%sroute_nodes", name), _XdrPtr_DogwoodTreeNodes{&v.Route_nodes})
+	x.Marshal(x.Sprintf("%sstream", name), XDR_DogwoodStream(&v.Stream))
+	x.Marshal(x.Sprintf("%stransmission", name), XDR_DogwoodTransmission(&v.Transmission))
 	x.Marshal(x.Sprintf("%schunk", name), XDR_DogwoodChunk(&v.Chunk))
 }
 func XDR_DogwoodDelivery(v *DogwoodDelivery) *DogwoodDelivery { return v }
