@@ -451,6 +451,7 @@ type DogwoodRoute struct {
 type DogwoodTransmission struct {
 	Transmission_id DogwoodTransmissionID
 	Num_payload_bytes DogwoodInt64
+	Num_sheaf_bytes DogwoodInt64
 	Num_payload_sheaves DogwoodInt32
 	Num_parity_sheaves DogwoodInt32
 	Num_chunks_per_sheaf DogwoodInt32
@@ -6009,6 +6010,7 @@ func (v *DogwoodTransmission) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%stransmission_id", name), XDR_DogwoodTransmissionID(&v.Transmission_id))
 	x.Marshal(x.Sprintf("%snum_payload_bytes", name), XDR_DogwoodInt64(&v.Num_payload_bytes))
+	x.Marshal(x.Sprintf("%snum_sheaf_bytes", name), XDR_DogwoodInt64(&v.Num_sheaf_bytes))
 	x.Marshal(x.Sprintf("%snum_payload_sheaves", name), XDR_DogwoodInt32(&v.Num_payload_sheaves))
 	x.Marshal(x.Sprintf("%snum_parity_sheaves", name), XDR_DogwoodInt32(&v.Num_parity_sheaves))
 	x.Marshal(x.Sprintf("%snum_chunks_per_sheaf", name), XDR_DogwoodInt32(&v.Num_chunks_per_sheaf))
