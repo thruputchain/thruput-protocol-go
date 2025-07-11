@@ -490,9 +490,18 @@ type DogwoodDelivery struct {
 	Pkg DogwoodPackage
 }
 
+type DogwoodRouting struct {
+	Routes []DogwoodTreeNodes
+}
+
 type DogwoodDeliveryEnvelope struct {
 	Signature Signature
 	Delivery DogwoodDelivery
+}
+
+type DogwoodRoutingEnvelope struct {
+	Signature Signature
+	Routing DogwoodRouting
 }
 
 type Dogwood1 interface {
@@ -6201,6 +6210,73 @@ func (v *DogwoodDelivery) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spkg", name), XDR_DogwoodPackage(&v.Pkg))
 }
 func XDR_DogwoodDelivery(v *DogwoodDelivery) *DogwoodDelivery { return v }
+type _XdrVec_unbounded_DogwoodTreeNodes []DogwoodTreeNodes
+func (_XdrVec_unbounded_DogwoodTreeNodes) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_DogwoodTreeNodes) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_DogwoodTreeNodes length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_DogwoodTreeNodes length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_DogwoodTreeNodes) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_DogwoodTreeNodes) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]DogwoodTreeNodes, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_DogwoodTreeNodes(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_DogwoodTreeNodes) XdrTypeName() string { return "DogwoodTreeNodes<>" }
+func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrPointer() interface{} { return (*[]DogwoodTreeNodes)(v) }
+func (v _XdrVec_unbounded_DogwoodTreeNodes) XdrValue() interface{} { return ([]DogwoodTreeNodes)(v) }
+func (v *_XdrVec_unbounded_DogwoodTreeNodes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_DogwoodRouting = *DogwoodRouting
+func (v *DogwoodRouting) XdrPointer() interface{} { return v }
+func (DogwoodRouting) XdrTypeName() string { return "DogwoodRouting" }
+func (v DogwoodRouting) XdrValue() interface{} { return v }
+func (v *DogwoodRouting) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodRouting) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sroutes", name), (*_XdrVec_unbounded_DogwoodTreeNodes)(&v.Routes))
+}
+func XDR_DogwoodRouting(v *DogwoodRouting) *DogwoodRouting { return v }
 type XdrType_DogwoodDeliveryEnvelope = *DogwoodDeliveryEnvelope
 func (v *DogwoodDeliveryEnvelope) XdrPointer() interface{} { return v }
 func (DogwoodDeliveryEnvelope) XdrTypeName() string { return "DogwoodDeliveryEnvelope" }
@@ -6214,6 +6290,19 @@ func (v *DogwoodDeliveryEnvelope) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sdelivery", name), XDR_DogwoodDelivery(&v.Delivery))
 }
 func XDR_DogwoodDeliveryEnvelope(v *DogwoodDeliveryEnvelope) *DogwoodDeliveryEnvelope { return v }
+type XdrType_DogwoodRoutingEnvelope = *DogwoodRoutingEnvelope
+func (v *DogwoodRoutingEnvelope) XdrPointer() interface{} { return v }
+func (DogwoodRoutingEnvelope) XdrTypeName() string { return "DogwoodRoutingEnvelope" }
+func (v DogwoodRoutingEnvelope) XdrValue() interface{} { return v }
+func (v *DogwoodRoutingEnvelope) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodRoutingEnvelope) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
+	x.Marshal(x.Sprintf("%srouting", name), XDR_DogwoodRouting(&v.Routing))
+}
+func XDR_DogwoodRoutingEnvelope(v *DogwoodRoutingEnvelope) *DogwoodRoutingEnvelope { return v }
 
 type xdrProc_Dogwood_null struct {
 	Arg *XdrVoid
