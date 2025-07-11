@@ -456,8 +456,15 @@ type DogwoodRoute struct {
 	Route_nodes *DogwoodTreeNodes
 }
 
+type DogwoodTransmissionType int32
+const (
+	DogwoodTransmissionPayload DogwoodTransmissionType = 0
+	DogwoodTransmissionRoute DogwoodTransmissionType = 1
+)
+
 type DogwoodTransmission struct {
 	Transmission_id DogwoodTransmissionID
+	Type DogwoodTransmissionType
 	Num_payload_bytes DogwoodInt64
 	Num_payload_sheaves DogwoodInt32
 	Num_parity_sheaves DogwoodInt32
@@ -1273,7 +1280,7 @@ type StorageLock struct {
 	_u interface{}
 }
 
-// BCS encoding of the call arguments (as a BCS tuple)
+// TXS encoding of the call arguments (as a tuple)
 type Calldata = []byte
 
 type ReturnBuffer = []byte
@@ -6093,6 +6100,48 @@ func (v *DogwoodRoute) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sroute_nodes", name), _XdrPtr_DogwoodTreeNodes{&v.Route_nodes})
 }
 func XDR_DogwoodRoute(v *DogwoodRoute) *DogwoodRoute { return v }
+var _XdrNames_DogwoodTransmissionType = map[int32]string{
+	int32(DogwoodTransmissionPayload): "DogwoodTransmissionPayload",
+	int32(DogwoodTransmissionRoute): "DogwoodTransmissionRoute",
+}
+var _XdrValues_DogwoodTransmissionType = map[string]int32{
+	"DogwoodTransmissionPayload": int32(DogwoodTransmissionPayload),
+	"DogwoodTransmissionRoute": int32(DogwoodTransmissionRoute),
+}
+func (DogwoodTransmissionType) XdrEnumNames() map[int32]string {
+	return _XdrNames_DogwoodTransmissionType
+}
+func (v DogwoodTransmissionType) String() string {
+	if s, ok := _XdrNames_DogwoodTransmissionType[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("DogwoodTransmissionType#%d", v)
+}
+func (v *DogwoodTransmissionType) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_DogwoodTransmissionType[stok]; ok {
+			*v = DogwoodTransmissionType(val)
+			return nil
+		} else if stok == "DogwoodTransmissionType" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid DogwoodTransmissionType.", stok))
+	}
+}
+func (v DogwoodTransmissionType) GetU32() uint32 { return uint32(v) }
+func (v *DogwoodTransmissionType) SetU32(n uint32) { *v = DogwoodTransmissionType(n) }
+func (v *DogwoodTransmissionType) XdrPointer() interface{} { return v }
+func (DogwoodTransmissionType) XdrTypeName() string { return "DogwoodTransmissionType" }
+func (v DogwoodTransmissionType) XdrValue() interface{} { return v }
+func (v *DogwoodTransmissionType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_DogwoodTransmissionType = *DogwoodTransmissionType
+func XDR_DogwoodTransmissionType(v *DogwoodTransmissionType) *DogwoodTransmissionType { return v }
 type XdrType_DogwoodTransmission = *DogwoodTransmission
 func (v *DogwoodTransmission) XdrPointer() interface{} { return v }
 func (DogwoodTransmission) XdrTypeName() string { return "DogwoodTransmission" }
@@ -6103,6 +6152,7 @@ func (v *DogwoodTransmission) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stransmission_id", name), XDR_DogwoodTransmissionID(&v.Transmission_id))
+	x.Marshal(x.Sprintf("%stype", name), XDR_DogwoodTransmissionType(&v.Type))
 	x.Marshal(x.Sprintf("%snum_payload_bytes", name), XDR_DogwoodInt64(&v.Num_payload_bytes))
 	x.Marshal(x.Sprintf("%snum_payload_sheaves", name), XDR_DogwoodInt32(&v.Num_payload_sheaves))
 	x.Marshal(x.Sprintf("%snum_parity_sheaves", name), XDR_DogwoodInt32(&v.Num_parity_sheaves))
