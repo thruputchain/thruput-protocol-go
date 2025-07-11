@@ -499,11 +499,6 @@ type DogwoodDeliveryEnvelope struct {
 	Delivery DogwoodDelivery
 }
 
-type DogwoodRoutingEnvelope struct {
-	Signature Signature
-	Routing DogwoodRouting
-}
-
 type Dogwood1 interface {
 	Dogwood_null(context.Context, ) error
 	Dogwood_deliver(context.Context, DogwoodDeliveryEnvelope) error
@@ -6290,19 +6285,6 @@ func (v *DogwoodDeliveryEnvelope) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sdelivery", name), XDR_DogwoodDelivery(&v.Delivery))
 }
 func XDR_DogwoodDeliveryEnvelope(v *DogwoodDeliveryEnvelope) *DogwoodDeliveryEnvelope { return v }
-type XdrType_DogwoodRoutingEnvelope = *DogwoodRoutingEnvelope
-func (v *DogwoodRoutingEnvelope) XdrPointer() interface{} { return v }
-func (DogwoodRoutingEnvelope) XdrTypeName() string { return "DogwoodRoutingEnvelope" }
-func (v DogwoodRoutingEnvelope) XdrValue() interface{} { return v }
-func (v *DogwoodRoutingEnvelope) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DogwoodRoutingEnvelope) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
-	x.Marshal(x.Sprintf("%srouting", name), XDR_DogwoodRouting(&v.Routing))
-}
-func XDR_DogwoodRoutingEnvelope(v *DogwoodRoutingEnvelope) *DogwoodRoutingEnvelope { return v }
 
 type xdrProc_Dogwood_null struct {
 	Arg *XdrVoid
