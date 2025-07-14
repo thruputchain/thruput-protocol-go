@@ -6873,20 +6873,25 @@ func (c Dogwood1_Client) Dogwood_null(ctx context.Context) error {
 }
 
 var ddePool sync.Pool
+var procPool sync.Pool
 
 func init() {
 	ddePool.New = func() any {
 		return &DogwoodDeliveryEnvelope{}
 	}
+	procPool.New = func() any {
+		return &xdrProc_Dogwood_deliver{}
+	}
 }
 
 func (c Dogwood1_Client) Dogwood_deliver(ctx context.Context, a1 DogwoodDeliveryEnvelope) error {
-	var proc xdrProc_Dogwood_deliver
+	proc := procPool.Get().(*xdrProc_Dogwood_deliver)
+	defer procPool.Put(proc)
 	proc.Arg = ddePool.Get().(*DogwoodDeliveryEnvelope)
 	defer ddePool.Put(proc.Arg)
 	*proc.Arg = a1
 	// proc.Arg = &a1 //XXX: slow
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
+	if err := c.Send.SendCall(ctx, proc); err != nil {
 		return err
 	}
 	return nil
