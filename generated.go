@@ -6871,8 +6871,11 @@ func (c Dogwood1_Client) Dogwood_null(ctx context.Context) error {
 	return nil
 }
 
-var DDEPool = NewStructPool[DogwoodDeliveryEnvelope]()
-var ProcPool = NewStructPool[xdrProc_Dogwood_deliver]()
+// var DDEPool = NewStructPool[DogwoodDeliveryEnvelope]()
+// var ProcPool = NewStructPool[xdrProc_Dogwood_deliver]()
+
+var DDEPool = NewArena[DogwoodDeliveryEnvelope](1e6)
+var ProcPool = NewArena[xdrProc_Dogwood_deliver](1e6)
 
 func (c Dogwood1_Client) Dogwood_deliver(ctx context.Context, a1 DogwoodDeliveryEnvelope) error {
 	proc := ProcPool.Get()
