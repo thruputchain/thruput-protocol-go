@@ -5,7 +5,6 @@ package proto
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	. "github.com/xdrpp/goxdr/xdr"
 )
@@ -6872,23 +6871,14 @@ func (c Dogwood1_Client) Dogwood_null(ctx context.Context) error {
 	return nil
 }
 
-var ddePool sync.Pool
-var procPool sync.Pool
-
-func init() {
-	ddePool.New = func() any {
-		return &DogwoodDeliveryEnvelope{}
-	}
-	procPool.New = func() any {
-		return &xdrProc_Dogwood_deliver{}
-	}
-}
+var DDEPool = NewStructPool[DogwoodDeliveryEnvelope]()
+var ProcPool = NewStructPool[xdrProc_Dogwood_deliver]()
 
 func (c Dogwood1_Client) Dogwood_deliver(ctx context.Context, a1 DogwoodDeliveryEnvelope) error {
-	proc := procPool.Get().(*xdrProc_Dogwood_deliver)
-	defer procPool.Put(proc)
-	proc.Arg = ddePool.Get().(*DogwoodDeliveryEnvelope)
-	defer ddePool.Put(proc.Arg)
+	proc := ProcPool.Get()
+	defer ProcPool.Recycle(proc)
+	proc.Arg = DDEPool.Get()
+	defer DDEPool.Recycle(proc.Arg)
 	*proc.Arg = a1
 	// proc.Arg = &a1 //XXX: slow
 	if err := c.Send.SendCall(ctx, proc); err != nil {
