@@ -189,6 +189,7 @@ type DogwoodConfig struct {
 	// endpoint caller
 	Endpoint_queue_length DogwoodInt32
 	Endpoint_max_pending DogwoodInt32
+	Endpoint_num_clients DogwoodInt32
 	Endpoint_idle_ttl_msec Milliseconds
 	Endpoint_redial_delay_msec Milliseconds
 	// stream receiver
@@ -3091,6 +3092,7 @@ func (v *DogwoodConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sroute_time_to_use_msec", name), XDR_Milliseconds(&v.Route_time_to_use_msec))
 	x.Marshal(x.Sprintf("%sendpoint_queue_length", name), XDR_DogwoodInt32(&v.Endpoint_queue_length))
 	x.Marshal(x.Sprintf("%sendpoint_max_pending", name), XDR_DogwoodInt32(&v.Endpoint_max_pending))
+	x.Marshal(x.Sprintf("%sendpoint_num_clients", name), XDR_DogwoodInt32(&v.Endpoint_num_clients))
 	x.Marshal(x.Sprintf("%sendpoint_idle_ttl_msec", name), XDR_Milliseconds(&v.Endpoint_idle_ttl_msec))
 	x.Marshal(x.Sprintf("%sendpoint_redial_delay_msec", name), XDR_Milliseconds(&v.Endpoint_redial_delay_msec))
 	x.Marshal(x.Sprintf("%sstream_receiver_queue_length", name), XDR_DogwoodInt32(&v.Stream_receiver_queue_length))
