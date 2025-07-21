@@ -178,7 +178,9 @@ type TransmissionConfig struct {
 	Num_payload_sheaves int32
 	Num_parity_sheaves int32
 	Max_chunk_bytes int32
-	Partial_ttl_msec Milliseconds
+	//
+	Partial_max_ttl_msec Milliseconds
+	Partial_idle_ttl_msec Milliseconds
 }
 
 type DogwoodConfig struct {
@@ -3005,7 +3007,8 @@ func (v *TransmissionConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snum_payload_sheaves", name), XDR_int32(&v.Num_payload_sheaves))
 	x.Marshal(x.Sprintf("%snum_parity_sheaves", name), XDR_int32(&v.Num_parity_sheaves))
 	x.Marshal(x.Sprintf("%smax_chunk_bytes", name), XDR_int32(&v.Max_chunk_bytes))
-	x.Marshal(x.Sprintf("%spartial_ttl_msec", name), XDR_Milliseconds(&v.Partial_ttl_msec))
+	x.Marshal(x.Sprintf("%spartial_max_ttl_msec", name), XDR_Milliseconds(&v.Partial_max_ttl_msec))
+	x.Marshal(x.Sprintf("%spartial_idle_ttl_msec", name), XDR_Milliseconds(&v.Partial_idle_ttl_msec))
 }
 func XDR_TransmissionConfig(v *TransmissionConfig) *TransmissionConfig { return v }
 type _XdrPtr_TransmissionConfig struct {
