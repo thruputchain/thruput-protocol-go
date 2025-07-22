@@ -189,20 +189,15 @@ type DogwoodConfig struct {
 	Route_time_to_live_msec Milliseconds
 	Route_time_to_use_msec Milliseconds
 	// endpoint caller
-	Endpoint_queue_length DogwoodInt32
 	Endpoint_max_pending DogwoodInt32
 	Endpoint_num_clients DogwoodInt32
 	Endpoint_idle_ttl_msec Milliseconds
 	Endpoint_redial_delay_msec Milliseconds
-	// stream receiver
-	Stream_receiver_queue_length DogwoodInt32
+	// stream processing
 	Stream_receiver_worker_count DogwoodInt32
-	// stream sender
 	Stream_sender_worker_count DogwoodInt32
-	// transmission receiver
+	// transmission processing
 	Transmission_receiver_decode_worker_count DogwoodInt32
-	Transmission_receiver_stream_worker_count DogwoodInt32
-	// transmission sender
 	Transmission_sender_worker_count DogwoodInt32
 	//
 	Transmission_config *TransmissionConfig
@@ -3094,16 +3089,13 @@ func (v *DogwoodConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sroute_count", name), XDR_DogwoodInt32(&v.Route_count))
 	x.Marshal(x.Sprintf("%sroute_time_to_live_msec", name), XDR_Milliseconds(&v.Route_time_to_live_msec))
 	x.Marshal(x.Sprintf("%sroute_time_to_use_msec", name), XDR_Milliseconds(&v.Route_time_to_use_msec))
-	x.Marshal(x.Sprintf("%sendpoint_queue_length", name), XDR_DogwoodInt32(&v.Endpoint_queue_length))
 	x.Marshal(x.Sprintf("%sendpoint_max_pending", name), XDR_DogwoodInt32(&v.Endpoint_max_pending))
 	x.Marshal(x.Sprintf("%sendpoint_num_clients", name), XDR_DogwoodInt32(&v.Endpoint_num_clients))
 	x.Marshal(x.Sprintf("%sendpoint_idle_ttl_msec", name), XDR_Milliseconds(&v.Endpoint_idle_ttl_msec))
 	x.Marshal(x.Sprintf("%sendpoint_redial_delay_msec", name), XDR_Milliseconds(&v.Endpoint_redial_delay_msec))
-	x.Marshal(x.Sprintf("%sstream_receiver_queue_length", name), XDR_DogwoodInt32(&v.Stream_receiver_queue_length))
 	x.Marshal(x.Sprintf("%sstream_receiver_worker_count", name), XDR_DogwoodInt32(&v.Stream_receiver_worker_count))
 	x.Marshal(x.Sprintf("%sstream_sender_worker_count", name), XDR_DogwoodInt32(&v.Stream_sender_worker_count))
 	x.Marshal(x.Sprintf("%stransmission_receiver_decode_worker_count", name), XDR_DogwoodInt32(&v.Transmission_receiver_decode_worker_count))
-	x.Marshal(x.Sprintf("%stransmission_receiver_stream_worker_count", name), XDR_DogwoodInt32(&v.Transmission_receiver_stream_worker_count))
 	x.Marshal(x.Sprintf("%stransmission_sender_worker_count", name), XDR_DogwoodInt32(&v.Transmission_sender_worker_count))
 	x.Marshal(x.Sprintf("%stransmission_config", name), _XdrPtr_TransmissionConfig{&v.Transmission_config})
 }
