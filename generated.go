@@ -844,24 +844,19 @@ type TransactionID = uint64
 type RPCError int32
 const (
 	KRPCNone RPCError = 0
-	// Lookup on contract that does not exist in database
-	KRPCContractNotExist RPCError = 1
-	// Lookup deployment of contract on address that has no deployed contract
-	KRPCNoContractDeployed RPCError = 2
-	// Executor in bad state to validate or propose
-	KRPCBadExecutorState RPCError = 3
+	// Lookup on an item in the database that does not exist.
+	// Used by any database lookup RPC, not just for one type.
+	KRPCNotFound RPCError = 1
+	// Executor in bad state to validate or propose.
+	KRPCBadExecutorState RPCError = 2
 	// BlockID does not exist, or is not in correct state
-	KRPCBadBlockID RPCError = 4
+	KRPCBadBlockID RPCError = 3
 	// bad storage modification
-	KRPCStorageWriteFailed RPCError = 5
-	// Requesting an item that doesn't exist
-	KRPCNoStorageItem RPCError = 6
+	KRPCStorageWriteFailed RPCError = 4
 	// tx validation or proposal failed
-	KRPCTransactionFailed RPCError = 7
+	KRPCTransactionFailed RPCError = 5
 	// Unimplemented RPC
-	KRPCUnimplemented RPCError = 8
-	// No retrocausal queue block or entryfound
-	KRPCNoQueueEntry RPCError = 9
+	KRPCUnimplemented RPCError = 6
 )
 
 // Flags modifying one Executor->DB storage item RPC
@@ -998,7 +993,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_submit_unvetted(context.Context, SignedTransactionBatch) error
 	Schedulercoord_submit_vetted(context.Context, ValidatorID, SignedTransactionBatch) error
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
-	Schedulercoord_validate(context.Context, Nomination) (SchedulerValidationResult, error)
+	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
 }
 
 type RejectedTransaction struct {
@@ -9988,27 +9983,21 @@ func (XdrType_TransactionID) XdrTypeName() string { return "TransactionID" }
 func (v XdrType_TransactionID) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 var _XdrNames_RPCError = map[int32]string{
 	int32(KRPCNone): "kRPCNone",
-	int32(KRPCContractNotExist): "kRPCContractNotExist",
-	int32(KRPCNoContractDeployed): "kRPCNoContractDeployed",
+	int32(KRPCNotFound): "kRPCNotFound",
 	int32(KRPCBadExecutorState): "kRPCBadExecutorState",
 	int32(KRPCBadBlockID): "kRPCBadBlockID",
 	int32(KRPCStorageWriteFailed): "kRPCStorageWriteFailed",
-	int32(KRPCNoStorageItem): "kRPCNoStorageItem",
 	int32(KRPCTransactionFailed): "kRPCTransactionFailed",
 	int32(KRPCUnimplemented): "kRPCUnimplemented",
-	int32(KRPCNoQueueEntry): "kRPCNoQueueEntry",
 }
 var _XdrValues_RPCError = map[string]int32{
 	"kRPCNone": int32(KRPCNone),
-	"kRPCContractNotExist": int32(KRPCContractNotExist),
-	"kRPCNoContractDeployed": int32(KRPCNoContractDeployed),
+	"kRPCNotFound": int32(KRPCNotFound),
 	"kRPCBadExecutorState": int32(KRPCBadExecutorState),
 	"kRPCBadBlockID": int32(KRPCBadBlockID),
 	"kRPCStorageWriteFailed": int32(KRPCStorageWriteFailed),
-	"kRPCNoStorageItem": int32(KRPCNoStorageItem),
 	"kRPCTransactionFailed": int32(KRPCTransactionFailed),
 	"kRPCUnimplemented": int32(KRPCUnimplemented),
-	"kRPCNoQueueEntry": int32(KRPCNoQueueEntry),
 }
 func (RPCError) XdrEnumNames() map[int32]string {
 	return _XdrNames_RPCError
@@ -11002,8 +10991,28 @@ func (p *xdrSrvProc_Schedulercoord_nominate) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_nominate{} // XXX
 
+type xdrProcArg_Schedulercoord_validate struct {
+	a1 *DbTip
+	a2 *Nomination
+}
+func (v *xdrProcArg_Schedulercoord_validate) XdrPointer() interface{} { return v }
+func (xdrProcArg_Schedulercoord_validate) XdrTypeName() string { return "xdrProcArg_Schedulercoord_validate" }
+func (v xdrProcArg_Schedulercoord_validate) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Schedulercoord_validate) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Schedulercoord_validate) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(DbTip) }
+	XDR_DbTip(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(Nomination) }
+	XDR_Nomination(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Schedulercoord_validate(v *xdrProcArg_Schedulercoord_validate) *xdrProcArg_Schedulercoord_validate { return v }
+var _ XdrType = &xdrProcArg_Schedulercoord_validate{} // XXX
+
 type xdrProc_Schedulercoord_validate struct {
-	Arg *Nomination
+	Arg *xdrProcArg_Schedulercoord_validate
 	Res *SchedulerValidationResult
 }
 func (xdrProc_Schedulercoord_validate) Prog() uint32 { return 1986466065 }
@@ -11014,9 +11023,9 @@ func (xdrProc_Schedulercoord_validate) VersName() string { return "SchedulerCoor
 func (xdrProc_Schedulercoord_validate) ProcName() string { return "schedulercoord_validate" }
 func (p *xdrProc_Schedulercoord_validate) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(Nomination)
+		p.Arg = new(xdrProcArg_Schedulercoord_validate)
 	}
-	return XDR_Nomination(p.Arg)
+	return XDR_xdrProcArg_Schedulercoord_validate(p.Arg)
 }
 func (p *xdrProc_Schedulercoord_validate) GetRes() XdrType {
 	if p.Res == nil {
@@ -11040,7 +11049,7 @@ func (p *xdrSrvProc_Schedulercoord_validate) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Schedulercoord_validate) Do() {
-	r, err := p.Srv.Schedulercoord_validate(p.Ctx, *p.Arg)
+	r, err := p.Srv.Schedulercoord_validate(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -11134,9 +11143,11 @@ func (c SchedulerCoord1_Client) Schedulercoord_nominate(ctx context.Context, a1 
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_validate(ctx context.Context, a1 Nomination) (r SchedulerValidationResult, _ error) {
+func (c SchedulerCoord1_Client) Schedulercoord_validate(ctx context.Context, a1 DbTip, a2 Nomination) (r SchedulerValidationResult, _ error) {
 	var proc xdrProc_Schedulercoord_validate
-	proc.Arg = &a1
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
