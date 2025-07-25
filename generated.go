@@ -456,7 +456,7 @@ type Received struct {
 type DogwoodAPI1 interface {
 	Dogwoodapi_null(context.Context, ) error
 	Dogwoodapi_send(context.Context, Milliseconds, Bytes) error
-	Dogwoodapi_receive(context.Context, Milliseconds) error
+	Dogwoodapi_receive(context.Context, Milliseconds) (Received, error)
 }
 
 type DogwoodTreeHash = SHA256Hash
@@ -6058,7 +6058,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dogwoodapi_send{} // XXX
 
 type xdrProc_Dogwoodapi_receive struct {
 	Arg *Milliseconds
-	Res *XdrVoid
+	Res *Received
 }
 func (xdrProc_Dogwoodapi_receive) Prog() uint32 { return 2397605608 }
 func (xdrProc_Dogwoodapi_receive) Vers() uint32 { return 1 }
@@ -6074,9 +6074,9 @@ func (p *xdrProc_Dogwoodapi_receive) GetArg() XdrType {
 }
 func (p *xdrProc_Dogwoodapi_receive) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(Received)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_Received(p.Res)
 }
 var _ XdrProc = &xdrProc_Dogwoodapi_receive{} // XXX
 
@@ -6094,7 +6094,9 @@ func (p *xdrSrvProc_Dogwoodapi_receive) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dogwoodapi_receive) Do() {
-	err := p.Srv.Dogwoodapi_receive(p.Ctx, *p.Arg)
+	r, err := p.Srv.Dogwoodapi_receive(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -6162,13 +6164,13 @@ func (c DogwoodAPI1_Client) Dogwoodapi_send(ctx context.Context, a1 Milliseconds
 	}
 	return nil
 }
-func (c DogwoodAPI1_Client) Dogwoodapi_receive(ctx context.Context, a1 Milliseconds) error {
+func (c DogwoodAPI1_Client) Dogwoodapi_receive(ctx context.Context, a1 Milliseconds) (r Received, _ error) {
 	var proc xdrProc_Dogwoodapi_receive
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 type XdrType_DogwoodTreeHash struct {
 	XdrType_SHA256Hash
