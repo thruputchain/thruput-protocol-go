@@ -448,7 +448,7 @@ type DogwoodStandaloneConfig struct {
 	Dogwood_config DogwoodConfig
 }
 
-type Received struct {
+type DogwoodReceived struct {
 	From ValidatorID
 	Payload []byte
 }
@@ -456,7 +456,7 @@ type Received struct {
 type DogwoodAPI1 interface {
 	Dogwoodapi_null(context.Context, ) error
 	Dogwoodapi_send(context.Context, Milliseconds, Bytes) error
-	Dogwoodapi_receive(context.Context, Milliseconds) (Received, error)
+	Dogwoodapi_receive(context.Context, Milliseconds) (DogwoodReceived, error)
 }
 
 type DogwoodTreeHash = SHA256Hash
@@ -5932,19 +5932,19 @@ func (v *DogwoodStandaloneConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sdogwood_config", name), XDR_DogwoodConfig(&v.Dogwood_config))
 }
 func XDR_DogwoodStandaloneConfig(v *DogwoodStandaloneConfig) *DogwoodStandaloneConfig { return v }
-type XdrType_Received = *Received
-func (v *Received) XdrPointer() interface{} { return v }
-func (Received) XdrTypeName() string { return "Received" }
-func (v Received) XdrValue() interface{} { return v }
-func (v *Received) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *Received) XdrRecurse(x XDR, name string) {
+type XdrType_DogwoodReceived = *DogwoodReceived
+func (v *DogwoodReceived) XdrPointer() interface{} { return v }
+func (DogwoodReceived) XdrTypeName() string { return "DogwoodReceived" }
+func (v DogwoodReceived) XdrValue() interface{} { return v }
+func (v *DogwoodReceived) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DogwoodReceived) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sfrom", name), XDR_ValidatorID(&v.From))
 	x.Marshal(x.Sprintf("%spayload", name), XdrVecOpaque{&v.Payload, 0xffffffff})
 }
-func XDR_Received(v *Received) *Received { return v }
+func XDR_DogwoodReceived(v *DogwoodReceived) *DogwoodReceived { return v }
 
 type xdrProc_Dogwoodapi_null struct {
 	Arg *XdrVoid
@@ -6058,7 +6058,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dogwoodapi_send{} // XXX
 
 type xdrProc_Dogwoodapi_receive struct {
 	Arg *Milliseconds
-	Res *Received
+	Res *DogwoodReceived
 }
 func (xdrProc_Dogwoodapi_receive) Prog() uint32 { return 2397605608 }
 func (xdrProc_Dogwoodapi_receive) Vers() uint32 { return 1 }
@@ -6074,9 +6074,9 @@ func (p *xdrProc_Dogwoodapi_receive) GetArg() XdrType {
 }
 func (p *xdrProc_Dogwoodapi_receive) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(Received)
+		p.Res = new(DogwoodReceived)
 	}
-	return XDR_Received(p.Res)
+	return XDR_DogwoodReceived(p.Res)
 }
 var _ XdrProc = &xdrProc_Dogwoodapi_receive{} // XXX
 
@@ -6164,7 +6164,7 @@ func (c DogwoodAPI1_Client) Dogwoodapi_send(ctx context.Context, a1 Milliseconds
 	}
 	return nil
 }
-func (c DogwoodAPI1_Client) Dogwoodapi_receive(ctx context.Context, a1 Milliseconds) (r Received, _ error) {
+func (c DogwoodAPI1_Client) Dogwoodapi_receive(ctx context.Context, a1 Milliseconds) (r DogwoodReceived, _ error) {
 	var proc xdrProc_Dogwoodapi_receive
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
