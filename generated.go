@@ -174,15 +174,6 @@ type SpectraConfig struct {
 	Partial_ttl_msec Milliseconds
 }
 
-type TransmissionConfig struct {
-	Num_payload_sheaves int32
-	Num_parity_sheaves int32
-	Max_chunk_bytes int32
-	//
-	Partial_max_ttl_msec Milliseconds
-	Partial_idle_ttl_msec Milliseconds
-}
-
 type DogwoodConfig struct {
 	// navigator
 	Route_count DogwoodInt32
@@ -200,7 +191,8 @@ type DogwoodConfig struct {
 	Transmission_receiver_decode_worker_count DogwoodInt32
 	Transmission_sender_worker_count DogwoodInt32
 	//
-	Transmission_config *TransmissionConfig
+	Transmission_partial_max_ttl_msec Milliseconds
+	Transmission_partial_idle_ttl_msec Milliseconds
 }
 
 type MempoolConfig struct {
@@ -976,6 +968,8 @@ type SchedulerValidationOutcome int32
 const (
 	SchedulerValidationOK SchedulerValidationOutcome = 0
 	SchedulerValidationInvalid SchedulerValidationOutcome = 1
+	SchedulerValidationDbFailed SchedulerValidationOutcome = 2
+	SchedulerValidationMissingTxs SchedulerValidationOutcome = 3
 )
 
 type SchedulerValidationResult struct {
@@ -1411,6 +1405,11 @@ type ProposedTransaction struct {
 type NominatedTransaction struct {
 	Nondeterministic_proposal_data NondeterministicProposalData
 }
+
+type TransactionStatistic int32
+const (
+	KTxStatGasRemaining TransactionStatistic = 0
+)
 
 type Uint128_xdr struct {
 	Highbits uint64
@@ -3035,93 +3034,6 @@ func (v *SpectraConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spartial_ttl_msec", name), XDR_Milliseconds(&v.Partial_ttl_msec))
 }
 func XDR_SpectraConfig(v *SpectraConfig) *SpectraConfig { return v }
-type XdrType_TransmissionConfig = *TransmissionConfig
-func (v *TransmissionConfig) XdrPointer() interface{} { return v }
-func (TransmissionConfig) XdrTypeName() string { return "TransmissionConfig" }
-func (v TransmissionConfig) XdrValue() interface{} { return v }
-func (v *TransmissionConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *TransmissionConfig) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%snum_payload_sheaves", name), XDR_int32(&v.Num_payload_sheaves))
-	x.Marshal(x.Sprintf("%snum_parity_sheaves", name), XDR_int32(&v.Num_parity_sheaves))
-	x.Marshal(x.Sprintf("%smax_chunk_bytes", name), XDR_int32(&v.Max_chunk_bytes))
-	x.Marshal(x.Sprintf("%spartial_max_ttl_msec", name), XDR_Milliseconds(&v.Partial_max_ttl_msec))
-	x.Marshal(x.Sprintf("%spartial_idle_ttl_msec", name), XDR_Milliseconds(&v.Partial_idle_ttl_msec))
-}
-func XDR_TransmissionConfig(v *TransmissionConfig) *TransmissionConfig { return v }
-type _XdrPtr_TransmissionConfig struct {
-	p **TransmissionConfig
-}
-type _ptrflag_TransmissionConfig _XdrPtr_TransmissionConfig
-func (v _ptrflag_TransmissionConfig) String() string {
-	if *v.p == nil {
-		return "nil"
-	}
-	return "non-nil"
-}
-func (v _ptrflag_TransmissionConfig) Scan(ss fmt.ScanState, r rune) error {
-	tok, err := ss.Token(true, func(c rune) bool {
-		return c == '-' || (c >= 'a' && c <= 'z')
-	})
-	if err != nil {
-		return err
-	}
-	switch string(tok) {
-	case "nil":
-		v.SetU32(0)
-	case "non-nil":
-		v.SetU32(1)
-	default:
-		return XdrError("TransmissionConfig flag should be \"nil\" or \"non-nil\"")
-	}
-	return nil
-}
-func (v _ptrflag_TransmissionConfig) GetU32() uint32 {
-	if *v.p == nil {
-		return 0
-	}
-	return 1
-}
-func (v _ptrflag_TransmissionConfig) SetU32(nv uint32) {
-	switch nv {
-	case 0:
-		*v.p = nil
-	case 1:
-		if *v.p == nil {
-			*v.p = new(TransmissionConfig)
-		}
-	default:
-		XdrPanic("*TransmissionConfig present flag value %d should be 0 or 1", nv)
-	}
-}
-func (_ptrflag_TransmissionConfig) XdrTypeName() string { return "TransmissionConfig?" }
-func (v _ptrflag_TransmissionConfig) XdrPointer() interface{} { return nil }
-func (v _ptrflag_TransmissionConfig) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_TransmissionConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_TransmissionConfig) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_TransmissionConfig) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_TransmissionConfig) SetPresent(present bool) {
-	if !present {
-		*v.p = nil
-	} else if *v.p == nil {
-		*v.p = new(TransmissionConfig)
-	}
-}
-func (v _XdrPtr_TransmissionConfig) XdrMarshalValue(x XDR, name string) {
-	if *v.p != nil {
-		XDR_TransmissionConfig(*v.p).XdrMarshal(x, name)
-	}
-}
-func (v _XdrPtr_TransmissionConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_TransmissionConfig) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_TransmissionConfig(v))
-	v.XdrMarshalValue(x, name)
-}
-func (_XdrPtr_TransmissionConfig) XdrTypeName() string { return "TransmissionConfig*" }
-func (v _XdrPtr_TransmissionConfig) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_TransmissionConfig) XdrValue() interface{} { return *v.p }
 type XdrType_DogwoodConfig = *DogwoodConfig
 func (v *DogwoodConfig) XdrPointer() interface{} { return v }
 func (DogwoodConfig) XdrTypeName() string { return "DogwoodConfig" }
@@ -3142,7 +3054,8 @@ func (v *DogwoodConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sstream_sender_worker_count", name), XDR_DogwoodInt32(&v.Stream_sender_worker_count))
 	x.Marshal(x.Sprintf("%stransmission_receiver_decode_worker_count", name), XDR_DogwoodInt32(&v.Transmission_receiver_decode_worker_count))
 	x.Marshal(x.Sprintf("%stransmission_sender_worker_count", name), XDR_DogwoodInt32(&v.Transmission_sender_worker_count))
-	x.Marshal(x.Sprintf("%stransmission_config", name), _XdrPtr_TransmissionConfig{&v.Transmission_config})
+	x.Marshal(x.Sprintf("%stransmission_partial_max_ttl_msec", name), XDR_Milliseconds(&v.Transmission_partial_max_ttl_msec))
+	x.Marshal(x.Sprintf("%stransmission_partial_idle_ttl_msec", name), XDR_Milliseconds(&v.Transmission_partial_idle_ttl_msec))
 }
 func XDR_DogwoodConfig(v *DogwoodConfig) *DogwoodConfig { return v }
 type XdrType_MempoolConfig = *MempoolConfig
@@ -10687,10 +10600,14 @@ func XDR_SchedulerNominationResult(v *SchedulerNominationResult) *SchedulerNomin
 var _XdrNames_SchedulerValidationOutcome = map[int32]string{
 	int32(SchedulerValidationOK): "SchedulerValidationOK",
 	int32(SchedulerValidationInvalid): "SchedulerValidationInvalid",
+	int32(SchedulerValidationDbFailed): "SchedulerValidationDbFailed",
+	int32(SchedulerValidationMissingTxs): "SchedulerValidationMissingTxs",
 }
 var _XdrValues_SchedulerValidationOutcome = map[string]int32{
 	"SchedulerValidationOK": int32(SchedulerValidationOK),
 	"SchedulerValidationInvalid": int32(SchedulerValidationInvalid),
+	"SchedulerValidationDbFailed": int32(SchedulerValidationDbFailed),
+	"SchedulerValidationMissingTxs": int32(SchedulerValidationMissingTxs),
 }
 func (SchedulerValidationOutcome) XdrEnumNames() map[int32]string {
 	return _XdrNames_SchedulerValidationOutcome
@@ -13701,6 +13618,46 @@ func (v *NominatedTransaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snondeterministic_proposal_data", name), XDR_NondeterministicProposalData(&v.Nondeterministic_proposal_data))
 }
 func XDR_NominatedTransaction(v *NominatedTransaction) *NominatedTransaction { return v }
+var _XdrNames_TransactionStatistic = map[int32]string{
+	int32(KTxStatGasRemaining): "kTxStatGasRemaining",
+}
+var _XdrValues_TransactionStatistic = map[string]int32{
+	"kTxStatGasRemaining": int32(KTxStatGasRemaining),
+}
+func (TransactionStatistic) XdrEnumNames() map[int32]string {
+	return _XdrNames_TransactionStatistic
+}
+func (v TransactionStatistic) String() string {
+	if s, ok := _XdrNames_TransactionStatistic[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("TransactionStatistic#%d", v)
+}
+func (v *TransactionStatistic) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_TransactionStatistic[stok]; ok {
+			*v = TransactionStatistic(val)
+			return nil
+		} else if stok == "TransactionStatistic" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid TransactionStatistic.", stok))
+	}
+}
+func (v TransactionStatistic) GetU32() uint32 { return uint32(v) }
+func (v *TransactionStatistic) SetU32(n uint32) { *v = TransactionStatistic(n) }
+func (v *TransactionStatistic) XdrPointer() interface{} { return v }
+func (TransactionStatistic) XdrTypeName() string { return "TransactionStatistic" }
+func (v TransactionStatistic) XdrValue() interface{} { return v }
+func (v *TransactionStatistic) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_TransactionStatistic = *TransactionStatistic
+func XDR_TransactionStatistic(v *TransactionStatistic) *TransactionStatistic { return v }
 type XdrType_Uint128_xdr = *Uint128_xdr
 func (v *Uint128_xdr) XdrPointer() interface{} { return v }
 func (Uint128_xdr) XdrTypeName() string { return "Uint128_xdr" }
