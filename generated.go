@@ -445,6 +445,7 @@ type Bytes = []byte
 
 type DogwoodStandaloneConfig struct {
 	Validator_config ValidatorConfig
+	Router_config RouterConfig
 	Dogwood_config DogwoodConfig
 }
 
@@ -5929,6 +5930,7 @@ func (v *DogwoodStandaloneConfig) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%svalidator_config", name), XDR_ValidatorConfig(&v.Validator_config))
+	x.Marshal(x.Sprintf("%srouter_config", name), XDR_RouterConfig(&v.Router_config))
 	x.Marshal(x.Sprintf("%sdogwood_config", name), XDR_DogwoodConfig(&v.Dogwood_config))
 }
 func XDR_DogwoodStandaloneConfig(v *DogwoodStandaloneConfig) *DogwoodStandaloneConfig { return v }
