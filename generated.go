@@ -178,7 +178,7 @@ type DogwoodConfig struct {
 	// navigator
 	Route_count DogwoodInt32
 	Route_time_to_live_msec Milliseconds
-	Route_time_to_use_msec Milliseconds
+	Route_max_latency_msec Milliseconds
 	// endpoint caller
 	Endpoint_max_pending DogwoodInt32
 	Endpoint_num_clients DogwoodInt32
@@ -3064,7 +3064,7 @@ func (v *DogwoodConfig) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sroute_count", name), XDR_DogwoodInt32(&v.Route_count))
 	x.Marshal(x.Sprintf("%sroute_time_to_live_msec", name), XDR_Milliseconds(&v.Route_time_to_live_msec))
-	x.Marshal(x.Sprintf("%sroute_time_to_use_msec", name), XDR_Milliseconds(&v.Route_time_to_use_msec))
+	x.Marshal(x.Sprintf("%sroute_max_latency_msec", name), XDR_Milliseconds(&v.Route_max_latency_msec))
 	x.Marshal(x.Sprintf("%sendpoint_max_pending", name), XDR_DogwoodInt32(&v.Endpoint_max_pending))
 	x.Marshal(x.Sprintf("%sendpoint_num_clients", name), XDR_DogwoodInt32(&v.Endpoint_num_clients))
 	x.Marshal(x.Sprintf("%sendpoint_idle_ttl_msec", name), XDR_Milliseconds(&v.Endpoint_idle_ttl_msec))
