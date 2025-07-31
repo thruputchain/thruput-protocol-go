@@ -107,7 +107,6 @@ type DogwoodConfig struct {
 }
 
 type MempoolConfig struct {
-	Proposed_batch_ttl_msec Milliseconds
 	Transaction_ttl_msec Milliseconds
 	Submission_lot_size int64
 	Submission_lot_wait_msec Milliseconds
@@ -120,6 +119,7 @@ type CatchupConfig struct {
 
 type BatonConfig struct {
 	Heartbeat_msec Milliseconds
+	Nomination_ttl_msec Milliseconds
 }
 
 type Config struct {
@@ -2173,7 +2173,6 @@ func (v *MempoolConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sproposed_batch_ttl_msec", name), XDR_Milliseconds(&v.Proposed_batch_ttl_msec))
 	x.Marshal(x.Sprintf("%stransaction_ttl_msec", name), XDR_Milliseconds(&v.Transaction_ttl_msec))
 	x.Marshal(x.Sprintf("%ssubmission_lot_size", name), XDR_int64(&v.Submission_lot_size))
 	x.Marshal(x.Sprintf("%ssubmission_lot_wait_msec", name), XDR_Milliseconds(&v.Submission_lot_wait_msec))
@@ -2202,6 +2201,7 @@ func (v *BatonConfig) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sheartbeat_msec", name), XDR_Milliseconds(&v.Heartbeat_msec))
+	x.Marshal(x.Sprintf("%snomination_ttl_msec", name), XDR_Milliseconds(&v.Nomination_ttl_msec))
 }
 func XDR_BatonConfig(v *BatonConfig) *BatonConfig { return v }
 type _XdrPtr_ValidatorConfig struct {
