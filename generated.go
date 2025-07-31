@@ -162,18 +162,6 @@ type RouterConfig struct {
 	Tree_fan_out uint32
 }
 
-type BroadcastConfig struct {
-	// milliseconds
-	Multicast_tree_ttl_msec Milliseconds
-	Chunk_size uint64
-}
-
-type SpectraConfig struct {
-	Num_payload_channels uint32
-	Num_parity_channels uint32
-	Partial_ttl_msec Milliseconds
-}
-
 type DogwoodConfig struct {
 	// navigator
 	Route_count DogwoodInt32
@@ -218,8 +206,6 @@ type Config struct {
 	Wallet_config *WalletConfig
 	Discovery_config *DiscoveryConfig
 	Router_config *RouterConfig
-	Broadcast_config *BroadcastConfig
-	Spectra_config *SpectraConfig
 	Dogwood_config *DogwoodConfig
 	Mempool_config *MempoolConfig
 	Catchup_config *CatchupConfig
@@ -3028,33 +3014,6 @@ func (v *RouterConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stree_fan_out", name), XDR_uint32(&v.Tree_fan_out))
 }
 func XDR_RouterConfig(v *RouterConfig) *RouterConfig { return v }
-type XdrType_BroadcastConfig = *BroadcastConfig
-func (v *BroadcastConfig) XdrPointer() interface{} { return v }
-func (BroadcastConfig) XdrTypeName() string { return "BroadcastConfig" }
-func (v BroadcastConfig) XdrValue() interface{} { return v }
-func (v *BroadcastConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *BroadcastConfig) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%smulticast_tree_ttl_msec", name), XDR_Milliseconds(&v.Multicast_tree_ttl_msec))
-	x.Marshal(x.Sprintf("%schunk_size", name), XDR_uint64(&v.Chunk_size))
-}
-func XDR_BroadcastConfig(v *BroadcastConfig) *BroadcastConfig { return v }
-type XdrType_SpectraConfig = *SpectraConfig
-func (v *SpectraConfig) XdrPointer() interface{} { return v }
-func (SpectraConfig) XdrTypeName() string { return "SpectraConfig" }
-func (v SpectraConfig) XdrValue() interface{} { return v }
-func (v *SpectraConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *SpectraConfig) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%snum_payload_channels", name), XDR_uint32(&v.Num_payload_channels))
-	x.Marshal(x.Sprintf("%snum_parity_channels", name), XDR_uint32(&v.Num_parity_channels))
-	x.Marshal(x.Sprintf("%spartial_ttl_msec", name), XDR_Milliseconds(&v.Partial_ttl_msec))
-}
-func XDR_SpectraConfig(v *SpectraConfig) *SpectraConfig { return v }
 type XdrType_DogwoodConfig = *DogwoodConfig
 func (v *DogwoodConfig) XdrPointer() interface{} { return v }
 func (DogwoodConfig) XdrTypeName() string { return "DogwoodConfig" }
@@ -3405,148 +3364,6 @@ func (v _XdrPtr_RouterConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_RouterConfig) XdrTypeName() string { return "RouterConfig*" }
 func (v _XdrPtr_RouterConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_RouterConfig) XdrValue() interface{} { return *v.p }
-type _XdrPtr_BroadcastConfig struct {
-	p **BroadcastConfig
-}
-type _ptrflag_BroadcastConfig _XdrPtr_BroadcastConfig
-func (v _ptrflag_BroadcastConfig) String() string {
-	if *v.p == nil {
-		return "nil"
-	}
-	return "non-nil"
-}
-func (v _ptrflag_BroadcastConfig) Scan(ss fmt.ScanState, r rune) error {
-	tok, err := ss.Token(true, func(c rune) bool {
-		return c == '-' || (c >= 'a' && c <= 'z')
-	})
-	if err != nil {
-		return err
-	}
-	switch string(tok) {
-	case "nil":
-		v.SetU32(0)
-	case "non-nil":
-		v.SetU32(1)
-	default:
-		return XdrError("BroadcastConfig flag should be \"nil\" or \"non-nil\"")
-	}
-	return nil
-}
-func (v _ptrflag_BroadcastConfig) GetU32() uint32 {
-	if *v.p == nil {
-		return 0
-	}
-	return 1
-}
-func (v _ptrflag_BroadcastConfig) SetU32(nv uint32) {
-	switch nv {
-	case 0:
-		*v.p = nil
-	case 1:
-		if *v.p == nil {
-			*v.p = new(BroadcastConfig)
-		}
-	default:
-		XdrPanic("*BroadcastConfig present flag value %d should be 0 or 1", nv)
-	}
-}
-func (_ptrflag_BroadcastConfig) XdrTypeName() string { return "BroadcastConfig?" }
-func (v _ptrflag_BroadcastConfig) XdrPointer() interface{} { return nil }
-func (v _ptrflag_BroadcastConfig) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_BroadcastConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_BroadcastConfig) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_BroadcastConfig) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_BroadcastConfig) SetPresent(present bool) {
-	if !present {
-		*v.p = nil
-	} else if *v.p == nil {
-		*v.p = new(BroadcastConfig)
-	}
-}
-func (v _XdrPtr_BroadcastConfig) XdrMarshalValue(x XDR, name string) {
-	if *v.p != nil {
-		XDR_BroadcastConfig(*v.p).XdrMarshal(x, name)
-	}
-}
-func (v _XdrPtr_BroadcastConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_BroadcastConfig) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_BroadcastConfig(v))
-	v.XdrMarshalValue(x, name)
-}
-func (_XdrPtr_BroadcastConfig) XdrTypeName() string { return "BroadcastConfig*" }
-func (v _XdrPtr_BroadcastConfig) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_BroadcastConfig) XdrValue() interface{} { return *v.p }
-type _XdrPtr_SpectraConfig struct {
-	p **SpectraConfig
-}
-type _ptrflag_SpectraConfig _XdrPtr_SpectraConfig
-func (v _ptrflag_SpectraConfig) String() string {
-	if *v.p == nil {
-		return "nil"
-	}
-	return "non-nil"
-}
-func (v _ptrflag_SpectraConfig) Scan(ss fmt.ScanState, r rune) error {
-	tok, err := ss.Token(true, func(c rune) bool {
-		return c == '-' || (c >= 'a' && c <= 'z')
-	})
-	if err != nil {
-		return err
-	}
-	switch string(tok) {
-	case "nil":
-		v.SetU32(0)
-	case "non-nil":
-		v.SetU32(1)
-	default:
-		return XdrError("SpectraConfig flag should be \"nil\" or \"non-nil\"")
-	}
-	return nil
-}
-func (v _ptrflag_SpectraConfig) GetU32() uint32 {
-	if *v.p == nil {
-		return 0
-	}
-	return 1
-}
-func (v _ptrflag_SpectraConfig) SetU32(nv uint32) {
-	switch nv {
-	case 0:
-		*v.p = nil
-	case 1:
-		if *v.p == nil {
-			*v.p = new(SpectraConfig)
-		}
-	default:
-		XdrPanic("*SpectraConfig present flag value %d should be 0 or 1", nv)
-	}
-}
-func (_ptrflag_SpectraConfig) XdrTypeName() string { return "SpectraConfig?" }
-func (v _ptrflag_SpectraConfig) XdrPointer() interface{} { return nil }
-func (v _ptrflag_SpectraConfig) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_SpectraConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_SpectraConfig) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_SpectraConfig) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_SpectraConfig) SetPresent(present bool) {
-	if !present {
-		*v.p = nil
-	} else if *v.p == nil {
-		*v.p = new(SpectraConfig)
-	}
-}
-func (v _XdrPtr_SpectraConfig) XdrMarshalValue(x XDR, name string) {
-	if *v.p != nil {
-		XDR_SpectraConfig(*v.p).XdrMarshal(x, name)
-	}
-}
-func (v _XdrPtr_SpectraConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_SpectraConfig) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_SpectraConfig(v))
-	v.XdrMarshalValue(x, name)
-}
-func (_XdrPtr_SpectraConfig) XdrTypeName() string { return "SpectraConfig*" }
-func (v _XdrPtr_SpectraConfig) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_SpectraConfig) XdrValue() interface{} { return *v.p }
 type _XdrPtr_DogwoodConfig struct {
 	p **DogwoodConfig
 }
@@ -3915,8 +3732,6 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%swallet_config", name), _XdrPtr_WalletConfig{&v.Wallet_config})
 	x.Marshal(x.Sprintf("%sdiscovery_config", name), _XdrPtr_DiscoveryConfig{&v.Discovery_config})
 	x.Marshal(x.Sprintf("%srouter_config", name), _XdrPtr_RouterConfig{&v.Router_config})
-	x.Marshal(x.Sprintf("%sbroadcast_config", name), _XdrPtr_BroadcastConfig{&v.Broadcast_config})
-	x.Marshal(x.Sprintf("%sspectra_config", name), _XdrPtr_SpectraConfig{&v.Spectra_config})
 	x.Marshal(x.Sprintf("%sdogwood_config", name), _XdrPtr_DogwoodConfig{&v.Dogwood_config})
 	x.Marshal(x.Sprintf("%smempool_config", name), _XdrPtr_MempoolConfig{&v.Mempool_config})
 	x.Marshal(x.Sprintf("%scatchup_config", name), _XdrPtr_CatchupConfig{&v.Catchup_config})
