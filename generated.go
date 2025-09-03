@@ -780,9 +780,16 @@ type ExperimentConfig struct {
 
 type InitializationBlock = []SignedTransaction
 
+type LoadgenContextID = uint64
+
 type LoadgenSuccessResult struct {
 	Genesis_block GenesisBlock
 	Initialization_txs []InitializationBlock
+	Work_txs []SignedTransaction
+	Context_id LoadgenContextID
+}
+
+type LoadgenExtension struct {
 	Work_txs []SignedTransaction
 }
 
@@ -790,6 +797,7 @@ type LoadgenRPCError int32
 const (
 	KLoadgenRPCErrorOK LoadgenRPCError = 0
 	KLoadgenRPCErrorInvalidConfig LoadgenRPCError = 1
+	KLoadgenRPCErrorInvalidContext LoadgenRPCError = 2
 )
 
 type LoadgenResult struct {
@@ -802,8 +810,19 @@ type LoadgenResult struct {
 	_u interface{}
 }
 
+type LoadgenExtensionResult struct {
+	// The union discriminant Error selects among the following arms:
+	//   KLoadgenRPCErrorOK:
+	//      Success() *LoadgenExtension
+	//   default:
+	//      void
+	Error LoadgenRPCError
+	_u interface{}
+}
+
 type LoadgenInterfaceV1 interface {
 	Generate_experiment(context.Context, ExperimentConfig) (LoadgenResult, error)
+	Extend_experiment(context.Context, LoadgenContextID, uint64) (LoadgenExtensionResult, error)
 }
 
 type MultiplexMessageType int32
@@ -9118,6 +9137,14 @@ func XDR_InitializationBlock(v *InitializationBlock) XdrType_InitializationBlock
 }
 func (XdrType_InitializationBlock) XdrTypeName() string { return "InitializationBlock" }
 func (v XdrType_InitializationBlock) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SignedTransaction }
+type XdrType_LoadgenContextID struct {
+	XdrType_uint64
+}
+func XDR_LoadgenContextID(v *LoadgenContextID) XdrType_LoadgenContextID {
+	return XdrType_LoadgenContextID{XDR_uint64(v)}
+}
+func (XdrType_LoadgenContextID) XdrTypeName() string { return "LoadgenContextID" }
+func (v XdrType_LoadgenContextID) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type _XdrVec_unbounded_InitializationBlock []InitializationBlock
 func (_XdrVec_unbounded_InitializationBlock) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -9185,15 +9212,30 @@ func (v *LoadgenSuccessResult) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sgenesis_block", name), XDR_GenesisBlock(&v.Genesis_block))
 	x.Marshal(x.Sprintf("%sinitialization_txs", name), (*_XdrVec_unbounded_InitializationBlock)(&v.Initialization_txs))
 	x.Marshal(x.Sprintf("%swork_txs", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Work_txs))
+	x.Marshal(x.Sprintf("%scontext_id", name), XDR_LoadgenContextID(&v.Context_id))
 }
 func XDR_LoadgenSuccessResult(v *LoadgenSuccessResult) *LoadgenSuccessResult { return v }
+type XdrType_LoadgenExtension = *LoadgenExtension
+func (v *LoadgenExtension) XdrPointer() interface{} { return v }
+func (LoadgenExtension) XdrTypeName() string { return "LoadgenExtension" }
+func (v LoadgenExtension) XdrValue() interface{} { return v }
+func (v *LoadgenExtension) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *LoadgenExtension) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%swork_txs", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Work_txs))
+}
+func XDR_LoadgenExtension(v *LoadgenExtension) *LoadgenExtension { return v }
 var _XdrNames_LoadgenRPCError = map[int32]string{
 	int32(KLoadgenRPCErrorOK): "kLoadgenRPCErrorOK",
 	int32(KLoadgenRPCErrorInvalidConfig): "kLoadgenRPCErrorInvalidConfig",
+	int32(KLoadgenRPCErrorInvalidContext): "kLoadgenRPCErrorInvalidContext",
 }
 var _XdrValues_LoadgenRPCError = map[string]int32{
 	"kLoadgenRPCErrorOK": int32(KLoadgenRPCErrorOK),
 	"kLoadgenRPCErrorInvalidConfig": int32(KLoadgenRPCErrorInvalidConfig),
+	"kLoadgenRPCErrorInvalidContext": int32(KLoadgenRPCErrorInvalidContext),
 }
 func (LoadgenRPCError) XdrEnumNames() map[int32]string {
 	return _XdrNames_LoadgenRPCError
@@ -9291,6 +9333,68 @@ func (u *LoadgenResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_LoadgenResult(v *LoadgenResult) *LoadgenResult { return v}
+func (_ LoadgenExtensionResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *LoadgenExtensionResult) Success() *LoadgenExtension {
+	switch u.Error {
+	case KLoadgenRPCErrorOK:
+		if v, ok := u._u.(*LoadgenExtension); ok {
+			return v
+		} else {
+			var zero LoadgenExtension
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("LoadgenExtensionResult.Success accessed when Error == %v", u.Error)
+		return nil
+	}
+}
+func (u LoadgenExtensionResult) XdrValid() bool {
+	return true
+}
+func (u *LoadgenExtensionResult) XdrUnionTag() XdrNum32 {
+	return XDR_LoadgenRPCError(&u.Error)
+}
+func (u *LoadgenExtensionResult) XdrUnionTagName() string {
+	return "Error"
+}
+func (u *LoadgenExtensionResult) XdrUnionBody() XdrType {
+	switch u.Error {
+	case KLoadgenRPCErrorOK:
+		return XDR_LoadgenExtension(u.Success())
+	default:
+		return nil
+	}
+}
+func (u *LoadgenExtensionResult) XdrUnionBodyName() string {
+	switch u.Error {
+	case KLoadgenRPCErrorOK:
+		return "Success"
+	default:
+		return ""
+	}
+}
+type XdrType_LoadgenExtensionResult = *LoadgenExtensionResult
+func (v *LoadgenExtensionResult) XdrPointer() interface{} { return v }
+func (LoadgenExtensionResult) XdrTypeName() string { return "LoadgenExtensionResult" }
+func (v LoadgenExtensionResult) XdrValue() interface{} { return v }
+func (v *LoadgenExtensionResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *LoadgenExtensionResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_LoadgenRPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
+	switch u.Error {
+	case KLoadgenRPCErrorOK:
+		x.Marshal(x.Sprintf("%ssuccess", name), XDR_LoadgenExtension(u.Success()))
+		return
+	default:
+		return
+	}
+}
+func XDR_LoadgenExtensionResult(v *LoadgenExtensionResult) *LoadgenExtensionResult { return v}
 
 type xdrProc_Generate_experiment struct {
 	Arg *ExperimentConfig
@@ -9339,11 +9443,80 @@ func (p *xdrSrvProc_Generate_experiment) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Generate_experiment{} // XXX
 
+type xdrProcArg_Extend_experiment struct {
+	a1 *LoadgenContextID
+	a2 *uint64
+}
+func (v *xdrProcArg_Extend_experiment) XdrPointer() interface{} { return v }
+func (xdrProcArg_Extend_experiment) XdrTypeName() string { return "xdrProcArg_Extend_experiment" }
+func (v xdrProcArg_Extend_experiment) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Extend_experiment) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Extend_experiment) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(LoadgenContextID) }
+	XDR_LoadgenContextID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(uint64) }
+	XDR_uint64(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Extend_experiment(v *xdrProcArg_Extend_experiment) *xdrProcArg_Extend_experiment { return v }
+var _ XdrType = &xdrProcArg_Extend_experiment{} // XXX
+
+type xdrProc_Extend_experiment struct {
+	Arg *xdrProcArg_Extend_experiment
+	Res *LoadgenExtensionResult
+}
+func (xdrProc_Extend_experiment) Prog() uint32 { return 12341234 }
+func (xdrProc_Extend_experiment) Vers() uint32 { return 1 }
+func (xdrProc_Extend_experiment) Proc() uint32 { return 1 }
+func (xdrProc_Extend_experiment) ProgName() string { return "LoadgenInterface" }
+func (xdrProc_Extend_experiment) VersName() string { return "LoadgenInterfaceV1" }
+func (xdrProc_Extend_experiment) ProcName() string { return "extend_experiment" }
+func (p *xdrProc_Extend_experiment) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Extend_experiment)
+	}
+	return XDR_xdrProcArg_Extend_experiment(p.Arg)
+}
+func (p *xdrProc_Extend_experiment) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(LoadgenExtensionResult)
+	}
+	return XDR_LoadgenExtensionResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Extend_experiment{} // XXX
+
+type xdrSrvProc_Extend_experiment struct {
+	xdrProc_Extend_experiment
+	Srv LoadgenInterfaceV1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Extend_experiment) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) LoadgenInterfaceV1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Extend_experiment) Do() {
+	r, err := p.Srv.Extend_experiment(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Extend_experiment{} // XXX
+
 func init() {
 	XdrCatalog[12341234<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
 			return &xdrProc_Generate_experiment{}
+		case 1:
+			return &xdrProc_Extend_experiment{}
 		}
 		return nil
 	}
@@ -9360,6 +9533,8 @@ func (s LoadgenInterfaceV1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // generate_experiment
 		return &xdrSrvProc_Generate_experiment{ Srv: s.Srv }
+	case 1:  // extend_experiment
+		return &xdrSrvProc_Extend_experiment{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -9378,6 +9553,16 @@ func (c LoadgenInterfaceV1_Client) WithContext(ctx context.Context) LoadgenInter
 func (c LoadgenInterfaceV1_Client) Generate_experiment(ctx context.Context, a1 ExperimentConfig) (r LoadgenResult, _ error) {
 	var proc xdrProc_Generate_experiment
 	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c LoadgenInterfaceV1_Client) Extend_experiment(ctx context.Context, a1 LoadgenContextID, a2 uint64) (r LoadgenExtensionResult, _ error) {
+	var proc xdrProc_Extend_experiment
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
