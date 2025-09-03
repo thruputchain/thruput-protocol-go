@@ -766,7 +766,6 @@ const (
 )
 
 type ERC20PaymentsConfig struct {
-	Num_txs uint64
 	Num_accounts uint64
 }
 
@@ -785,7 +784,6 @@ type LoadgenContextID = uint64
 type LoadgenSuccessResult struct {
 	Genesis_block GenesisBlock
 	Initialization_txs []InitializationBlock
-	Work_txs []SignedTransaction
 	Context_id LoadgenContextID
 }
 
@@ -9059,7 +9057,6 @@ func (v *ERC20PaymentsConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%snum_txs", name), XDR_uint64(&v.Num_txs))
 	x.Marshal(x.Sprintf("%snum_accounts", name), XDR_uint64(&v.Num_accounts))
 }
 func XDR_ERC20PaymentsConfig(v *ERC20PaymentsConfig) *ERC20PaymentsConfig { return v }
@@ -9211,7 +9208,6 @@ func (v *LoadgenSuccessResult) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sgenesis_block", name), XDR_GenesisBlock(&v.Genesis_block))
 	x.Marshal(x.Sprintf("%sinitialization_txs", name), (*_XdrVec_unbounded_InitializationBlock)(&v.Initialization_txs))
-	x.Marshal(x.Sprintf("%swork_txs", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Work_txs))
 	x.Marshal(x.Sprintf("%scontext_id", name), XDR_LoadgenContextID(&v.Context_id))
 }
 func XDR_LoadgenSuccessResult(v *LoadgenSuccessResult) *LoadgenSuccessResult { return v }
