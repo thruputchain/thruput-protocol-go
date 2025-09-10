@@ -1134,11 +1134,18 @@ type SCP_Control1 interface {
 	Scp_control_received_envelope(context.Context, SCPEnvelope) error
 }
 
+type SCPValidationLevel int32
+const (
+	SCP_INVALID SCPValidationLevel = 0
+	SCP_MAYBE_VALID SCPValidationLevel = 1
+	SCP_FULLY_VALID SCPValidationLevel = 2
+)
+
 type SCP_Handle1 interface {
 	Scp_handle_null(context.Context, ) error
 	Scp_handle_emit_envelope(context.Context, SCPEnvelope) error
-	Scp_handle_validate_ballot_value(context.Context, SCPSlotIndex, SCPValue) error
-	Scp_handle_validate_nomination_value(context.Context, SCPSlotIndex, SCPValue) error
+	Scp_handle_validate_ballot_value(context.Context, SCPSlotIndex, SCPValue) (SCPValidationLevel, error)
+	Scp_handle_validate_nomination_value(context.Context, SCPSlotIndex, SCPValue) (SCPValidationLevel, error)
 	Scp_handle_extract_valid_value(context.Context, SCPSlotIndex, SCPValue) (SCPOptValue, error)
 	Scp_handle_combine_candidates(context.Context, SCPSlotIndex, SCPValues) (SCPOptValue, error)
 	Scp_handle_value_externalized(context.Context, SCPSlotIndex, SCPValue) error
@@ -1400,12 +1407,16 @@ const (
 	KDeltaTypeRetrocausalQueue StorageDeltaType = 3
 	KDeltaTypeReplayCacheModify StorageDeltaType = 4
 	KDeltaTypeNonnegativeIntAdd StorageDeltaType = 5
-	KDeltaTypeAuthDataChangeSigner StorageDeltaType = 6
+	KDeltaTypeAuthDataChange StorageDeltaType = 6
 )
 
-type AuthDataChangeSignerArgs struct {
+type AuthDataChangeSigner struct {
 	Public_key_id uint32
-	Public_key *PublicKey
+	Public_key PublicKeyConfigOpt
+}
+
+type AuthDataChangeArgs struct {
+	Auth_data_change_signers []AuthDataChangeSigner
 }
 
 type NonnegativeInt128SetAddArgs struct {
@@ -1432,8 +1443,8 @@ type StorageDelta struct {
 	//      Retrocausal_queue() *RetrocausalQueueDelta
 	//   KDeltaTypeReplayCacheModify:
 	//      Replay_cache_modify() *ReplayCacheModifyArgs
-	//   KDeltaTypeAuthDataChangeSigner:
-	//      Auth_data_change_signer() *AuthDataChangeSignerArgs
+	//   KDeltaTypeAuthDataChange:
+	//      Auth_data_change() *AuthDataChangeArgs
 	Type StorageDeltaType
 	_u interface{}
 }
@@ -12246,6 +12257,50 @@ func (c SCP_Control1_Client) Scp_control_received_envelope(ctx context.Context, 
 	}
 	return nil
 }
+var _XdrNames_SCPValidationLevel = map[int32]string{
+	int32(SCP_INVALID): "SCP_INVALID",
+	int32(SCP_MAYBE_VALID): "SCP_MAYBE_VALID",
+	int32(SCP_FULLY_VALID): "SCP_FULLY_VALID",
+}
+var _XdrValues_SCPValidationLevel = map[string]int32{
+	"SCP_INVALID": int32(SCP_INVALID),
+	"SCP_MAYBE_VALID": int32(SCP_MAYBE_VALID),
+	"SCP_FULLY_VALID": int32(SCP_FULLY_VALID),
+}
+func (SCPValidationLevel) XdrEnumNames() map[int32]string {
+	return _XdrNames_SCPValidationLevel
+}
+func (v SCPValidationLevel) String() string {
+	if s, ok := _XdrNames_SCPValidationLevel[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SCPValidationLevel#%d", v)
+}
+func (v *SCPValidationLevel) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SCPValidationLevel[stok]; ok {
+			*v = SCPValidationLevel(val)
+			return nil
+		} else if stok == "SCPValidationLevel" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SCPValidationLevel.", stok))
+	}
+}
+func (v SCPValidationLevel) GetU32() uint32 { return uint32(v) }
+func (v *SCPValidationLevel) SetU32(n uint32) { *v = SCPValidationLevel(n) }
+func (v *SCPValidationLevel) XdrPointer() interface{} { return v }
+func (SCPValidationLevel) XdrTypeName() string { return "SCPValidationLevel" }
+func (v SCPValidationLevel) XdrValue() interface{} { return v }
+func (v *SCPValidationLevel) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SCPValidationLevel = *SCPValidationLevel
+func XDR_SCPValidationLevel(v *SCPValidationLevel) *SCPValidationLevel { return v }
 
 type xdrProc_Scp_handle_null struct {
 	Arg *XdrVoid
@@ -12359,7 +12414,7 @@ var _ XdrType = &xdrProcArg_Scp_handle_validate_ballot_value{} // XXX
 
 type xdrProc_Scp_handle_validate_ballot_value struct {
 	Arg *xdrProcArg_Scp_handle_validate_ballot_value
-	Res *XdrVoid
+	Res *SCPValidationLevel
 }
 func (xdrProc_Scp_handle_validate_ballot_value) Prog() uint32 { return 2594775042 }
 func (xdrProc_Scp_handle_validate_ballot_value) Vers() uint32 { return 1 }
@@ -12375,9 +12430,9 @@ func (p *xdrProc_Scp_handle_validate_ballot_value) GetArg() XdrType {
 }
 func (p *xdrProc_Scp_handle_validate_ballot_value) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(SCPValidationLevel)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_SCPValidationLevel(p.Res)
 }
 var _ XdrProc = &xdrProc_Scp_handle_validate_ballot_value{} // XXX
 
@@ -12395,7 +12450,9 @@ func (p *xdrSrvProc_Scp_handle_validate_ballot_value) SetContext(ctx context.Con
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Scp_handle_validate_ballot_value) Do() {
-	err := p.Srv.Scp_handle_validate_ballot_value(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Scp_handle_validate_ballot_value(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -12424,7 +12481,7 @@ var _ XdrType = &xdrProcArg_Scp_handle_validate_nomination_value{} // XXX
 
 type xdrProc_Scp_handle_validate_nomination_value struct {
 	Arg *xdrProcArg_Scp_handle_validate_nomination_value
-	Res *XdrVoid
+	Res *SCPValidationLevel
 }
 func (xdrProc_Scp_handle_validate_nomination_value) Prog() uint32 { return 2594775042 }
 func (xdrProc_Scp_handle_validate_nomination_value) Vers() uint32 { return 1 }
@@ -12440,9 +12497,9 @@ func (p *xdrProc_Scp_handle_validate_nomination_value) GetArg() XdrType {
 }
 func (p *xdrProc_Scp_handle_validate_nomination_value) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(SCPValidationLevel)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_SCPValidationLevel(p.Res)
 }
 var _ XdrProc = &xdrProc_Scp_handle_validate_nomination_value{} // XXX
 
@@ -12460,7 +12517,9 @@ func (p *xdrSrvProc_Scp_handle_validate_nomination_value) SetContext(ctx context
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Scp_handle_validate_nomination_value) Do() {
-	err := p.Srv.Scp_handle_validate_nomination_value(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Scp_handle_validate_nomination_value(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -13224,25 +13283,25 @@ func (c SCP_Handle1_Client) Scp_handle_emit_envelope(ctx context.Context, a1 SCP
 	}
 	return nil
 }
-func (c SCP_Handle1_Client) Scp_handle_validate_ballot_value(ctx context.Context, a1 SCPSlotIndex, a2 SCPValue) error {
+func (c SCP_Handle1_Client) Scp_handle_validate_ballot_value(ctx context.Context, a1 SCPSlotIndex, a2 SCPValue) (r SCPValidationLevel, _ error) {
 	var proc xdrProc_Scp_handle_validate_ballot_value
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
-func (c SCP_Handle1_Client) Scp_handle_validate_nomination_value(ctx context.Context, a1 SCPSlotIndex, a2 SCPValue) error {
+func (c SCP_Handle1_Client) Scp_handle_validate_nomination_value(ctx context.Context, a1 SCPSlotIndex, a2 SCPValue) (r SCPValidationLevel, _ error) {
 	var proc xdrProc_Scp_handle_validate_nomination_value
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c SCP_Handle1_Client) Scp_handle_extract_valid_value(ctx context.Context, a1 SCPSlotIndex, a2 SCPValue) (r SCPOptValue, _ error) {
 	var proc xdrProc_Scp_handle_extract_valid_value
@@ -14954,7 +15013,7 @@ var _XdrNames_StorageDeltaType = map[int32]string{
 	int32(KDeltaTypeRetrocausalQueue): "kDeltaTypeRetrocausalQueue",
 	int32(KDeltaTypeReplayCacheModify): "kDeltaTypeReplayCacheModify",
 	int32(KDeltaTypeNonnegativeIntAdd): "kDeltaTypeNonnegativeIntAdd",
-	int32(KDeltaTypeAuthDataChangeSigner): "kDeltaTypeAuthDataChangeSigner",
+	int32(KDeltaTypeAuthDataChange): "kDeltaTypeAuthDataChange",
 }
 var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeBytestringSet": int32(KDeltaTypeBytestringSet),
@@ -14963,7 +15022,7 @@ var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeRetrocausalQueue": int32(KDeltaTypeRetrocausalQueue),
 	"kDeltaTypeReplayCacheModify": int32(KDeltaTypeReplayCacheModify),
 	"kDeltaTypeNonnegativeIntAdd": int32(KDeltaTypeNonnegativeIntAdd),
-	"kDeltaTypeAuthDataChangeSigner": int32(KDeltaTypeAuthDataChangeSigner),
+	"kDeltaTypeAuthDataChange": int32(KDeltaTypeAuthDataChange),
 }
 func (StorageDeltaType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageDeltaType
@@ -14999,90 +15058,86 @@ func (v StorageDeltaType) XdrValue() interface{} { return v }
 func (v *StorageDeltaType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_StorageDeltaType = *StorageDeltaType
 func XDR_StorageDeltaType(v *StorageDeltaType) *StorageDeltaType { return v }
-type _XdrPtr_PublicKey struct {
-	p **PublicKey
-}
-type _ptrflag_PublicKey _XdrPtr_PublicKey
-func (v _ptrflag_PublicKey) String() string {
-	if *v.p == nil {
-		return "nil"
-	}
-	return "non-nil"
-}
-func (v _ptrflag_PublicKey) Scan(ss fmt.ScanState, r rune) error {
-	tok, err := ss.Token(true, func(c rune) bool {
-		return c == '-' || (c >= 'a' && c <= 'z')
-	})
-	if err != nil {
-		return err
-	}
-	switch string(tok) {
-	case "nil":
-		v.SetU32(0)
-	case "non-nil":
-		v.SetU32(1)
-	default:
-		return XdrError("PublicKey flag should be \"nil\" or \"non-nil\"")
-	}
-	return nil
-}
-func (v _ptrflag_PublicKey) GetU32() uint32 {
-	if *v.p == nil {
-		return 0
-	}
-	return 1
-}
-func (v _ptrflag_PublicKey) SetU32(nv uint32) {
-	switch nv {
-	case 0:
-		*v.p = nil
-	case 1:
-		if *v.p == nil {
-			*v.p = new(PublicKey)
-		}
-	default:
-		XdrPanic("*PublicKey present flag value %d should be 0 or 1", nv)
-	}
-}
-func (_ptrflag_PublicKey) XdrTypeName() string { return "PublicKey?" }
-func (v _ptrflag_PublicKey) XdrPointer() interface{} { return nil }
-func (v _ptrflag_PublicKey) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_PublicKey) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_PublicKey) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_PublicKey) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_PublicKey) SetPresent(present bool) {
-	if !present {
-		*v.p = nil
-	} else if *v.p == nil {
-		*v.p = new(PublicKey)
-	}
-}
-func (v _XdrPtr_PublicKey) XdrMarshalValue(x XDR, name string) {
-	if *v.p != nil {
-		XDR_PublicKey(*v.p).XdrMarshal(x, name)
-	}
-}
-func (v _XdrPtr_PublicKey) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_PublicKey) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_PublicKey(v))
-	v.XdrMarshalValue(x, name)
-}
-func (_XdrPtr_PublicKey) XdrTypeName() string { return "PublicKey*" }
-func (v _XdrPtr_PublicKey) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_PublicKey) XdrValue() interface{} { return *v.p }
-type XdrType_AuthDataChangeSignerArgs = *AuthDataChangeSignerArgs
-func (v *AuthDataChangeSignerArgs) XdrPointer() interface{} { return v }
-func (AuthDataChangeSignerArgs) XdrTypeName() string { return "AuthDataChangeSignerArgs" }
-func (v AuthDataChangeSignerArgs) XdrValue() interface{} { return v }
-func (v *AuthDataChangeSignerArgs) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *AuthDataChangeSignerArgs) XdrRecurse(x XDR, name string) {
+type XdrType_AuthDataChangeSigner = *AuthDataChangeSigner
+func (v *AuthDataChangeSigner) XdrPointer() interface{} { return v }
+func (AuthDataChangeSigner) XdrTypeName() string { return "AuthDataChangeSigner" }
+func (v AuthDataChangeSigner) XdrValue() interface{} { return v }
+func (v *AuthDataChangeSigner) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *AuthDataChangeSigner) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%spublic_key_id", name), XDR_uint32(&v.Public_key_id))
-	x.Marshal(x.Sprintf("%spublic_key", name), _XdrPtr_PublicKey{&v.Public_key})
+	x.Marshal(x.Sprintf("%spublic_key", name), XDR_PublicKeyConfigOpt(&v.Public_key))
 }
-func XDR_AuthDataChangeSignerArgs(v *AuthDataChangeSignerArgs) *AuthDataChangeSignerArgs { return v }
+func XDR_AuthDataChangeSigner(v *AuthDataChangeSigner) *AuthDataChangeSigner { return v }
+type _XdrVec_unbounded_AuthDataChangeSigner []AuthDataChangeSigner
+func (_XdrVec_unbounded_AuthDataChangeSigner) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_AuthDataChangeSigner) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_AuthDataChangeSigner length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_AuthDataChangeSigner length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_AuthDataChangeSigner) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_AuthDataChangeSigner) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]AuthDataChangeSigner, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_AuthDataChangeSigner(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_AuthDataChangeSigner) XdrTypeName() string { return "AuthDataChangeSigner<>" }
+func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrPointer() interface{} { return (*[]AuthDataChangeSigner)(v) }
+func (v _XdrVec_unbounded_AuthDataChangeSigner) XdrValue() interface{} { return ([]AuthDataChangeSigner)(v) }
+func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_AuthDataChangeArgs = *AuthDataChangeArgs
+func (v *AuthDataChangeArgs) XdrPointer() interface{} { return v }
+func (AuthDataChangeArgs) XdrTypeName() string { return "AuthDataChangeArgs" }
+func (v AuthDataChangeArgs) XdrValue() interface{} { return v }
+func (v *AuthDataChangeArgs) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *AuthDataChangeArgs) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sauth_data_change_signers", name), (*_XdrVec_unbounded_AuthDataChangeSigner)(&v.Auth_data_change_signers))
+}
+func XDR_AuthDataChangeArgs(v *AuthDataChangeArgs) *AuthDataChangeArgs { return v }
 type XdrType_NonnegativeInt128SetAddArgs = *NonnegativeInt128SetAddArgs
 func (v *NonnegativeInt128SetAddArgs) XdrPointer() interface{} { return v }
 func (NonnegativeInt128SetAddArgs) XdrTypeName() string { return "NonnegativeInt128SetAddArgs" }
@@ -15171,7 +15226,7 @@ var _XdrTags_StorageDelta = map[int32]bool{
 	XdrToI32(KDeltaTypeDelete): true,
 	XdrToI32(KDeltaTypeRetrocausalQueue): true,
 	XdrToI32(KDeltaTypeReplayCacheModify): true,
-	XdrToI32(KDeltaTypeAuthDataChangeSigner): true,
+	XdrToI32(KDeltaTypeAuthDataChange): true,
 }
 func (_ StorageDelta) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageDelta
@@ -15251,24 +15306,24 @@ func (u *StorageDelta) Replay_cache_modify() *ReplayCacheModifyArgs {
 		return nil
 	}
 }
-func (u *StorageDelta) Auth_data_change_signer() *AuthDataChangeSignerArgs {
+func (u *StorageDelta) Auth_data_change() *AuthDataChangeArgs {
 	switch u.Type {
-	case KDeltaTypeAuthDataChangeSigner:
-		if v, ok := u._u.(*AuthDataChangeSignerArgs); ok {
+	case KDeltaTypeAuthDataChange:
+		if v, ok := u._u.(*AuthDataChangeArgs); ok {
 			return v
 		} else {
-			var zero AuthDataChangeSignerArgs
+			var zero AuthDataChangeArgs
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("StorageDelta.Auth_data_change_signer accessed when Type == %v", u.Type)
+		XdrPanic("StorageDelta.Auth_data_change accessed when Type == %v", u.Type)
 		return nil
 	}
 }
 func (u StorageDelta) XdrValid() bool {
 	switch u.Type {
-	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify,KDeltaTypeAuthDataChangeSigner:
+	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify,KDeltaTypeAuthDataChange:
 		return true
 	}
 	return false
@@ -15293,8 +15348,8 @@ func (u *StorageDelta) XdrUnionBody() XdrType {
 		return XDR_RetrocausalQueueDelta(u.Retrocausal_queue())
 	case KDeltaTypeReplayCacheModify:
 		return XDR_ReplayCacheModifyArgs(u.Replay_cache_modify())
-	case KDeltaTypeAuthDataChangeSigner:
-		return XDR_AuthDataChangeSignerArgs(u.Auth_data_change_signer())
+	case KDeltaTypeAuthDataChange:
+		return XDR_AuthDataChangeArgs(u.Auth_data_change())
 	}
 	return nil
 }
@@ -15312,8 +15367,8 @@ func (u *StorageDelta) XdrUnionBodyName() string {
 		return "Retrocausal_queue"
 	case KDeltaTypeReplayCacheModify:
 		return "Replay_cache_modify"
-	case KDeltaTypeAuthDataChangeSigner:
-		return "Auth_data_change_signer"
+	case KDeltaTypeAuthDataChange:
+		return "Auth_data_change"
 	}
 	return ""
 }
@@ -15345,8 +15400,8 @@ func (u *StorageDelta) XdrRecurse(x XDR, name string) {
 	case KDeltaTypeReplayCacheModify:
 		x.Marshal(x.Sprintf("%sreplay_cache_modify", name), XDR_ReplayCacheModifyArgs(u.Replay_cache_modify()))
 		return
-	case KDeltaTypeAuthDataChangeSigner:
-		x.Marshal(x.Sprintf("%sauth_data_change_signer", name), XDR_AuthDataChangeSignerArgs(u.Auth_data_change_signer()))
+	case KDeltaTypeAuthDataChange:
+		x.Marshal(x.Sprintf("%sauth_data_change", name), XDR_AuthDataChangeArgs(u.Auth_data_change()))
 		return
 	}
 	XdrPanic("invalid Type (%v) in StorageDelta", u.Type)
