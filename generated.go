@@ -14,7 +14,6 @@ var _ context.Context
 //
 
 type PublicKeyConfig struct {
-	Valid bool
 	// union multiplexing over signature scheme (ed25519,...)
 	Key PublicKey
 	Max_weight Weight
@@ -40,8 +39,10 @@ type NonceConfig struct {
 	Required_weight Weight
 }
 
+type PublicKeyConfigOpt = *PublicKeyConfig
+
 type AccountAuthData struct {
-	Public_keys [MAX_SIGNERS]PublicKeyConfig
+	Public_keys [MAX_SIGNERS]PublicKeyConfigOpt
 	Gas_permissions []GasPermissionConfig // bound MAX_GAS_CONFIGS
 	Nonce_config NonceConfig
 }
@@ -1127,7 +1128,7 @@ type SCPConfig struct {
 
 type SCP_Control1 interface {
 	Scp_control_null(context.Context, ) error
-	Scp_control_nominate(context.Context, SCPSlotIndex, SCPValue, SCPValue) error
+	Scp_control_nominate(context.Context, SCPSlotIndex, SCPValue, SCPValue) (bool, error)
 	Scp_control_stop_nomination(context.Context, SCPSlotIndex) error
 	Scp_control_update_local_quorum_set(context.Context, SCPQuorumSet) error
 	Scp_control_received_envelope(context.Context, SCPEnvelope) error
@@ -1135,6 +1136,7 @@ type SCP_Control1 interface {
 
 type SCP_Handle1 interface {
 	Scp_handle_null(context.Context, ) error
+	Scp_handle_emit_envelope(context.Context, SCPEnvelope) error
 	Scp_handle_validate_ballot_value(context.Context, SCPSlotIndex, SCPValue) error
 	Scp_handle_validate_nomination_value(context.Context, SCPSlotIndex, SCPValue) error
 	Scp_handle_extract_valid_value(context.Context, SCPSlotIndex, SCPValue) (SCPOptValue, error)
@@ -1362,6 +1364,7 @@ const (
 	KItemTypeNonnegativeInt StorageItemType = 1
 	KItemTypeRetrocausalQueue StorageItemType = 2
 	KItemTypeReplayCache StorageItemType = 3
+	KItemTypeAuthData StorageItemType = 4
 	KItemTypeDeleted StorageItemType = -1
 )
 
@@ -1383,6 +1386,8 @@ type StorageItem struct {
 	//      void
 	//   KItemTypeReplayCache:
 	//      Replay_cache_metadata() *ReplayCacheMetadata
+	//   KItemTypeAuthData:
+	//      Auth_data() *AccountAuthData
 	Type StorageItemType
 	_u interface{}
 }
@@ -1395,7 +1400,13 @@ const (
 	KDeltaTypeRetrocausalQueue StorageDeltaType = 3
 	KDeltaTypeReplayCacheModify StorageDeltaType = 4
 	KDeltaTypeNonnegativeIntAdd StorageDeltaType = 5
+	KDeltaTypeAuthDataChangeSigner StorageDeltaType = 6
 )
+
+type AuthDataChangeSignerArgs struct {
+	Public_key_id uint32
+	Public_key *PublicKey
+}
 
 type NonnegativeInt128SetAddArgs struct {
 	Set_value Int128_xdr
@@ -1421,6 +1432,8 @@ type StorageDelta struct {
 	//      Retrocausal_queue() *RetrocausalQueueDelta
 	//   KDeltaTypeReplayCacheModify:
 	//      Replay_cache_modify() *ReplayCacheModifyArgs
+	//   KDeltaTypeAuthDataChangeSigner:
+	//      Auth_data_change_signer() *AuthDataChangeSignerArgs
 	Type StorageDeltaType
 	_u interface{}
 }
@@ -1453,6 +1466,10 @@ type NNIntBoundsLock struct {
 	Subtract_amount Int128_xdr
 }
 
+type AuthDataLock struct {
+	Modified_key_ids []uint32
+}
+
 type TypeSpecificLock struct {
 	// The union discriminant Item_type selects among the following arms:
 	//   KItemTypeNonnegativeInt:
@@ -1461,6 +1478,8 @@ type TypeSpecificLock struct {
 	//      Consume_lock() *uint32
 	//   KItemTypeReplayCache:
 	//      Nonces() *[]ReplayNonce
+	//   KItemTypeAuthData:
+	//      Auth_data_lock() *AuthDataLock
 	//   default:
 	//      void
 	Item_type StorageItemType
@@ -1562,7 +1581,6 @@ type Uniquifier struct {
 }
 
 type Transaction struct {
-	Origin_id OriginID
 	Invocation Invocation
 	Uniquifier Uniquifier
 	// New contracts to deploy.
@@ -1592,6 +1610,7 @@ type SignedTransactionHash = SHA256Hash
 // for a later PR.
 type SignedTransaction struct {
 	Tx Transaction
+	Signature_weight Weight
 	Signatures []DecoratedSignature
 	Aux_signatures []AuxiliaryDecoratedSignatures
 }
@@ -1818,7 +1837,6 @@ func (v *PublicKeyConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%svalid", name), XDR_bool(&v.Valid))
 	x.Marshal(x.Sprintf("%skey", name), XDR_PublicKey(&v.Key))
 	x.Marshal(x.Sprintf("%smax_weight", name), XDR_Weight(&v.Max_weight))
 }
@@ -1850,20 +1868,99 @@ func (v *NonceConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%srequired_weight", name), XDR_Weight(&v.Required_weight))
 }
 func XDR_NonceConfig(v *NonceConfig) *NonceConfig { return v }
-type _XdrArray_20_PublicKeyConfig [20]PublicKeyConfig
-func (_XdrArray_20_PublicKeyConfig) XdrArraySize() uint32 {
+type _XdrPtr_PublicKeyConfig struct {
+	p **PublicKeyConfig
+}
+type _ptrflag_PublicKeyConfig _XdrPtr_PublicKeyConfig
+func (v _ptrflag_PublicKeyConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_PublicKeyConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("PublicKeyConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_PublicKeyConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_PublicKeyConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(PublicKeyConfig)
+		}
+	default:
+		XdrPanic("*PublicKeyConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_PublicKeyConfig) XdrTypeName() string { return "PublicKeyConfig?" }
+func (v _ptrflag_PublicKeyConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_PublicKeyConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_PublicKeyConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_PublicKeyConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_PublicKeyConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_PublicKeyConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(PublicKeyConfig)
+	}
+}
+func (v _XdrPtr_PublicKeyConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_PublicKeyConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_PublicKeyConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_PublicKeyConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_PublicKeyConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_PublicKeyConfig) XdrTypeName() string { return "PublicKeyConfig*" }
+func (v _XdrPtr_PublicKeyConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_PublicKeyConfig) XdrValue() interface{} { return *v.p }
+type XdrType_PublicKeyConfigOpt struct {
+	_XdrPtr_PublicKeyConfig
+}
+func XDR_PublicKeyConfigOpt(v *PublicKeyConfigOpt) XdrType_PublicKeyConfigOpt {
+	return XdrType_PublicKeyConfigOpt{_XdrPtr_PublicKeyConfig{v}}
+}
+func (XdrType_PublicKeyConfigOpt) XdrTypeName() string { return "PublicKeyConfigOpt" }
+func (v XdrType_PublicKeyConfigOpt) XdrUnwrap() XdrType { return v._XdrPtr_PublicKeyConfig }
+type _XdrArray_20_PublicKeyConfigOpt [20]PublicKeyConfigOpt
+func (_XdrArray_20_PublicKeyConfigOpt) XdrArraySize() uint32 {
 	const bound uint32 = 20 // Force error if not const or doesn't fit
 	return bound
 }
-func (v *_XdrArray_20_PublicKeyConfig) XdrRecurse(x XDR, name string) {
+func (v *_XdrArray_20_PublicKeyConfigOpt) XdrRecurse(x XDR, name string) {
 	for i := 0; i < len(*v); i++ {
-		XDR_PublicKeyConfig(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_PublicKeyConfigOpt(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 }
-func (v *_XdrArray_20_PublicKeyConfig) XdrPointer() interface{} { return (*[20]PublicKeyConfig)(v) }
-func (_XdrArray_20_PublicKeyConfig) XdrTypeName() string { return "PublicKeyConfig[]" }
-func (v *_XdrArray_20_PublicKeyConfig) XdrValue() interface{} { return v[:] }
-func (v *_XdrArray_20_PublicKeyConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_20_PublicKeyConfigOpt) XdrPointer() interface{} { return (*[20]PublicKeyConfigOpt)(v) }
+func (_XdrArray_20_PublicKeyConfigOpt) XdrTypeName() string { return "PublicKeyConfigOpt[]" }
+func (v *_XdrArray_20_PublicKeyConfigOpt) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_20_PublicKeyConfigOpt) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type _XdrVec_5_GasPermissionConfig []GasPermissionConfig
 func (_XdrVec_5_GasPermissionConfig) XdrBound() uint32 {
 	const bound uint32 = 5 // Force error if not const or doesn't fit
@@ -1928,7 +2025,7 @@ func (v *AccountAuthData) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%spublic_keys", name), (*_XdrArray_20_PublicKeyConfig)(&v.Public_keys))
+	x.Marshal(x.Sprintf("%spublic_keys", name), (*_XdrArray_20_PublicKeyConfigOpt)(&v.Public_keys))
 	x.Marshal(x.Sprintf("%sgas_permissions", name), (*_XdrVec_5_GasPermissionConfig)(&v.Gas_permissions))
 	x.Marshal(x.Sprintf("%snonce_config", name), XDR_NonceConfig(&v.Nonce_config))
 }
@@ -11875,7 +11972,7 @@ var _ XdrType = &xdrProcArg_Scp_control_nominate{} // XXX
 
 type xdrProc_Scp_control_nominate struct {
 	Arg *xdrProcArg_Scp_control_nominate
-	Res *XdrVoid
+	Res *bool
 }
 func (xdrProc_Scp_control_nominate) Prog() uint32 { return 2594779139 }
 func (xdrProc_Scp_control_nominate) Vers() uint32 { return 1 }
@@ -11891,9 +11988,9 @@ func (p *xdrProc_Scp_control_nominate) GetArg() XdrType {
 }
 func (p *xdrProc_Scp_control_nominate) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(bool)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_bool(p.Res)
 }
 var _ XdrProc = &xdrProc_Scp_control_nominate{} // XXX
 
@@ -11911,7 +12008,9 @@ func (p *xdrSrvProc_Scp_control_nominate) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Scp_control_nominate) Do() {
-	err := p.Srv.Scp_control_nominate(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	r, err := p.Srv.Scp_control_nominate(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -12112,16 +12211,16 @@ func (c SCP_Control1_Client) Scp_control_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c SCP_Control1_Client) Scp_control_nominate(ctx context.Context, a1 SCPSlotIndex, a2 SCPValue, a3 SCPValue) error {
+func (c SCP_Control1_Client) Scp_control_nominate(ctx context.Context, a1 SCPSlotIndex, a2 SCPValue, a3 SCPValue) (r bool, _ error) {
 	var proc xdrProc_Scp_control_nominate
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c SCP_Control1_Client) Scp_control_stop_nomination(ctx context.Context, a1 SCPSlotIndex) error {
 	var proc xdrProc_Scp_control_stop_nomination
@@ -12193,6 +12292,51 @@ func (p *xdrSrvProc_Scp_handle_null) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Scp_handle_null{} // XXX
 
+type xdrProc_Scp_handle_emit_envelope struct {
+	Arg *SCPEnvelope
+	Res *XdrVoid
+}
+func (xdrProc_Scp_handle_emit_envelope) Prog() uint32 { return 2594775042 }
+func (xdrProc_Scp_handle_emit_envelope) Vers() uint32 { return 1 }
+func (xdrProc_Scp_handle_emit_envelope) Proc() uint32 { return 10 }
+func (xdrProc_Scp_handle_emit_envelope) ProgName() string { return "SCP_Handle" }
+func (xdrProc_Scp_handle_emit_envelope) VersName() string { return "SCP_Handle1" }
+func (xdrProc_Scp_handle_emit_envelope) ProcName() string { return "scp_handle_emit_envelope" }
+func (p *xdrProc_Scp_handle_emit_envelope) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SCPEnvelope)
+	}
+	return XDR_SCPEnvelope(p.Arg)
+}
+func (p *xdrProc_Scp_handle_emit_envelope) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Scp_handle_emit_envelope{} // XXX
+
+type xdrSrvProc_Scp_handle_emit_envelope struct {
+	xdrProc_Scp_handle_emit_envelope
+	Srv SCP_Handle1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Scp_handle_emit_envelope) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SCP_Handle1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Scp_handle_emit_envelope) Do() {
+	err := p.Srv.Scp_handle_emit_envelope(p.Ctx, *p.Arg)
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Scp_handle_emit_envelope{} // XXX
+
 type xdrProcArg_Scp_handle_validate_ballot_value struct {
 	a1 *SCPSlotIndex
 	a2 *SCPValue
@@ -12219,7 +12363,7 @@ type xdrProc_Scp_handle_validate_ballot_value struct {
 }
 func (xdrProc_Scp_handle_validate_ballot_value) Prog() uint32 { return 2594775042 }
 func (xdrProc_Scp_handle_validate_ballot_value) Vers() uint32 { return 1 }
-func (xdrProc_Scp_handle_validate_ballot_value) Proc() uint32 { return 10 }
+func (xdrProc_Scp_handle_validate_ballot_value) Proc() uint32 { return 20 }
 func (xdrProc_Scp_handle_validate_ballot_value) ProgName() string { return "SCP_Handle" }
 func (xdrProc_Scp_handle_validate_ballot_value) VersName() string { return "SCP_Handle1" }
 func (xdrProc_Scp_handle_validate_ballot_value) ProcName() string { return "scp_handle_validate_ballot_value" }
@@ -12284,7 +12428,7 @@ type xdrProc_Scp_handle_validate_nomination_value struct {
 }
 func (xdrProc_Scp_handle_validate_nomination_value) Prog() uint32 { return 2594775042 }
 func (xdrProc_Scp_handle_validate_nomination_value) Vers() uint32 { return 1 }
-func (xdrProc_Scp_handle_validate_nomination_value) Proc() uint32 { return 20 }
+func (xdrProc_Scp_handle_validate_nomination_value) Proc() uint32 { return 30 }
 func (xdrProc_Scp_handle_validate_nomination_value) ProgName() string { return "SCP_Handle" }
 func (xdrProc_Scp_handle_validate_nomination_value) VersName() string { return "SCP_Handle1" }
 func (xdrProc_Scp_handle_validate_nomination_value) ProcName() string { return "scp_handle_validate_nomination_value" }
@@ -12349,7 +12493,7 @@ type xdrProc_Scp_handle_extract_valid_value struct {
 }
 func (xdrProc_Scp_handle_extract_valid_value) Prog() uint32 { return 2594775042 }
 func (xdrProc_Scp_handle_extract_valid_value) Vers() uint32 { return 1 }
-func (xdrProc_Scp_handle_extract_valid_value) Proc() uint32 { return 30 }
+func (xdrProc_Scp_handle_extract_valid_value) Proc() uint32 { return 40 }
 func (xdrProc_Scp_handle_extract_valid_value) ProgName() string { return "SCP_Handle" }
 func (xdrProc_Scp_handle_extract_valid_value) VersName() string { return "SCP_Handle1" }
 func (xdrProc_Scp_handle_extract_valid_value) ProcName() string { return "scp_handle_extract_valid_value" }
@@ -12416,7 +12560,7 @@ type xdrProc_Scp_handle_combine_candidates struct {
 }
 func (xdrProc_Scp_handle_combine_candidates) Prog() uint32 { return 2594775042 }
 func (xdrProc_Scp_handle_combine_candidates) Vers() uint32 { return 1 }
-func (xdrProc_Scp_handle_combine_candidates) Proc() uint32 { return 40 }
+func (xdrProc_Scp_handle_combine_candidates) Proc() uint32 { return 50 }
 func (xdrProc_Scp_handle_combine_candidates) ProgName() string { return "SCP_Handle" }
 func (xdrProc_Scp_handle_combine_candidates) VersName() string { return "SCP_Handle1" }
 func (xdrProc_Scp_handle_combine_candidates) ProcName() string { return "scp_handle_combine_candidates" }
@@ -12983,12 +13127,14 @@ func init() {
 		case 0:
 			return &xdrProc_Scp_handle_null{}
 		case 10:
-			return &xdrProc_Scp_handle_validate_ballot_value{}
+			return &xdrProc_Scp_handle_emit_envelope{}
 		case 20:
-			return &xdrProc_Scp_handle_validate_nomination_value{}
+			return &xdrProc_Scp_handle_validate_ballot_value{}
 		case 30:
-			return &xdrProc_Scp_handle_extract_valid_value{}
+			return &xdrProc_Scp_handle_validate_nomination_value{}
 		case 40:
+			return &xdrProc_Scp_handle_extract_valid_value{}
+		case 50:
 			return &xdrProc_Scp_handle_combine_candidates{}
 		case 100:
 			return &xdrProc_Scp_handle_value_externalized{}
@@ -13022,13 +13168,15 @@ func (s SCP_Handle1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // scp_handle_null
 		return &xdrSrvProc_Scp_handle_null{ Srv: s.Srv }
-	case 10:  // scp_handle_validate_ballot_value
+	case 10:  // scp_handle_emit_envelope
+		return &xdrSrvProc_Scp_handle_emit_envelope{ Srv: s.Srv }
+	case 20:  // scp_handle_validate_ballot_value
 		return &xdrSrvProc_Scp_handle_validate_ballot_value{ Srv: s.Srv }
-	case 20:  // scp_handle_validate_nomination_value
+	case 30:  // scp_handle_validate_nomination_value
 		return &xdrSrvProc_Scp_handle_validate_nomination_value{ Srv: s.Srv }
-	case 30:  // scp_handle_extract_valid_value
+	case 40:  // scp_handle_extract_valid_value
 		return &xdrSrvProc_Scp_handle_extract_valid_value{ Srv: s.Srv }
-	case 40:  // scp_handle_combine_candidates
+	case 50:  // scp_handle_combine_candidates
 		return &xdrSrvProc_Scp_handle_combine_candidates{ Srv: s.Srv }
 	case 100:  // scp_handle_value_externalized
 		return &xdrSrvProc_Scp_handle_value_externalized{ Srv: s.Srv }
@@ -13063,6 +13211,14 @@ func (c SCP_Handle1_Client) WithContext(ctx context.Context) SCP_Handle1 {
 }
 func (c SCP_Handle1_Client) Scp_handle_null(ctx context.Context, ) error {
 	var proc xdrProc_Scp_handle_null
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
+}
+func (c SCP_Handle1_Client) Scp_handle_emit_envelope(ctx context.Context, a1 SCPEnvelope) error {
+	var proc xdrProc_Scp_handle_emit_envelope
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
@@ -14584,6 +14740,7 @@ var _XdrNames_StorageItemType = map[int32]string{
 	int32(KItemTypeNonnegativeInt): "kItemTypeNonnegativeInt",
 	int32(KItemTypeRetrocausalQueue): "kItemTypeRetrocausalQueue",
 	int32(KItemTypeReplayCache): "kItemTypeReplayCache",
+	int32(KItemTypeAuthData): "kItemTypeAuthData",
 	int32(KItemTypeDeleted): "kItemTypeDeleted",
 }
 var _XdrValues_StorageItemType = map[string]int32{
@@ -14591,6 +14748,7 @@ var _XdrValues_StorageItemType = map[string]int32{
 	"kItemTypeNonnegativeInt": int32(KItemTypeNonnegativeInt),
 	"kItemTypeRetrocausalQueue": int32(KItemTypeRetrocausalQueue),
 	"kItemTypeReplayCache": int32(KItemTypeReplayCache),
+	"kItemTypeAuthData": int32(KItemTypeAuthData),
 	"kItemTypeDeleted": int32(KItemTypeDeleted),
 }
 func (StorageItemType) XdrEnumNames() map[int32]string {
@@ -14652,6 +14810,7 @@ var _XdrTags_StorageItem = map[int32]bool{
 	XdrToI32(KItemTypeNonnegativeInt): true,
 	XdrToI32(KItemTypeRetrocausalQueue): true,
 	XdrToI32(KItemTypeReplayCache): true,
+	XdrToI32(KItemTypeAuthData): true,
 }
 func (_ StorageItem) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageItem
@@ -14701,9 +14860,24 @@ func (u *StorageItem) Replay_cache_metadata() *ReplayCacheMetadata {
 		return nil
 	}
 }
+func (u *StorageItem) Auth_data() *AccountAuthData {
+	switch u.Type {
+	case KItemTypeAuthData:
+		if v, ok := u._u.(*AccountAuthData); ok {
+			return v
+		} else {
+			var zero AccountAuthData
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageItem.Auth_data accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u StorageItem) XdrValid() bool {
 	switch u.Type {
-	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue,KItemTypeReplayCache:
+	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue,KItemTypeReplayCache,KItemTypeAuthData:
 		return true
 	}
 	return false
@@ -14724,6 +14898,8 @@ func (u *StorageItem) XdrUnionBody() XdrType {
 		return nil
 	case KItemTypeReplayCache:
 		return XDR_ReplayCacheMetadata(u.Replay_cache_metadata())
+	case KItemTypeAuthData:
+		return XDR_AccountAuthData(u.Auth_data())
 	}
 	return nil
 }
@@ -14737,6 +14913,8 @@ func (u *StorageItem) XdrUnionBodyName() string {
 		return ""
 	case KItemTypeReplayCache:
 		return "Replay_cache_metadata"
+	case KItemTypeAuthData:
+		return "Auth_data"
 	}
 	return ""
 }
@@ -14762,6 +14940,9 @@ func (u *StorageItem) XdrRecurse(x XDR, name string) {
 	case KItemTypeReplayCache:
 		x.Marshal(x.Sprintf("%sreplay_cache_metadata", name), XDR_ReplayCacheMetadata(u.Replay_cache_metadata()))
 		return
+	case KItemTypeAuthData:
+		x.Marshal(x.Sprintf("%sauth_data", name), XDR_AccountAuthData(u.Auth_data()))
+		return
 	}
 	XdrPanic("invalid Type (%v) in StorageItem", u.Type)
 }
@@ -14773,6 +14954,7 @@ var _XdrNames_StorageDeltaType = map[int32]string{
 	int32(KDeltaTypeRetrocausalQueue): "kDeltaTypeRetrocausalQueue",
 	int32(KDeltaTypeReplayCacheModify): "kDeltaTypeReplayCacheModify",
 	int32(KDeltaTypeNonnegativeIntAdd): "kDeltaTypeNonnegativeIntAdd",
+	int32(KDeltaTypeAuthDataChangeSigner): "kDeltaTypeAuthDataChangeSigner",
 }
 var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeBytestringSet": int32(KDeltaTypeBytestringSet),
@@ -14781,6 +14963,7 @@ var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeRetrocausalQueue": int32(KDeltaTypeRetrocausalQueue),
 	"kDeltaTypeReplayCacheModify": int32(KDeltaTypeReplayCacheModify),
 	"kDeltaTypeNonnegativeIntAdd": int32(KDeltaTypeNonnegativeIntAdd),
+	"kDeltaTypeAuthDataChangeSigner": int32(KDeltaTypeAuthDataChangeSigner),
 }
 func (StorageDeltaType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageDeltaType
@@ -14816,6 +14999,90 @@ func (v StorageDeltaType) XdrValue() interface{} { return v }
 func (v *StorageDeltaType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_StorageDeltaType = *StorageDeltaType
 func XDR_StorageDeltaType(v *StorageDeltaType) *StorageDeltaType { return v }
+type _XdrPtr_PublicKey struct {
+	p **PublicKey
+}
+type _ptrflag_PublicKey _XdrPtr_PublicKey
+func (v _ptrflag_PublicKey) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_PublicKey) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("PublicKey flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_PublicKey) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_PublicKey) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(PublicKey)
+		}
+	default:
+		XdrPanic("*PublicKey present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_PublicKey) XdrTypeName() string { return "PublicKey?" }
+func (v _ptrflag_PublicKey) XdrPointer() interface{} { return nil }
+func (v _ptrflag_PublicKey) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_PublicKey) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_PublicKey) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_PublicKey) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_PublicKey) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(PublicKey)
+	}
+}
+func (v _XdrPtr_PublicKey) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_PublicKey(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_PublicKey) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_PublicKey) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_PublicKey(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_PublicKey) XdrTypeName() string { return "PublicKey*" }
+func (v _XdrPtr_PublicKey) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_PublicKey) XdrValue() interface{} { return *v.p }
+type XdrType_AuthDataChangeSignerArgs = *AuthDataChangeSignerArgs
+func (v *AuthDataChangeSignerArgs) XdrPointer() interface{} { return v }
+func (AuthDataChangeSignerArgs) XdrTypeName() string { return "AuthDataChangeSignerArgs" }
+func (v AuthDataChangeSignerArgs) XdrValue() interface{} { return v }
+func (v *AuthDataChangeSignerArgs) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *AuthDataChangeSignerArgs) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%spublic_key_id", name), XDR_uint32(&v.Public_key_id))
+	x.Marshal(x.Sprintf("%spublic_key", name), _XdrPtr_PublicKey{&v.Public_key})
+}
+func XDR_AuthDataChangeSignerArgs(v *AuthDataChangeSignerArgs) *AuthDataChangeSignerArgs { return v }
 type XdrType_NonnegativeInt128SetAddArgs = *NonnegativeInt128SetAddArgs
 func (v *NonnegativeInt128SetAddArgs) XdrPointer() interface{} { return v }
 func (NonnegativeInt128SetAddArgs) XdrTypeName() string { return "NonnegativeInt128SetAddArgs" }
@@ -14904,6 +15171,7 @@ var _XdrTags_StorageDelta = map[int32]bool{
 	XdrToI32(KDeltaTypeDelete): true,
 	XdrToI32(KDeltaTypeRetrocausalQueue): true,
 	XdrToI32(KDeltaTypeReplayCacheModify): true,
+	XdrToI32(KDeltaTypeAuthDataChangeSigner): true,
 }
 func (_ StorageDelta) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageDelta
@@ -14983,9 +15251,24 @@ func (u *StorageDelta) Replay_cache_modify() *ReplayCacheModifyArgs {
 		return nil
 	}
 }
+func (u *StorageDelta) Auth_data_change_signer() *AuthDataChangeSignerArgs {
+	switch u.Type {
+	case KDeltaTypeAuthDataChangeSigner:
+		if v, ok := u._u.(*AuthDataChangeSignerArgs); ok {
+			return v
+		} else {
+			var zero AuthDataChangeSignerArgs
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageDelta.Auth_data_change_signer accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u StorageDelta) XdrValid() bool {
 	switch u.Type {
-	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify:
+	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify,KDeltaTypeAuthDataChangeSigner:
 		return true
 	}
 	return false
@@ -15010,6 +15293,8 @@ func (u *StorageDelta) XdrUnionBody() XdrType {
 		return XDR_RetrocausalQueueDelta(u.Retrocausal_queue())
 	case KDeltaTypeReplayCacheModify:
 		return XDR_ReplayCacheModifyArgs(u.Replay_cache_modify())
+	case KDeltaTypeAuthDataChangeSigner:
+		return XDR_AuthDataChangeSignerArgs(u.Auth_data_change_signer())
 	}
 	return nil
 }
@@ -15027,6 +15312,8 @@ func (u *StorageDelta) XdrUnionBodyName() string {
 		return "Retrocausal_queue"
 	case KDeltaTypeReplayCacheModify:
 		return "Replay_cache_modify"
+	case KDeltaTypeAuthDataChangeSigner:
+		return "Auth_data_change_signer"
 	}
 	return ""
 }
@@ -15057,6 +15344,9 @@ func (u *StorageDelta) XdrRecurse(x XDR, name string) {
 		return
 	case KDeltaTypeReplayCacheModify:
 		x.Marshal(x.Sprintf("%sreplay_cache_modify", name), XDR_ReplayCacheModifyArgs(u.Replay_cache_modify()))
+		return
+	case KDeltaTypeAuthDataChangeSigner:
+		x.Marshal(x.Sprintf("%sauth_data_change_signer", name), XDR_AuthDataChangeSignerArgs(u.Auth_data_change_signer()))
 		return
 	}
 	XdrPanic("invalid Type (%v) in StorageDelta", u.Type)
@@ -15205,6 +15495,73 @@ func (v *NNIntBoundsLock) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%ssubtract_amount", name), XDR_Int128_xdr(&v.Subtract_amount))
 }
 func XDR_NNIntBoundsLock(v *NNIntBoundsLock) *NNIntBoundsLock { return v }
+type _XdrVec_unbounded_uint32 []uint32
+func (_XdrVec_unbounded_uint32) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_uint32) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_uint32 length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_uint32 length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_uint32) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_uint32) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]uint32, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_uint32) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_uint32(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_uint32) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_uint32) XdrTypeName() string { return "uint32<>" }
+func (v *_XdrVec_unbounded_uint32) XdrPointer() interface{} { return (*[]uint32)(v) }
+func (v _XdrVec_unbounded_uint32) XdrValue() interface{} { return ([]uint32)(v) }
+func (v *_XdrVec_unbounded_uint32) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_AuthDataLock = *AuthDataLock
+func (v *AuthDataLock) XdrPointer() interface{} { return v }
+func (AuthDataLock) XdrTypeName() string { return "AuthDataLock" }
+func (v AuthDataLock) XdrValue() interface{} { return v }
+func (v *AuthDataLock) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *AuthDataLock) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%smodified_key_ids", name), (*_XdrVec_unbounded_uint32)(&v.Modified_key_ids))
+}
+func XDR_AuthDataLock(v *AuthDataLock) *AuthDataLock { return v }
 func (_ TypeSpecificLock) XdrValidTags() map[int32]bool {
 	return nil
 }
@@ -15254,6 +15611,21 @@ func (u *TypeSpecificLock) Nonces() *[]ReplayNonce {
 		return nil
 	}
 }
+func (u *TypeSpecificLock) Auth_data_lock() *AuthDataLock {
+	switch u.Item_type {
+	case KItemTypeAuthData:
+		if v, ok := u._u.(*AuthDataLock); ok {
+			return v
+		} else {
+			var zero AuthDataLock
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("TypeSpecificLock.Auth_data_lock accessed when Item_type == %v", u.Item_type)
+		return nil
+	}
+}
 func (u TypeSpecificLock) XdrValid() bool {
 	return true
 }
@@ -15271,6 +15643,8 @@ func (u *TypeSpecificLock) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Consume_lock())
 	case KItemTypeReplayCache:
 		return (*_XdrVec_unbounded_ReplayNonce)(u.Nonces())
+	case KItemTypeAuthData:
+		return XDR_AuthDataLock(u.Auth_data_lock())
 	default:
 		return nil
 	}
@@ -15283,6 +15657,8 @@ func (u *TypeSpecificLock) XdrUnionBodyName() string {
 		return "Consume_lock"
 	case KItemTypeReplayCache:
 		return "Nonces"
+	case KItemTypeAuthData:
+		return "Auth_data_lock"
 	default:
 		return ""
 	}
@@ -15306,6 +15682,9 @@ func (u *TypeSpecificLock) XdrRecurse(x XDR, name string) {
 		return
 	case KItemTypeReplayCache:
 		x.Marshal(x.Sprintf("%snonces", name), (*_XdrVec_unbounded_ReplayNonce)(u.Nonces()))
+		return
+	case KItemTypeAuthData:
+		x.Marshal(x.Sprintf("%sauth_data_lock", name), XDR_AuthDataLock(u.Auth_data_lock()))
 		return
 	default:
 		return
@@ -15820,7 +16199,6 @@ func (v *Transaction) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sorigin_id", name), XDR_OriginID(&v.Origin_id))
 	x.Marshal(x.Sprintf("%sinvocation", name), XDR_Invocation(&v.Invocation))
 	x.Marshal(x.Sprintf("%suniquifier", name), XDR_Uniquifier(&v.Uniquifier))
 	x.Marshal(x.Sprintf("%scontracts_to_deploy", name), (*_XdrVec_unbounded_Contract)(&v.Contracts_to_deploy))
@@ -15993,6 +16371,7 @@ func (v *SignedTransaction) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stx", name), XDR_Transaction(&v.Tx))
+	x.Marshal(x.Sprintf("%ssignature_weight", name), XDR_Weight(&v.Signature_weight))
 	x.Marshal(x.Sprintf("%ssignatures", name), (*_XdrVec_unbounded_DecoratedSignature)(&v.Signatures))
 	x.Marshal(x.Sprintf("%saux_signatures", name), (*_XdrVec_unbounded_AuxiliaryDecoratedSignatures)(&v.Aux_signatures))
 }
