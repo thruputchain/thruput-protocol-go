@@ -335,7 +335,10 @@ type ShardCard struct {
 	Upid UPID
 	Block_height BlockHeight
 	Shard_count uint32
-	Address ServerAddress
+	// This is the db address that the coordinator should connect to.
+	Address_for_coord ServerAddress
+	// This is the db address that the executor should connect to.
+	Address_for_exec ServerAddress
 }
 
 type IntroShardResult struct {
@@ -1747,6 +1750,7 @@ type StorageKeyType int32
 const (
 	KStorageKeyTypeContractData StorageKeyType = 0
 	KStorageKeyTypeFreeNativeTokenBalance StorageKeyType = 1
+	KStorageKeyTypeAccountAuthData StorageKeyType = 2
 )
 
 type StorageKey struct {
@@ -1754,6 +1758,8 @@ type StorageKey struct {
 	//   KStorageKeyTypeContractData:
 	//      Contract_data_key() *StorageKeyContractData
 	//   KStorageKeyTypeFreeNativeTokenBalance:
+	//      void
+	//   KStorageKeyTypeAccountAuthData:
 	//      void
 	Key_type StorageKeyType
 	_u interface{}
@@ -4580,7 +4586,8 @@ func (v *ShardCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sshard_count", name), XDR_uint32(&v.Shard_count))
-	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
+	x.Marshal(x.Sprintf("%saddress_for_coord", name), XDR_ServerAddress(&v.Address_for_coord))
+	x.Marshal(x.Sprintf("%saddress_for_exec", name), XDR_ServerAddress(&v.Address_for_exec))
 }
 func XDR_ShardCard(v *ShardCard) *ShardCard { return v }
 type XdrType_IntroShardResult = *IntroShardResult
@@ -16992,10 +16999,12 @@ func (v XdrType_StorageKeyContractData) XdrUnwrap() XdrType { return v._XdrArray
 var _XdrNames_StorageKeyType = map[int32]string{
 	int32(KStorageKeyTypeContractData): "kStorageKeyTypeContractData",
 	int32(KStorageKeyTypeFreeNativeTokenBalance): "kStorageKeyTypeFreeNativeTokenBalance",
+	int32(KStorageKeyTypeAccountAuthData): "kStorageKeyTypeAccountAuthData",
 }
 var _XdrValues_StorageKeyType = map[string]int32{
 	"kStorageKeyTypeContractData": int32(KStorageKeyTypeContractData),
 	"kStorageKeyTypeFreeNativeTokenBalance": int32(KStorageKeyTypeFreeNativeTokenBalance),
+	"kStorageKeyTypeAccountAuthData": int32(KStorageKeyTypeAccountAuthData),
 }
 func (StorageKeyType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageKeyType
@@ -17034,6 +17043,7 @@ func XDR_StorageKeyType(v *StorageKeyType) *StorageKeyType { return v }
 var _XdrTags_StorageKey = map[int32]bool{
 	XdrToI32(KStorageKeyTypeContractData): true,
 	XdrToI32(KStorageKeyTypeFreeNativeTokenBalance): true,
+	XdrToI32(KStorageKeyTypeAccountAuthData): true,
 }
 func (_ StorageKey) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageKey
@@ -17055,7 +17065,7 @@ func (u *StorageKey) Contract_data_key() *StorageKeyContractData {
 }
 func (u StorageKey) XdrValid() bool {
 	switch u.Key_type {
-	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance:
+	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance,KStorageKeyTypeAccountAuthData:
 		return true
 	}
 	return false
@@ -17072,6 +17082,8 @@ func (u *StorageKey) XdrUnionBody() XdrType {
 		return XDR_StorageKeyContractData(u.Contract_data_key())
 	case KStorageKeyTypeFreeNativeTokenBalance:
 		return nil
+	case KStorageKeyTypeAccountAuthData:
+		return nil
 	}
 	return nil
 }
@@ -17080,6 +17092,8 @@ func (u *StorageKey) XdrUnionBodyName() string {
 	case KStorageKeyTypeContractData:
 		return "Contract_data_key"
 	case KStorageKeyTypeFreeNativeTokenBalance:
+		return ""
+	case KStorageKeyTypeAccountAuthData:
 		return ""
 	}
 	return ""
@@ -17099,6 +17113,8 @@ func (u *StorageKey) XdrRecurse(x XDR, name string) {
 		x.Marshal(x.Sprintf("%scontract_data_key", name), XDR_StorageKeyContractData(u.Contract_data_key()))
 		return
 	case KStorageKeyTypeFreeNativeTokenBalance:
+		return
+	case KStorageKeyTypeAccountAuthData:
 		return
 	}
 	XdrPanic("invalid Key_type (%v) in StorageKey", u.Key_type)
