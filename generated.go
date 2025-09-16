@@ -907,6 +907,8 @@ type MultiplexMessage struct {
 	// The union discriminant Type selects among the following arms:
 	//   MultiplexMessageSubmittedTxs:
 	//      Submitted() *SubmittedTransactions
+	//   MultiplexMessageSCP:
+	//      Envelope() *SCPEnvelope
 	//   default:
 	//      void
 	Type MultiplexMessageType
@@ -10395,6 +10397,21 @@ func (u *MultiplexMessage) Submitted() *SubmittedTransactions {
 		return nil
 	}
 }
+func (u *MultiplexMessage) Envelope() *SCPEnvelope {
+	switch u.Type {
+	case MultiplexMessageSCP:
+		if v, ok := u._u.(*SCPEnvelope); ok {
+			return v
+		} else {
+			var zero SCPEnvelope
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("MultiplexMessage.Envelope accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u MultiplexMessage) XdrValid() bool {
 	return true
 }
@@ -10408,6 +10425,8 @@ func (u *MultiplexMessage) XdrUnionBody() XdrType {
 	switch u.Type {
 	case MultiplexMessageSubmittedTxs:
 		return XDR_SubmittedTransactions(u.Submitted())
+	case MultiplexMessageSCP:
+		return XDR_SCPEnvelope(u.Envelope())
 	default:
 		return nil
 	}
@@ -10416,6 +10435,8 @@ func (u *MultiplexMessage) XdrUnionBodyName() string {
 	switch u.Type {
 	case MultiplexMessageSubmittedTxs:
 		return "Submitted"
+	case MultiplexMessageSCP:
+		return "Envelope"
 	default:
 		return ""
 	}
@@ -10433,6 +10454,9 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 	switch u.Type {
 	case MultiplexMessageSubmittedTxs:
 		x.Marshal(x.Sprintf("%ssubmitted", name), XDR_SubmittedTransactions(u.Submitted()))
+		return
+	case MultiplexMessageSCP:
+		x.Marshal(x.Sprintf("%senvelope", name), XDR_SCPEnvelope(u.Envelope()))
 		return
 	default:
 		return
