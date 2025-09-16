@@ -118,7 +118,7 @@ type Seconds = int64
 // ValidatorConfig holds the network configuration of a validator.
 type ValidatorConfig struct {
 	Private_info ValidatorPrivateInfo
-	Quorum_set QuorumSet
+	Quorum_set SCPQuorumSet
 	Known_validators []ValidatorPublicInfo
 }
 
@@ -488,15 +488,9 @@ type ValidatorPrivateInfo struct {
 	Secret_key ValidatorSecretKey
 }
 
-type QuorumSet struct {
-	Threshold uint32
-	Validators []ValidatorID
-	Inner_sets []QuorumSet
-}
-
 type QuorumSetSnapshot struct {
 	Timestamp Timestamp
-	Quorum_set QuorumSet
+	Quorum_set SCPQuorumSet
 }
 
 type SignedQuorumSetSnapshot struct {
@@ -2939,7 +2933,7 @@ func (v *ValidatorConfig) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sprivate_info", name), XDR_ValidatorPrivateInfo(&v.Private_info))
-	x.Marshal(x.Sprintf("%squorum_set", name), XDR_QuorumSet(&v.Quorum_set))
+	x.Marshal(x.Sprintf("%squorum_set", name), XDR_SCPQuorumSet(&v.Quorum_set))
 	x.Marshal(x.Sprintf("%sknown_validators", name), (*_XdrVec_unbounded_ValidatorPublicInfo)(&v.Known_validators))
 }
 func XDR_ValidatorConfig(v *ValidatorConfig) *ValidatorConfig { return v }
@@ -6450,130 +6444,6 @@ func (v *ValidatorPrivateInfo) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%ssecret_key", name), XDR_ValidatorSecretKey(&v.Secret_key))
 }
 func XDR_ValidatorPrivateInfo(v *ValidatorPrivateInfo) *ValidatorPrivateInfo { return v }
-type _XdrVec_unbounded_ValidatorID []ValidatorID
-func (_XdrVec_unbounded_ValidatorID) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_ValidatorID) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_ValidatorID length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_ValidatorID length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_ValidatorID) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_ValidatorID) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]ValidatorID, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_ValidatorID) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_ValidatorID(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_ValidatorID) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_ValidatorID) XdrTypeName() string { return "ValidatorID<>" }
-func (v *_XdrVec_unbounded_ValidatorID) XdrPointer() interface{} { return (*[]ValidatorID)(v) }
-func (v _XdrVec_unbounded_ValidatorID) XdrValue() interface{} { return ([]ValidatorID)(v) }
-func (v *_XdrVec_unbounded_ValidatorID) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type _XdrVec_unbounded_QuorumSet []QuorumSet
-func (_XdrVec_unbounded_QuorumSet) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_QuorumSet) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_QuorumSet length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_QuorumSet length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_QuorumSet) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_QuorumSet) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]QuorumSet, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_QuorumSet) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_QuorumSet(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_QuorumSet) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_QuorumSet) XdrTypeName() string { return "QuorumSet<>" }
-func (v *_XdrVec_unbounded_QuorumSet) XdrPointer() interface{} { return (*[]QuorumSet)(v) }
-func (v _XdrVec_unbounded_QuorumSet) XdrValue() interface{} { return ([]QuorumSet)(v) }
-func (v *_XdrVec_unbounded_QuorumSet) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_QuorumSet = *QuorumSet
-func (v *QuorumSet) XdrPointer() interface{} { return v }
-func (QuorumSet) XdrTypeName() string { return "QuorumSet" }
-func (v QuorumSet) XdrValue() interface{} { return v }
-func (v *QuorumSet) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *QuorumSet) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sthreshold", name), XDR_uint32(&v.Threshold))
-	x.Marshal(x.Sprintf("%svalidators", name), (*_XdrVec_unbounded_ValidatorID)(&v.Validators))
-	x.Marshal(x.Sprintf("%sinner_sets", name), (*_XdrVec_unbounded_QuorumSet)(&v.Inner_sets))
-}
-func XDR_QuorumSet(v *QuorumSet) *QuorumSet { return v }
 type XdrType_QuorumSetSnapshot = *QuorumSetSnapshot
 func (v *QuorumSetSnapshot) XdrPointer() interface{} { return v }
 func (QuorumSetSnapshot) XdrTypeName() string { return "QuorumSetSnapshot" }
@@ -6584,7 +6454,7 @@ func (v *QuorumSetSnapshot) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
-	x.Marshal(x.Sprintf("%squorum_set", name), XDR_QuorumSet(&v.Quorum_set))
+	x.Marshal(x.Sprintf("%squorum_set", name), XDR_SCPQuorumSet(&v.Quorum_set))
 }
 func XDR_QuorumSetSnapshot(v *QuorumSetSnapshot) *QuorumSetSnapshot { return v }
 type XdrType_SignedQuorumSetSnapshot = *SignedQuorumSetSnapshot
