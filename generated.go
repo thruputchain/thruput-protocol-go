@@ -118,7 +118,6 @@ type Seconds = int64
 // ValidatorConfig holds the network configuration of a validator.
 type ValidatorConfig struct {
 	Private_info ValidatorPrivateInfo
-	Quorum_set SCPQuorumSet
 	Known_validators []ValidatorPublicInfo
 }
 
@@ -2847,7 +2846,6 @@ func (v *ValidatorConfig) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sprivate_info", name), XDR_ValidatorPrivateInfo(&v.Private_info))
-	x.Marshal(x.Sprintf("%squorum_set", name), XDR_SCPQuorumSet(&v.Quorum_set))
 	x.Marshal(x.Sprintf("%sknown_validators", name), (*_XdrVec_unbounded_ValidatorPublicInfo)(&v.Known_validators))
 }
 func XDR_ValidatorConfig(v *ValidatorConfig) *ValidatorConfig { return v }
