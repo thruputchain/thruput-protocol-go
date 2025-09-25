@@ -47,6 +47,18 @@ type AccountAuthData struct {
 	Nonce_config NonceConfig
 }
 
+type DeployedContractHash struct {
+	Hash SHA256Hash
+	// This field is technically redundant, but allows us to compute (and
+	// update) storage costs without (re)loading the entire contract from
+	// storage
+	Contract_size uint32
+}
+
+type AddressMetadata struct {
+	Deployed_contract DeployedContractHash
+}
+
 type SubmittedTransactions struct {
 	Transactions []SignedTransaction
 }
@@ -98,17 +110,20 @@ type ServerConfig struct {
 	Program_args []ProgramArg
 }
 
+type HogdGitHash = string
+
 type CIServerErrorCode int32
 const (
 	KCIServerErrorCodeOK CIServerErrorCode = 0
 	KCIServerErrorCodeAlreadyRunning CIServerErrorCode = 1
 	KCIServerErrorCodeInternal CIServerErrorCode = 2
+	KCIServerErrorCodeVersionMismatch CIServerErrorCode = 3
 )
 
 type CIServer1 interface {
-	Ciserver_start(context.Context, ServerConfig) (CIServerErrorCode, error)
-	Ciserver_stop(context.Context, ) error
-	Ciserver_shutdown(context.Context, ) error
+	Ciserver_start(context.Context, HogdGitHash, ServerConfig) (CIServerErrorCode, error)
+	Ciserver_stop(context.Context, HogdGitHash) error
+	Ciserver_shutdown(context.Context, HogdGitHash) error
 }
 
 type Milliseconds = int64
@@ -680,16 +695,16 @@ type FlaggedStorageDelta struct {
 
 type StorageDeltaBatch = []FlaggedStorageDelta
 
+type NewContractBatch = []Contract
+
 type DatabaseToExecutorInterfaceV1 interface {
 	Try_push_new_subtransaction(context.Context, BlockID, TransactionID, StorageDeltaBatch) (RPCError, error)
-	Commit_transaction(context.Context, BlockID, TransactionID) (RPCError, error)
+	Commit_transaction(context.Context, BlockID, TransactionID, NewContractBatch) (RPCError, error)
 	Abort_transaction(context.Context, BlockID, TransactionID) (RPCError, error)
 	Pop_subtransactions(context.Context, BlockID, TransactionID, uint32) (RPCError, error)
 	Get_snapshot_item(context.Context, BlockID, AddressAndKey) (ExpectedStorageItem, error)
 	Get_next_retrocausal_queue_block(context.Context, BlockID, AddressAndKey, uint64) (ExpectedRetrocausalQueueBlock, error)
 	Get_concurrent_retrocausal_queue_entry(context.Context, BlockID, AddressAndKey, uint32) (ExpectedQueueEntry, error)
-	Commit_contract_create(context.Context, BlockID, Contract) (RPCError, error)
-	Commit_contract_deploy(context.Context, BlockID, ContractAddress, SHA256Hash) (RPCError, error)
 	Get_contract(context.Context, BlockID, SHA256Hash) (ExpectedContract, error)
 	Get_deployment(context.Context, BlockID, ContractAddress) (ExpectedDeployment, error)
 }
@@ -1002,6 +1017,8 @@ const (
 	KRPCTransactionFailed RPCError = 5
 	// Unimplemented RPC
 	KRPCUnimplemented RPCError = 6
+	// Unrecoverable error in the server (i.e. OOM, DB corruption)
+	KRPCUnrecoverable RPCError = 7
 )
 
 // The mode in which a block executes.
@@ -1307,6 +1324,7 @@ const (
 	KItemTypeRetrocausalQueue StorageItemType = 2
 	KItemTypeReplayCache StorageItemType = 3
 	KItemTypeAuthData StorageItemType = 4
+	KItemTypeDeployedContractHash StorageItemType = 5
 	KItemTypeDeleted StorageItemType = -1
 )
 
@@ -1330,6 +1348,8 @@ type StorageItem struct {
 	//      Replay_cache_metadata() *ReplayCacheMetadata
 	//   KItemTypeAuthData:
 	//      Auth_data() *AccountAuthData
+	//   KItemTypeDeployedContractHash:
+	//      Deployed_contract_hash() *DeployedContractHash
 	Type StorageItemType
 	_u interface{}
 }
@@ -1343,6 +1363,7 @@ const (
 	KDeltaTypeReplayCacheModify StorageDeltaType = 4
 	KDeltaTypeNonnegativeIntAdd StorageDeltaType = 5
 	KDeltaTypeAuthDataChange StorageDeltaType = 6
+	KDeltaTypeDeployContract StorageDeltaType = 7
 )
 
 type AuthDataChangeSigner struct {
@@ -1380,6 +1401,8 @@ type StorageDelta struct {
 	//      Replay_cache_modify() *ReplayCacheModifyArgs
 	//   KDeltaTypeAuthDataChange:
 	//      Auth_data_change() *AuthDataChangeArgs
+	//   KDeltaTypeDeployContract:
+	//      Deployed_contract_hash() *DeployedContractHash
 	Type StorageDeltaType
 	_u interface{}
 }
@@ -1390,6 +1413,8 @@ type StorageItemTypeClass struct {
 	//      Bytestring() *Bytestring
 	//   KItemTypeNonnegativeInt:
 	//      Nnint_set() *Int128_xdr
+	//   KItemTypeDeployedContractHash:
+	//      Deployed_contract_hash() *DeployedContractHash
 	//   default:
 	//      void
 	Item_type StorageItemType
@@ -1683,6 +1708,7 @@ const (
 	KStorageKeyTypeContractData StorageKeyType = 0
 	KStorageKeyTypeFreeNativeTokenBalance StorageKeyType = 1
 	KStorageKeyTypeAccountAuthData StorageKeyType = 2
+	KStorageKeyTypeAddressMetadata StorageKeyType = 3
 )
 
 type StorageKey struct {
@@ -1692,6 +1718,8 @@ type StorageKey struct {
 	//   KStorageKeyTypeFreeNativeTokenBalance:
 	//      void
 	//   KStorageKeyTypeAccountAuthData:
+	//      void
+	//   KStorageKeyTypeAddressMetadata:
 	//      void
 	Key_type StorageKeyType
 	_u interface{}
@@ -1979,6 +2007,31 @@ func (v *AccountAuthData) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snonce_config", name), XDR_NonceConfig(&v.Nonce_config))
 }
 func XDR_AccountAuthData(v *AccountAuthData) *AccountAuthData { return v }
+type XdrType_DeployedContractHash = *DeployedContractHash
+func (v *DeployedContractHash) XdrPointer() interface{} { return v }
+func (DeployedContractHash) XdrTypeName() string { return "DeployedContractHash" }
+func (v DeployedContractHash) XdrValue() interface{} { return v }
+func (v *DeployedContractHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DeployedContractHash) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%shash", name), XDR_SHA256Hash(&v.Hash))
+	x.Marshal(x.Sprintf("%scontract_size", name), XDR_uint32(&v.Contract_size))
+}
+func XDR_DeployedContractHash(v *DeployedContractHash) *DeployedContractHash { return v }
+type XdrType_AddressMetadata = *AddressMetadata
+func (v *AddressMetadata) XdrPointer() interface{} { return v }
+func (AddressMetadata) XdrTypeName() string { return "AddressMetadata" }
+func (v AddressMetadata) XdrValue() interface{} { return v }
+func (v *AddressMetadata) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *AddressMetadata) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sdeployed_contract", name), XDR_DeployedContractHash(&v.Deployed_contract))
+}
+func XDR_AddressMetadata(v *AddressMetadata) *AddressMetadata { return v }
 type _XdrVec_unbounded_SignedTransaction []SignedTransaction
 func (_XdrVec_unbounded_SignedTransaction) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -2517,15 +2570,25 @@ func (v *ServerConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sprogram_args", name), (*_XdrVec_unbounded_ProgramArg)(&v.Program_args))
 }
 func XDR_ServerConfig(v *ServerConfig) *ServerConfig { return v }
+type XdrType_HogdGitHash struct {
+	XdrString
+}
+func XDR_HogdGitHash(v *HogdGitHash) XdrType_HogdGitHash {
+	return XdrType_HogdGitHash{XdrString{v, 0xffffffff}}
+}
+func (XdrType_HogdGitHash) XdrTypeName() string { return "HogdGitHash" }
+func (v XdrType_HogdGitHash) XdrUnwrap() XdrType { return v.XdrString }
 var _XdrNames_CIServerErrorCode = map[int32]string{
 	int32(KCIServerErrorCodeOK): "kCIServerErrorCodeOK",
 	int32(KCIServerErrorCodeAlreadyRunning): "kCIServerErrorCodeAlreadyRunning",
 	int32(KCIServerErrorCodeInternal): "kCIServerErrorCodeInternal",
+	int32(KCIServerErrorCodeVersionMismatch): "kCIServerErrorCodeVersionMismatch",
 }
 var _XdrValues_CIServerErrorCode = map[string]int32{
 	"kCIServerErrorCodeOK": int32(KCIServerErrorCodeOK),
 	"kCIServerErrorCodeAlreadyRunning": int32(KCIServerErrorCodeAlreadyRunning),
 	"kCIServerErrorCodeInternal": int32(KCIServerErrorCodeInternal),
+	"kCIServerErrorCodeVersionMismatch": int32(KCIServerErrorCodeVersionMismatch),
 }
 func (CIServerErrorCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_CIServerErrorCode
@@ -2562,8 +2625,28 @@ func (v *CIServerErrorCode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) 
 type XdrType_CIServerErrorCode = *CIServerErrorCode
 func XDR_CIServerErrorCode(v *CIServerErrorCode) *CIServerErrorCode { return v }
 
+type xdrProcArg_Ciserver_start struct {
+	a1 *HogdGitHash
+	a2 *ServerConfig
+}
+func (v *xdrProcArg_Ciserver_start) XdrPointer() interface{} { return v }
+func (xdrProcArg_Ciserver_start) XdrTypeName() string { return "xdrProcArg_Ciserver_start" }
+func (v xdrProcArg_Ciserver_start) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Ciserver_start) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Ciserver_start) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(HogdGitHash) }
+	XDR_HogdGitHash(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(ServerConfig) }
+	XDR_ServerConfig(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Ciserver_start(v *xdrProcArg_Ciserver_start) *xdrProcArg_Ciserver_start { return v }
+var _ XdrType = &xdrProcArg_Ciserver_start{} // XXX
+
 type xdrProc_Ciserver_start struct {
-	Arg *ServerConfig
+	Arg *xdrProcArg_Ciserver_start
 	Res *CIServerErrorCode
 }
 func (xdrProc_Ciserver_start) Prog() uint32 { return 286357096 }
@@ -2574,9 +2657,9 @@ func (xdrProc_Ciserver_start) VersName() string { return "CIServer1" }
 func (xdrProc_Ciserver_start) ProcName() string { return "ciserver_start" }
 func (p *xdrProc_Ciserver_start) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(ServerConfig)
+		p.Arg = new(xdrProcArg_Ciserver_start)
 	}
-	return XDR_ServerConfig(p.Arg)
+	return XDR_xdrProcArg_Ciserver_start(p.Arg)
 }
 func (p *xdrProc_Ciserver_start) GetRes() XdrType {
 	if p.Res == nil {
@@ -2600,7 +2683,7 @@ func (p *xdrSrvProc_Ciserver_start) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Ciserver_start) Do() {
-	r, err := p.Srv.Ciserver_start(p.Ctx, *p.Arg)
+	r, err := p.Srv.Ciserver_start(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -2610,7 +2693,7 @@ func (p *xdrSrvProc_Ciserver_start) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Ciserver_start{} // XXX
 
 type xdrProc_Ciserver_stop struct {
-	Arg *XdrVoid
+	Arg *HogdGitHash
 	Res *XdrVoid
 }
 func (xdrProc_Ciserver_stop) Prog() uint32 { return 286357096 }
@@ -2621,9 +2704,9 @@ func (xdrProc_Ciserver_stop) VersName() string { return "CIServer1" }
 func (xdrProc_Ciserver_stop) ProcName() string { return "ciserver_stop" }
 func (p *xdrProc_Ciserver_stop) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(XdrVoid)
+		p.Arg = new(HogdGitHash)
 	}
-	return XDR_XdrVoid(p.Arg)
+	return XDR_HogdGitHash(p.Arg)
 }
 func (p *xdrProc_Ciserver_stop) GetRes() XdrType {
 	if p.Res == nil {
@@ -2647,7 +2730,7 @@ func (p *xdrSrvProc_Ciserver_stop) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Ciserver_stop) Do() {
-	err := p.Srv.Ciserver_stop(p.Ctx, )
+	err := p.Srv.Ciserver_stop(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
@@ -2655,7 +2738,7 @@ func (p *xdrSrvProc_Ciserver_stop) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Ciserver_stop{} // XXX
 
 type xdrProc_Ciserver_shutdown struct {
-	Arg *XdrVoid
+	Arg *HogdGitHash
 	Res *XdrVoid
 }
 func (xdrProc_Ciserver_shutdown) Prog() uint32 { return 286357096 }
@@ -2666,9 +2749,9 @@ func (xdrProc_Ciserver_shutdown) VersName() string { return "CIServer1" }
 func (xdrProc_Ciserver_shutdown) ProcName() string { return "ciserver_shutdown" }
 func (p *xdrProc_Ciserver_shutdown) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(XdrVoid)
+		p.Arg = new(HogdGitHash)
 	}
-	return XDR_XdrVoid(p.Arg)
+	return XDR_HogdGitHash(p.Arg)
 }
 func (p *xdrProc_Ciserver_shutdown) GetRes() XdrType {
 	if p.Res == nil {
@@ -2692,7 +2775,7 @@ func (p *xdrSrvProc_Ciserver_shutdown) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Ciserver_shutdown) Do() {
-	err := p.Srv.Ciserver_shutdown(p.Ctx, )
+	err := p.Srv.Ciserver_shutdown(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
@@ -2743,23 +2826,27 @@ func (c CIServer1_Client) WithContext(ctx context.Context) CIServer1 {
 	c.Ctx = ctx
 	return c
 }
-func (c CIServer1_Client) Ciserver_start(ctx context.Context, a1 ServerConfig) (r CIServerErrorCode, _ error) {
+func (c CIServer1_Client) Ciserver_start(ctx context.Context, a1 HogdGitHash, a2 ServerConfig) (r CIServerErrorCode, _ error) {
 	var proc xdrProc_Ciserver_start
-	proc.Arg = &a1
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
 	return *proc.Res, nil
 }
-func (c CIServer1_Client) Ciserver_stop(ctx context.Context, ) error {
+func (c CIServer1_Client) Ciserver_stop(ctx context.Context, a1 HogdGitHash) error {
 	var proc xdrProc_Ciserver_stop
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
 	return nil
 }
-func (c CIServer1_Client) Ciserver_shutdown(ctx context.Context, ) error {
+func (c CIServer1_Client) Ciserver_shutdown(ctx context.Context, a1 HogdGitHash) error {
 	var proc xdrProc_Ciserver_shutdown
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
@@ -8584,6 +8671,69 @@ func XDR_StorageDeltaBatch(v *StorageDeltaBatch) XdrType_StorageDeltaBatch {
 }
 func (XdrType_StorageDeltaBatch) XdrTypeName() string { return "StorageDeltaBatch" }
 func (v XdrType_StorageDeltaBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_FlaggedStorageDelta }
+type _XdrVec_unbounded_Contract []Contract
+func (_XdrVec_unbounded_Contract) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_Contract) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_Contract length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_Contract length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_Contract) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_Contract) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]Contract, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_Contract) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_Contract(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_Contract) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_Contract) XdrTypeName() string { return "Contract<>" }
+func (v *_XdrVec_unbounded_Contract) XdrPointer() interface{} { return (*[]Contract)(v) }
+func (v _XdrVec_unbounded_Contract) XdrValue() interface{} { return ([]Contract)(v) }
+func (v *_XdrVec_unbounded_Contract) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_NewContractBatch struct {
+	*_XdrVec_unbounded_Contract
+}
+func XDR_NewContractBatch(v *NewContractBatch) XdrType_NewContractBatch {
+	return XdrType_NewContractBatch{(*_XdrVec_unbounded_Contract)(v)}
+}
+func (XdrType_NewContractBatch) XdrTypeName() string { return "NewContractBatch" }
+func (v XdrType_NewContractBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_Contract }
 
 type xdrProcArg_Try_push_new_subtransaction struct {
 	a1 *BlockID
@@ -8658,6 +8808,7 @@ var _ XdrSrvProc = &xdrSrvProc_Try_push_new_subtransaction{} // XXX
 type xdrProcArg_Commit_transaction struct {
 	a1 *BlockID
 	a2 *TransactionID
+	a3 *NewContractBatch
 }
 func (v *xdrProcArg_Commit_transaction) XdrPointer() interface{} { return v }
 func (xdrProcArg_Commit_transaction) XdrTypeName() string { return "xdrProcArg_Commit_transaction" }
@@ -8671,6 +8822,8 @@ func (v *xdrProcArg_Commit_transaction) XdrRecurse(x XDR, name string) {
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(TransactionID) }
 	XDR_TransactionID(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(NewContractBatch) }
+	XDR_NewContractBatch(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Commit_transaction(v *xdrProcArg_Commit_transaction) *xdrProcArg_Commit_transaction { return v }
 var _ XdrType = &xdrProcArg_Commit_transaction{} // XXX
@@ -8713,7 +8866,7 @@ func (p *xdrSrvProc_Commit_transaction) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Commit_transaction) Do() {
-	r, err := p.Srv.Commit_transaction(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Commit_transaction(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
 	p.Res = &r
 
 	if err != nil {
@@ -9066,143 +9219,6 @@ func (p *xdrSrvProc_Get_concurrent_retrocausal_queue_entry) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_concurrent_retrocausal_queue_entry{} // XXX
 
-type xdrProcArg_Commit_contract_create struct {
-	a1 *BlockID
-	a2 *Contract
-}
-func (v *xdrProcArg_Commit_contract_create) XdrPointer() interface{} { return v }
-func (xdrProcArg_Commit_contract_create) XdrTypeName() string { return "xdrProcArg_Commit_contract_create" }
-func (v xdrProcArg_Commit_contract_create) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Commit_contract_create) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Commit_contract_create) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockID) }
-	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(Contract) }
-	XDR_Contract(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Commit_contract_create(v *xdrProcArg_Commit_contract_create) *xdrProcArg_Commit_contract_create { return v }
-var _ XdrType = &xdrProcArg_Commit_contract_create{} // XXX
-
-type xdrProc_Commit_contract_create struct {
-	Arg *xdrProcArg_Commit_contract_create
-	Res *RPCError
-}
-func (xdrProc_Commit_contract_create) Prog() uint32 { return 44444444 }
-func (xdrProc_Commit_contract_create) Vers() uint32 { return 1 }
-func (xdrProc_Commit_contract_create) Proc() uint32 { return 200 }
-func (xdrProc_Commit_contract_create) ProgName() string { return "DatabaseToExecutorInterface" }
-func (xdrProc_Commit_contract_create) VersName() string { return "DatabaseToExecutorInterfaceV1" }
-func (xdrProc_Commit_contract_create) ProcName() string { return "commit_contract_create" }
-func (p *xdrProc_Commit_contract_create) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Commit_contract_create)
-	}
-	return XDR_xdrProcArg_Commit_contract_create(p.Arg)
-}
-func (p *xdrProc_Commit_contract_create) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Commit_contract_create{} // XXX
-
-type xdrSrvProc_Commit_contract_create struct {
-	xdrProc_Commit_contract_create
-	Srv DatabaseToExecutorInterfaceV1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Commit_contract_create) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) DatabaseToExecutorInterfaceV1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Commit_contract_create) Do() {
-	r, err := p.Srv.Commit_contract_create(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Commit_contract_create{} // XXX
-
-type xdrProcArg_Commit_contract_deploy struct {
-	a1 *BlockID
-	a2 *ContractAddress
-	a3 *SHA256Hash
-}
-func (v *xdrProcArg_Commit_contract_deploy) XdrPointer() interface{} { return v }
-func (xdrProcArg_Commit_contract_deploy) XdrTypeName() string { return "xdrProcArg_Commit_contract_deploy" }
-func (v xdrProcArg_Commit_contract_deploy) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Commit_contract_deploy) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Commit_contract_deploy) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockID) }
-	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(ContractAddress) }
-	XDR_ContractAddress(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(SHA256Hash) }
-	XDR_SHA256Hash(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
-}
-func XDR_xdrProcArg_Commit_contract_deploy(v *xdrProcArg_Commit_contract_deploy) *xdrProcArg_Commit_contract_deploy { return v }
-var _ XdrType = &xdrProcArg_Commit_contract_deploy{} // XXX
-
-type xdrProc_Commit_contract_deploy struct {
-	Arg *xdrProcArg_Commit_contract_deploy
-	Res *RPCError
-}
-func (xdrProc_Commit_contract_deploy) Prog() uint32 { return 44444444 }
-func (xdrProc_Commit_contract_deploy) Vers() uint32 { return 1 }
-func (xdrProc_Commit_contract_deploy) Proc() uint32 { return 201 }
-func (xdrProc_Commit_contract_deploy) ProgName() string { return "DatabaseToExecutorInterface" }
-func (xdrProc_Commit_contract_deploy) VersName() string { return "DatabaseToExecutorInterfaceV1" }
-func (xdrProc_Commit_contract_deploy) ProcName() string { return "commit_contract_deploy" }
-func (p *xdrProc_Commit_contract_deploy) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Commit_contract_deploy)
-	}
-	return XDR_xdrProcArg_Commit_contract_deploy(p.Arg)
-}
-func (p *xdrProc_Commit_contract_deploy) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Commit_contract_deploy{} // XXX
-
-type xdrSrvProc_Commit_contract_deploy struct {
-	xdrProc_Commit_contract_deploy
-	Srv DatabaseToExecutorInterfaceV1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Commit_contract_deploy) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) DatabaseToExecutorInterfaceV1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Commit_contract_deploy) Do() {
-	r, err := p.Srv.Commit_contract_deploy(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Commit_contract_deploy{} // XXX
-
 type xdrProcArg_Get_contract struct {
 	a1 *BlockID
 	a2 *SHA256Hash
@@ -9354,10 +9370,6 @@ func init() {
 			return &xdrProc_Get_next_retrocausal_queue_block{}
 		case 102:
 			return &xdrProc_Get_concurrent_retrocausal_queue_entry{}
-		case 200:
-			return &xdrProc_Commit_contract_create{}
-		case 201:
-			return &xdrProc_Commit_contract_deploy{}
 		case 202:
 			return &xdrProc_Get_contract{}
 		case 203:
@@ -9390,10 +9402,6 @@ func (s DatabaseToExecutorInterfaceV1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Get_next_retrocausal_queue_block{ Srv: s.Srv }
 	case 102:  // get_concurrent_retrocausal_queue_entry
 		return &xdrSrvProc_Get_concurrent_retrocausal_queue_entry{ Srv: s.Srv }
-	case 200:  // commit_contract_create
-		return &xdrSrvProc_Commit_contract_create{ Srv: s.Srv }
-	case 201:  // commit_contract_deploy
-		return &xdrSrvProc_Commit_contract_deploy{ Srv: s.Srv }
 	case 202:  // get_contract
 		return &xdrSrvProc_Get_contract{ Srv: s.Srv }
 	case 203:  // get_deployment
@@ -9424,11 +9432,12 @@ func (c DatabaseToExecutorInterfaceV1_Client) Try_push_new_subtransaction(ctx co
 	}
 	return *proc.Res, nil
 }
-func (c DatabaseToExecutorInterfaceV1_Client) Commit_transaction(ctx context.Context, a1 BlockID, a2 TransactionID) (r RPCError, _ error) {
+func (c DatabaseToExecutorInterfaceV1_Client) Commit_transaction(ctx context.Context, a1 BlockID, a2 TransactionID, a3 NewContractBatch) (r RPCError, _ error) {
 	var proc xdrProc_Commit_transaction
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
+	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -9478,27 +9487,6 @@ func (c DatabaseToExecutorInterfaceV1_Client) Get_next_retrocausal_queue_block(c
 }
 func (c DatabaseToExecutorInterfaceV1_Client) Get_concurrent_retrocausal_queue_entry(ctx context.Context, a1 BlockID, a2 AddressAndKey, a3 uint32) (r ExpectedQueueEntry, _ error) {
 	var proc xdrProc_Get_concurrent_retrocausal_queue_entry
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	proc.Arg.a3 = &a3
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c DatabaseToExecutorInterfaceV1_Client) Commit_contract_create(ctx context.Context, a1 BlockID, a2 Contract) (r RPCError, _ error) {
-	var proc xdrProc_Commit_contract_create
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c DatabaseToExecutorInterfaceV1_Client) Commit_contract_deploy(ctx context.Context, a1 BlockID, a2 ContractAddress, a3 SHA256Hash) (r RPCError, _ error) {
-	var proc xdrProc_Commit_contract_deploy
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
@@ -10869,6 +10857,7 @@ var _XdrNames_RPCError = map[int32]string{
 	int32(KRPCStorageWriteFailed): "kRPCStorageWriteFailed",
 	int32(KRPCTransactionFailed): "kRPCTransactionFailed",
 	int32(KRPCUnimplemented): "kRPCUnimplemented",
+	int32(KRPCUnrecoverable): "kRPCUnrecoverable",
 }
 var _XdrValues_RPCError = map[string]int32{
 	"kRPCNone": int32(KRPCNone),
@@ -10878,6 +10867,7 @@ var _XdrValues_RPCError = map[string]int32{
 	"kRPCStorageWriteFailed": int32(KRPCStorageWriteFailed),
 	"kRPCTransactionFailed": int32(KRPCTransactionFailed),
 	"kRPCUnimplemented": int32(KRPCUnimplemented),
+	"kRPCUnrecoverable": int32(KRPCUnrecoverable),
 }
 func (RPCError) XdrEnumNames() map[int32]string {
 	return _XdrNames_RPCError
@@ -14363,6 +14353,7 @@ var _XdrNames_StorageItemType = map[int32]string{
 	int32(KItemTypeRetrocausalQueue): "kItemTypeRetrocausalQueue",
 	int32(KItemTypeReplayCache): "kItemTypeReplayCache",
 	int32(KItemTypeAuthData): "kItemTypeAuthData",
+	int32(KItemTypeDeployedContractHash): "kItemTypeDeployedContractHash",
 	int32(KItemTypeDeleted): "kItemTypeDeleted",
 }
 var _XdrValues_StorageItemType = map[string]int32{
@@ -14371,6 +14362,7 @@ var _XdrValues_StorageItemType = map[string]int32{
 	"kItemTypeRetrocausalQueue": int32(KItemTypeRetrocausalQueue),
 	"kItemTypeReplayCache": int32(KItemTypeReplayCache),
 	"kItemTypeAuthData": int32(KItemTypeAuthData),
+	"kItemTypeDeployedContractHash": int32(KItemTypeDeployedContractHash),
 	"kItemTypeDeleted": int32(KItemTypeDeleted),
 }
 func (StorageItemType) XdrEnumNames() map[int32]string {
@@ -14433,6 +14425,7 @@ var _XdrTags_StorageItem = map[int32]bool{
 	XdrToI32(KItemTypeRetrocausalQueue): true,
 	XdrToI32(KItemTypeReplayCache): true,
 	XdrToI32(KItemTypeAuthData): true,
+	XdrToI32(KItemTypeDeployedContractHash): true,
 }
 func (_ StorageItem) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageItem
@@ -14497,9 +14490,24 @@ func (u *StorageItem) Auth_data() *AccountAuthData {
 		return nil
 	}
 }
+func (u *StorageItem) Deployed_contract_hash() *DeployedContractHash {
+	switch u.Type {
+	case KItemTypeDeployedContractHash:
+		if v, ok := u._u.(*DeployedContractHash); ok {
+			return v
+		} else {
+			var zero DeployedContractHash
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageItem.Deployed_contract_hash accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u StorageItem) XdrValid() bool {
 	switch u.Type {
-	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue,KItemTypeReplayCache,KItemTypeAuthData:
+	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue,KItemTypeReplayCache,KItemTypeAuthData,KItemTypeDeployedContractHash:
 		return true
 	}
 	return false
@@ -14522,6 +14530,8 @@ func (u *StorageItem) XdrUnionBody() XdrType {
 		return XDR_ReplayCacheMetadata(u.Replay_cache_metadata())
 	case KItemTypeAuthData:
 		return XDR_AccountAuthData(u.Auth_data())
+	case KItemTypeDeployedContractHash:
+		return XDR_DeployedContractHash(u.Deployed_contract_hash())
 	}
 	return nil
 }
@@ -14537,6 +14547,8 @@ func (u *StorageItem) XdrUnionBodyName() string {
 		return "Replay_cache_metadata"
 	case KItemTypeAuthData:
 		return "Auth_data"
+	case KItemTypeDeployedContractHash:
+		return "Deployed_contract_hash"
 	}
 	return ""
 }
@@ -14565,6 +14577,9 @@ func (u *StorageItem) XdrRecurse(x XDR, name string) {
 	case KItemTypeAuthData:
 		x.Marshal(x.Sprintf("%sauth_data", name), XDR_AccountAuthData(u.Auth_data()))
 		return
+	case KItemTypeDeployedContractHash:
+		x.Marshal(x.Sprintf("%sdeployed_contract_hash", name), XDR_DeployedContractHash(u.Deployed_contract_hash()))
+		return
 	}
 	XdrPanic("invalid Type (%v) in StorageItem", u.Type)
 }
@@ -14577,6 +14592,7 @@ var _XdrNames_StorageDeltaType = map[int32]string{
 	int32(KDeltaTypeReplayCacheModify): "kDeltaTypeReplayCacheModify",
 	int32(KDeltaTypeNonnegativeIntAdd): "kDeltaTypeNonnegativeIntAdd",
 	int32(KDeltaTypeAuthDataChange): "kDeltaTypeAuthDataChange",
+	int32(KDeltaTypeDeployContract): "kDeltaTypeDeployContract",
 }
 var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeBytestringSet": int32(KDeltaTypeBytestringSet),
@@ -14586,6 +14602,7 @@ var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeReplayCacheModify": int32(KDeltaTypeReplayCacheModify),
 	"kDeltaTypeNonnegativeIntAdd": int32(KDeltaTypeNonnegativeIntAdd),
 	"kDeltaTypeAuthDataChange": int32(KDeltaTypeAuthDataChange),
+	"kDeltaTypeDeployContract": int32(KDeltaTypeDeployContract),
 }
 func (StorageDeltaType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageDeltaType
@@ -14790,6 +14807,7 @@ var _XdrTags_StorageDelta = map[int32]bool{
 	XdrToI32(KDeltaTypeRetrocausalQueue): true,
 	XdrToI32(KDeltaTypeReplayCacheModify): true,
 	XdrToI32(KDeltaTypeAuthDataChange): true,
+	XdrToI32(KDeltaTypeDeployContract): true,
 }
 func (_ StorageDelta) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageDelta
@@ -14884,9 +14902,24 @@ func (u *StorageDelta) Auth_data_change() *AuthDataChangeArgs {
 		return nil
 	}
 }
+func (u *StorageDelta) Deployed_contract_hash() *DeployedContractHash {
+	switch u.Type {
+	case KDeltaTypeDeployContract:
+		if v, ok := u._u.(*DeployedContractHash); ok {
+			return v
+		} else {
+			var zero DeployedContractHash
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageDelta.Deployed_contract_hash accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u StorageDelta) XdrValid() bool {
 	switch u.Type {
-	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify,KDeltaTypeAuthDataChange:
+	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify,KDeltaTypeAuthDataChange,KDeltaTypeDeployContract:
 		return true
 	}
 	return false
@@ -14913,6 +14946,8 @@ func (u *StorageDelta) XdrUnionBody() XdrType {
 		return XDR_ReplayCacheModifyArgs(u.Replay_cache_modify())
 	case KDeltaTypeAuthDataChange:
 		return XDR_AuthDataChangeArgs(u.Auth_data_change())
+	case KDeltaTypeDeployContract:
+		return XDR_DeployedContractHash(u.Deployed_contract_hash())
 	}
 	return nil
 }
@@ -14932,6 +14967,8 @@ func (u *StorageDelta) XdrUnionBodyName() string {
 		return "Replay_cache_modify"
 	case KDeltaTypeAuthDataChange:
 		return "Auth_data_change"
+	case KDeltaTypeDeployContract:
+		return "Deployed_contract_hash"
 	}
 	return ""
 }
@@ -14965,6 +15002,9 @@ func (u *StorageDelta) XdrRecurse(x XDR, name string) {
 		return
 	case KDeltaTypeAuthDataChange:
 		x.Marshal(x.Sprintf("%sauth_data_change", name), XDR_AuthDataChangeArgs(u.Auth_data_change()))
+		return
+	case KDeltaTypeDeployContract:
+		x.Marshal(x.Sprintf("%sdeployed_contract_hash", name), XDR_DeployedContractHash(u.Deployed_contract_hash()))
 		return
 	}
 	XdrPanic("invalid Type (%v) in StorageDelta", u.Type)
@@ -15003,6 +15043,21 @@ func (u *StorageItemTypeClass) Nnint_set() *Int128_xdr {
 		return nil
 	}
 }
+func (u *StorageItemTypeClass) Deployed_contract_hash() *DeployedContractHash {
+	switch u.Item_type {
+	case KItemTypeDeployedContractHash:
+		if v, ok := u._u.(*DeployedContractHash); ok {
+			return v
+		} else {
+			var zero DeployedContractHash
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageItemTypeClass.Deployed_contract_hash accessed when Item_type == %v", u.Item_type)
+		return nil
+	}
+}
 func (u StorageItemTypeClass) XdrValid() bool {
 	return true
 }
@@ -15018,6 +15073,8 @@ func (u *StorageItemTypeClass) XdrUnionBody() XdrType {
 		return XDR_Bytestring(u.Bytestring())
 	case KItemTypeNonnegativeInt:
 		return XDR_Int128_xdr(u.Nnint_set())
+	case KItemTypeDeployedContractHash:
+		return XDR_DeployedContractHash(u.Deployed_contract_hash())
 	default:
 		return nil
 	}
@@ -15028,6 +15085,8 @@ func (u *StorageItemTypeClass) XdrUnionBodyName() string {
 		return "Bytestring"
 	case KItemTypeNonnegativeInt:
 		return "Nnint_set"
+	case KItemTypeDeployedContractHash:
+		return "Deployed_contract_hash"
 	default:
 		return ""
 	}
@@ -15048,6 +15107,9 @@ func (u *StorageItemTypeClass) XdrRecurse(x XDR, name string) {
 		return
 	case KItemTypeNonnegativeInt:
 		x.Marshal(x.Sprintf("%snnint_set", name), XDR_Int128_xdr(u.Nnint_set()))
+		return
+	case KItemTypeDeployedContractHash:
+		x.Marshal(x.Sprintf("%sdeployed_contract_hash", name), XDR_DeployedContractHash(u.Deployed_contract_hash()))
 		return
 	default:
 		return
@@ -15753,61 +15815,6 @@ func (v *Uniquifier) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snonce", name), XDR_uint64(&v.Nonce))
 }
 func XDR_Uniquifier(v *Uniquifier) *Uniquifier { return v }
-type _XdrVec_unbounded_Contract []Contract
-func (_XdrVec_unbounded_Contract) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_Contract) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_Contract length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_Contract length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_Contract) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_Contract) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]Contract, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_Contract) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_Contract(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_Contract) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_Contract) XdrTypeName() string { return "Contract<>" }
-func (v *_XdrVec_unbounded_Contract) XdrPointer() interface{} { return (*[]Contract)(v) }
-func (v _XdrVec_unbounded_Contract) XdrValue() interface{} { return ([]Contract)(v) }
-func (v *_XdrVec_unbounded_Contract) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_Transaction = *Transaction
 func (v *Transaction) XdrPointer() interface{} { return v }
 func (Transaction) XdrTypeName() string { return "Transaction" }
@@ -16556,11 +16563,13 @@ var _XdrNames_StorageKeyType = map[int32]string{
 	int32(KStorageKeyTypeContractData): "kStorageKeyTypeContractData",
 	int32(KStorageKeyTypeFreeNativeTokenBalance): "kStorageKeyTypeFreeNativeTokenBalance",
 	int32(KStorageKeyTypeAccountAuthData): "kStorageKeyTypeAccountAuthData",
+	int32(KStorageKeyTypeAddressMetadata): "kStorageKeyTypeAddressMetadata",
 }
 var _XdrValues_StorageKeyType = map[string]int32{
 	"kStorageKeyTypeContractData": int32(KStorageKeyTypeContractData),
 	"kStorageKeyTypeFreeNativeTokenBalance": int32(KStorageKeyTypeFreeNativeTokenBalance),
 	"kStorageKeyTypeAccountAuthData": int32(KStorageKeyTypeAccountAuthData),
+	"kStorageKeyTypeAddressMetadata": int32(KStorageKeyTypeAddressMetadata),
 }
 func (StorageKeyType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageKeyType
@@ -16600,6 +16609,7 @@ var _XdrTags_StorageKey = map[int32]bool{
 	XdrToI32(KStorageKeyTypeContractData): true,
 	XdrToI32(KStorageKeyTypeFreeNativeTokenBalance): true,
 	XdrToI32(KStorageKeyTypeAccountAuthData): true,
+	XdrToI32(KStorageKeyTypeAddressMetadata): true,
 }
 func (_ StorageKey) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageKey
@@ -16621,7 +16631,7 @@ func (u *StorageKey) Contract_data_key() *StorageKeyContractData {
 }
 func (u StorageKey) XdrValid() bool {
 	switch u.Key_type {
-	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance,KStorageKeyTypeAccountAuthData:
+	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance,KStorageKeyTypeAccountAuthData,KStorageKeyTypeAddressMetadata:
 		return true
 	}
 	return false
@@ -16640,6 +16650,8 @@ func (u *StorageKey) XdrUnionBody() XdrType {
 		return nil
 	case KStorageKeyTypeAccountAuthData:
 		return nil
+	case KStorageKeyTypeAddressMetadata:
+		return nil
 	}
 	return nil
 }
@@ -16650,6 +16662,8 @@ func (u *StorageKey) XdrUnionBodyName() string {
 	case KStorageKeyTypeFreeNativeTokenBalance:
 		return ""
 	case KStorageKeyTypeAccountAuthData:
+		return ""
+	case KStorageKeyTypeAddressMetadata:
 		return ""
 	}
 	return ""
@@ -16671,6 +16685,8 @@ func (u *StorageKey) XdrRecurse(x XDR, name string) {
 	case KStorageKeyTypeFreeNativeTokenBalance:
 		return
 	case KStorageKeyTypeAccountAuthData:
+		return
+	case KStorageKeyTypeAddressMetadata:
 		return
 	}
 	XdrPanic("invalid Key_type (%v) in StorageKey", u.Key_type)
