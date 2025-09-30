@@ -120,10 +120,21 @@ const (
 	KCIServerErrorCodeVersionMismatch CIServerErrorCode = 3
 )
 
+type CIProcStatus struct {
+	// The union discriminant Error_code selects among the following arms:
+	//   KCIServerErrorCodeOK:
+	//      Exit_code() *int32
+	//   default:
+	//      void
+	Error_code CIServerErrorCode
+	_u interface{}
+}
+
 type CIServer1 interface {
 	Ciserver_start(context.Context, HogdGitHash, ServerConfig) (CIServerErrorCode, error)
 	Ciserver_stop(context.Context, HogdGitHash) error
 	Ciserver_shutdown(context.Context, HogdGitHash) error
+	Ciserver_query_proc_status(context.Context, HogdGitHash) (CIProcStatus, error)
 }
 
 type Milliseconds = int64
@@ -264,7 +275,9 @@ type ErrorXDR struct {
 	_u interface{}
 }
 
-type ContractBlob = []byte
+type ContractBlob struct {
+	Wasm []byte
+}
 
 type ContractType int32
 const (
@@ -2624,6 +2637,68 @@ func (v CIServerErrorCode) XdrValue() interface{} { return v }
 func (v *CIServerErrorCode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_CIServerErrorCode = *CIServerErrorCode
 func XDR_CIServerErrorCode(v *CIServerErrorCode) *CIServerErrorCode { return v }
+func (_ CIProcStatus) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *CIProcStatus) Exit_code() *int32 {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		if v, ok := u._u.(*int32); ok {
+			return v
+		} else {
+			var zero int32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("CIProcStatus.Exit_code accessed when Error_code == %v", u.Error_code)
+		return nil
+	}
+}
+func (u CIProcStatus) XdrValid() bool {
+	return true
+}
+func (u *CIProcStatus) XdrUnionTag() XdrNum32 {
+	return XDR_CIServerErrorCode(&u.Error_code)
+}
+func (u *CIProcStatus) XdrUnionTagName() string {
+	return "Error_code"
+}
+func (u *CIProcStatus) XdrUnionBody() XdrType {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		return XDR_int32(u.Exit_code())
+	default:
+		return nil
+	}
+}
+func (u *CIProcStatus) XdrUnionBodyName() string {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		return "Exit_code"
+	default:
+		return ""
+	}
+}
+type XdrType_CIProcStatus = *CIProcStatus
+func (v *CIProcStatus) XdrPointer() interface{} { return v }
+func (CIProcStatus) XdrTypeName() string { return "CIProcStatus" }
+func (v CIProcStatus) XdrValue() interface{} { return v }
+func (v *CIProcStatus) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *CIProcStatus) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_CIServerErrorCode(&u.Error_code).XdrMarshal(x, x.Sprintf("%serror_code", name))
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		x.Marshal(x.Sprintf("%sexit_code", name), XDR_int32(u.Exit_code()))
+		return
+	default:
+		return
+	}
+}
+func XDR_CIProcStatus(v *CIProcStatus) *CIProcStatus { return v}
 
 type xdrProcArg_Ciserver_start struct {
 	a1 *HogdGitHash
@@ -2782,6 +2857,53 @@ func (p *xdrSrvProc_Ciserver_shutdown) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Ciserver_shutdown{} // XXX
 
+type xdrProc_Ciserver_query_proc_status struct {
+	Arg *HogdGitHash
+	Res *CIProcStatus
+}
+func (xdrProc_Ciserver_query_proc_status) Prog() uint32 { return 286357096 }
+func (xdrProc_Ciserver_query_proc_status) Vers() uint32 { return 1 }
+func (xdrProc_Ciserver_query_proc_status) Proc() uint32 { return 3 }
+func (xdrProc_Ciserver_query_proc_status) ProgName() string { return "CIServer" }
+func (xdrProc_Ciserver_query_proc_status) VersName() string { return "CIServer1" }
+func (xdrProc_Ciserver_query_proc_status) ProcName() string { return "ciserver_query_proc_status" }
+func (p *xdrProc_Ciserver_query_proc_status) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(HogdGitHash)
+	}
+	return XDR_HogdGitHash(p.Arg)
+}
+func (p *xdrProc_Ciserver_query_proc_status) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(CIProcStatus)
+	}
+	return XDR_CIProcStatus(p.Res)
+}
+var _ XdrProc = &xdrProc_Ciserver_query_proc_status{} // XXX
+
+type xdrSrvProc_Ciserver_query_proc_status struct {
+	xdrProc_Ciserver_query_proc_status
+	Srv CIServer1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Ciserver_query_proc_status) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) CIServer1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Ciserver_query_proc_status) Do() {
+	r, err := p.Srv.Ciserver_query_proc_status(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Ciserver_query_proc_status{} // XXX
+
 func init() {
 	XdrCatalog[286357096<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -2791,6 +2913,8 @@ func init() {
 			return &xdrProc_Ciserver_stop{}
 		case 2:
 			return &xdrProc_Ciserver_shutdown{}
+		case 3:
+			return &xdrProc_Ciserver_query_proc_status{}
 		}
 		return nil
 	}
@@ -2811,6 +2935,8 @@ func (s CIServer1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Ciserver_stop{ Srv: s.Srv }
 	case 2:  // ciserver_shutdown
 		return &xdrSrvProc_Ciserver_shutdown{ Srv: s.Srv }
+	case 3:  // ciserver_query_proc_status
+		return &xdrSrvProc_Ciserver_query_proc_status{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -2851,6 +2977,14 @@ func (c CIServer1_Client) Ciserver_shutdown(ctx context.Context, a1 HogdGitHash)
 		return err
 	}
 	return nil
+}
+func (c CIServer1_Client) Ciserver_query_proc_status(ctx context.Context, a1 HogdGitHash) (r CIProcStatus, _ error) {
+	var proc xdrProc_Ciserver_query_proc_status
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
 }
 type XdrType_Milliseconds struct {
 	XdrType_int64
@@ -4171,14 +4305,18 @@ func (u *ErrorXDR) XdrRecurse(x XDR, name string) {
 	XdrPanic("invalid Error_type (%v) in ErrorXDR", u.Error_type)
 }
 func XDR_ErrorXDR(v *ErrorXDR) *ErrorXDR { return v}
-type XdrType_ContractBlob struct {
-	XdrVecOpaque
+type XdrType_ContractBlob = *ContractBlob
+func (v *ContractBlob) XdrPointer() interface{} { return v }
+func (ContractBlob) XdrTypeName() string { return "ContractBlob" }
+func (v ContractBlob) XdrValue() interface{} { return v }
+func (v *ContractBlob) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ContractBlob) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%swasm", name), XdrVecOpaque{&v.Wasm, 0xffffffff})
 }
-func XDR_ContractBlob(v *ContractBlob) XdrType_ContractBlob {
-	return XdrType_ContractBlob{XdrVecOpaque{v, 0xffffffff}}
-}
-func (XdrType_ContractBlob) XdrTypeName() string { return "ContractBlob" }
-func (v XdrType_ContractBlob) XdrUnwrap() XdrType { return v.XdrVecOpaque }
+func XDR_ContractBlob(v *ContractBlob) *ContractBlob { return v }
 var _XdrNames_ContractType = map[int32]string{
 	int32(KWasmi): "kWasmi",
 	int32(KNative): "kNative",
