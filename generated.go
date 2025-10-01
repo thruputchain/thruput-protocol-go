@@ -967,13 +967,19 @@ type MissingTransactions struct {
 	Block_hash BlockHash
 }
 
+type MissingTransactionsEnvelope struct {
+	Signer ValidatorID
+	Signature Signature
+	Missing_transactions MissingTransactions
+}
+
 type RepairedTransactions struct {
 	Transactions []SignedTransaction
 }
 
 type Repair1 interface {
 	Repair_null(context.Context, ) error
-	Repair_missing_txs(context.Context, MissingTransactions) (RepairedTransactions, error)
+	Repair_missing_txs(context.Context, MissingTransactionsEnvelope) (RepairedTransactions, error)
 }
 
 const KQueueEntryMaxLen = 256
@@ -10800,6 +10806,20 @@ func (v *MissingTransactions) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 }
 func XDR_MissingTransactions(v *MissingTransactions) *MissingTransactions { return v }
+type XdrType_MissingTransactionsEnvelope = *MissingTransactionsEnvelope
+func (v *MissingTransactionsEnvelope) XdrPointer() interface{} { return v }
+func (MissingTransactionsEnvelope) XdrTypeName() string { return "MissingTransactionsEnvelope" }
+func (v MissingTransactionsEnvelope) XdrValue() interface{} { return v }
+func (v *MissingTransactionsEnvelope) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *MissingTransactionsEnvelope) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%ssigner", name), XDR_ValidatorID(&v.Signer))
+	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
+	x.Marshal(x.Sprintf("%smissing_transactions", name), XDR_MissingTransactions(&v.Missing_transactions))
+}
+func XDR_MissingTransactionsEnvelope(v *MissingTransactionsEnvelope) *MissingTransactionsEnvelope { return v }
 type XdrType_RepairedTransactions = *RepairedTransactions
 func (v *RepairedTransactions) XdrPointer() interface{} { return v }
 func (RepairedTransactions) XdrTypeName() string { return "RepairedTransactions" }
@@ -10859,7 +10879,7 @@ func (p *xdrSrvProc_Repair_null) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Repair_null{} // XXX
 
 type xdrProc_Repair_missing_txs struct {
-	Arg *MissingTransactions
+	Arg *MissingTransactionsEnvelope
 	Res *RepairedTransactions
 }
 func (xdrProc_Repair_missing_txs) Prog() uint32 { return 573820108 }
@@ -10870,9 +10890,9 @@ func (xdrProc_Repair_missing_txs) VersName() string { return "Repair1" }
 func (xdrProc_Repair_missing_txs) ProcName() string { return "repair_missing_txs" }
 func (p *xdrProc_Repair_missing_txs) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(MissingTransactions)
+		p.Arg = new(MissingTransactionsEnvelope)
 	}
-	return XDR_MissingTransactions(p.Arg)
+	return XDR_MissingTransactionsEnvelope(p.Arg)
 }
 func (p *xdrProc_Repair_missing_txs) GetRes() XdrType {
 	if p.Res == nil {
@@ -10952,7 +10972,7 @@ func (c Repair1_Client) Repair_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c Repair1_Client) Repair_missing_txs(ctx context.Context, a1 MissingTransactions) (r RepairedTransactions, _ error) {
+func (c Repair1_Client) Repair_missing_txs(ctx context.Context, a1 MissingTransactionsEnvelope) (r RepairedTransactions, _ error) {
 	var proc xdrProc_Repair_missing_txs
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
