@@ -77,7 +77,7 @@ type CatchupSpan struct {
 }
 
 type CatchupBlocksRequest struct {
-	Timestamp Timestamp
+	Timestamp TimePoint
 	Spans []CatchupSpan
 }
 
@@ -88,7 +88,7 @@ type SignedCatchupBlocksRequest struct {
 }
 
 type CatchupBlocksResult struct {
-	Timestamp Timestamp
+	Timestamp TimePoint
 	Blocks []CatchupBlock
 }
 
@@ -517,7 +517,7 @@ type ValidatorPrivateInfo struct {
 }
 
 type QuorumSetSnapshot struct {
-	Timestamp Timestamp
+	Timestamp TimePoint
 	Quorum_set SCPQuorumSet
 }
 
@@ -528,7 +528,7 @@ type SignedQuorumSetSnapshot struct {
 }
 
 type ValidatorInfoSnapshot struct {
-	Timestamp Timestamp
+	Timestamp TimePoint
 	Validator ValidatorPublicInfo
 }
 
@@ -642,22 +642,27 @@ type Dogwood1 interface {
 	Dogwood_deliver(context.Context, DogwoodDeliveryEnvelope) error
 }
 
-type Topic = SCVal
+type EventData struct {
+	Topics []SHA256Hash // bound 3
+	Event []byte
+}
 
 // The structure of an event that is placed into our merkle-patricia trie
+// For contracts that structure their data appropriately (specify the topic types, no more than 3 topics), 
+// this can be converted into a stellar::ContractEvent.
 type Event struct {
 	// sha256(ProposedTransaction)
 	Proposed_tx_hash SHA256Hash
+	// uniquifies the event
 	Sequence_number uint32
 	Contract_address ContractAddress
-	Topics []Topic // bound 3
-	// leaf of the trie
-	Event []byte
+	Data EventData
 }
 
 type TxEmittedEvent struct {
 	Contract_address ContractAddress
-	Event []byte
+	// serialized EventData
+	Serialized_event []byte
 }
 
 type TxEventLog struct {
@@ -1213,8 +1218,6 @@ type Uint64 = uint64
 
 type Int64 = int64
 
-type TimePoint = Uint64
-
 type Duration = Uint64
 
 type ContractID = SHA256Hash
@@ -1321,7 +1324,7 @@ type SCVal struct {
 	//   SCV_I64:
 	//      I64() *Int64
 	//   SCV_TIMEPOINT:
-	//      Timepoint() *Timestamp
+	//      Timepoint() *TimePoint
 	//   SCV_DURATION:
 	//      Duration() *Duration
 	//   SCV_U128:
@@ -1883,7 +1886,7 @@ type Int128_xdr struct {
 
 // uint64_t, Unix time as nanoseconds elapsed since
 // January 1, 1970 UTC
-type Timestamp = uint64
+type TimePoint = uint64
 
 // uint32_t
 type RuntimeMemoryOffset = uint32
@@ -2498,7 +2501,7 @@ func (v *CatchupBlocksRequest) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
 	x.Marshal(x.Sprintf("%sspans", name), (*_XdrVec_unbounded_CatchupSpan)(&v.Spans))
 }
 func XDR_CatchupBlocksRequest(v *CatchupBlocksRequest) *CatchupBlocksRequest { return v }
@@ -2580,7 +2583,7 @@ func (v *CatchupBlocksResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
 	x.Marshal(x.Sprintf("%sblocks", name), (*_XdrVec_unbounded_CatchupBlock)(&v.Blocks))
 }
 func XDR_CatchupBlocksResult(v *CatchupBlocksResult) *CatchupBlocksResult { return v }
@@ -6901,7 +6904,7 @@ func (v *QuorumSetSnapshot) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
 	x.Marshal(x.Sprintf("%squorum_set", name), XDR_SCPQuorumSet(&v.Quorum_set))
 }
 func XDR_QuorumSetSnapshot(v *QuorumSetSnapshot) *QuorumSetSnapshot { return v }
@@ -6928,7 +6931,7 @@ func (v *ValidatorInfoSnapshot) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%stimestamp", name), XDR_Timestamp(&v.Timestamp))
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
 	x.Marshal(x.Sprintf("%svalidator", name), XDR_ValidatorPublicInfo(&v.Validator))
 }
 func XDR_ValidatorInfoSnapshot(v *ValidatorInfoSnapshot) *ValidatorInfoSnapshot { return v }
@@ -8145,28 +8148,20 @@ func (c Dogwood1_Client) Dogwood_deliver(ctx context.Context, a1 DogwoodDelivery
 	}
 	return nil
 }
-type XdrType_Topic struct {
-	XdrType_SCVal
-}
-func XDR_Topic(v *Topic) XdrType_Topic {
-	return XdrType_Topic{XDR_SCVal(v)}
-}
-func (XdrType_Topic) XdrTypeName() string { return "Topic" }
-func (v XdrType_Topic) XdrUnwrap() XdrType { return v.XdrType_SCVal }
-type _XdrVec_3_Topic []Topic
-func (_XdrVec_3_Topic) XdrBound() uint32 {
+type _XdrVec_3_SHA256Hash []SHA256Hash
+func (_XdrVec_3_SHA256Hash) XdrBound() uint32 {
 	const bound uint32 = 3 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_3_Topic) XdrCheckLen(length uint32) {
+func (_XdrVec_3_SHA256Hash) XdrCheckLen(length uint32) {
 	if length > uint32(3) {
-		XdrPanic("_XdrVec_3_Topic length %d exceeds bound 3", length)
+		XdrPanic("_XdrVec_3_SHA256Hash length %d exceeds bound 3", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_3_Topic length %d exceeds max int", length)
+		XdrPanic("_XdrVec_3_SHA256Hash length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_3_Topic) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_3_Topic) SetVecLen(length uint32) {
+func (v _XdrVec_3_SHA256Hash) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_3_SHA256Hash) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -8183,31 +8178,44 @@ func (v *_XdrVec_3_Topic) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]Topic, int(length), newcap)
+	nv := make([]SHA256Hash, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_3_Topic) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_3_SHA256Hash) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_Topic(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_SHA256Hash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_3_Topic) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_3_SHA256Hash) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 3 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_3_Topic) XdrTypeName() string { return "Topic<>" }
-func (v *_XdrVec_3_Topic) XdrPointer() interface{} { return (*[]Topic)(v) }
-func (v _XdrVec_3_Topic) XdrValue() interface{} { return ([]Topic)(v) }
-func (v *_XdrVec_3_Topic) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_XdrVec_3_SHA256Hash) XdrTypeName() string { return "SHA256Hash<>" }
+func (v *_XdrVec_3_SHA256Hash) XdrPointer() interface{} { return (*[]SHA256Hash)(v) }
+func (v _XdrVec_3_SHA256Hash) XdrValue() interface{} { return ([]SHA256Hash)(v) }
+func (v *_XdrVec_3_SHA256Hash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_EventData = *EventData
+func (v *EventData) XdrPointer() interface{} { return v }
+func (EventData) XdrTypeName() string { return "EventData" }
+func (v EventData) XdrValue() interface{} { return v }
+func (v *EventData) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *EventData) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stopics", name), (*_XdrVec_3_SHA256Hash)(&v.Topics))
+	x.Marshal(x.Sprintf("%sevent", name), XdrVecOpaque{&v.Event, 0xffffffff})
+}
+func XDR_EventData(v *EventData) *EventData { return v }
 type XdrType_Event = *Event
 func (v *Event) XdrPointer() interface{} { return v }
 func (Event) XdrTypeName() string { return "Event" }
@@ -8220,8 +8228,7 @@ func (v *Event) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposed_tx_hash", name), XDR_SHA256Hash(&v.Proposed_tx_hash))
 	x.Marshal(x.Sprintf("%ssequence_number", name), XDR_uint32(&v.Sequence_number))
 	x.Marshal(x.Sprintf("%scontract_address", name), XDR_ContractAddress(&v.Contract_address))
-	x.Marshal(x.Sprintf("%stopics", name), (*_XdrVec_3_Topic)(&v.Topics))
-	x.Marshal(x.Sprintf("%sevent", name), XdrVecOpaque{&v.Event, 0xffffffff})
+	x.Marshal(x.Sprintf("%sdata", name), XDR_EventData(&v.Data))
 }
 func XDR_Event(v *Event) *Event { return v }
 type XdrType_TxEmittedEvent = *TxEmittedEvent
@@ -8234,7 +8241,7 @@ func (v *TxEmittedEvent) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%scontract_address", name), XDR_ContractAddress(&v.Contract_address))
-	x.Marshal(x.Sprintf("%sevent", name), XdrVecOpaque{&v.Event, 0xffffffff})
+	x.Marshal(x.Sprintf("%sserialized_event", name), XdrVecOpaque{&v.Serialized_event, 0xffffffff})
 }
 func XDR_TxEmittedEvent(v *TxEmittedEvent) *TxEmittedEvent { return v }
 type _XdrVec_unbounded_TxEmittedEvent []TxEmittedEvent
@@ -12988,14 +12995,6 @@ func XDR_Int64(v *Int64) XdrType_Int64 {
 }
 func (XdrType_Int64) XdrTypeName() string { return "Int64" }
 func (v XdrType_Int64) XdrUnwrap() XdrType { return v.XdrType_int64 }
-type XdrType_TimePoint struct {
-	XdrType_Uint64
-}
-func XDR_TimePoint(v *TimePoint) XdrType_TimePoint {
-	return XdrType_TimePoint{XDR_Uint64(v)}
-}
-func (XdrType_TimePoint) XdrTypeName() string { return "TimePoint" }
-func (v XdrType_TimePoint) XdrUnwrap() XdrType { return v.XdrType_Uint64 }
 type XdrType_Duration struct {
 	XdrType_Uint64
 }
@@ -13379,13 +13378,13 @@ func (u *SCVal) I64() *Int64 {
 		return nil
 	}
 }
-func (u *SCVal) Timepoint() *Timestamp {
+func (u *SCVal) Timepoint() *TimePoint {
 	switch u.Type {
 	case SCV_TIMEPOINT:
-		if v, ok := u._u.(*Timestamp); ok {
+		if v, ok := u._u.(*TimePoint); ok {
 			return v
 		} else {
-			var zero Timestamp
+			var zero TimePoint
 			u._u = &zero
 			return &zero
 		}
@@ -13557,7 +13556,7 @@ func (u *SCVal) XdrUnionBody() XdrType {
 	case SCV_I64:
 		return XDR_Int64(u.I64())
 	case SCV_TIMEPOINT:
-		return XDR_Timestamp(u.Timepoint())
+		return XDR_TimePoint(u.Timepoint())
 	case SCV_DURATION:
 		return XDR_Duration(u.Duration())
 	case SCV_U128:
@@ -13645,7 +13644,7 @@ func (u *SCVal) XdrRecurse(x XDR, name string) {
 		x.Marshal(x.Sprintf("%si64", name), XDR_Int64(u.I64()))
 		return
 	case SCV_TIMEPOINT:
-		x.Marshal(x.Sprintf("%stimepoint", name), XDR_Timestamp(u.Timepoint()))
+		x.Marshal(x.Sprintf("%stimepoint", name), XDR_TimePoint(u.Timepoint()))
 		return
 	case SCV_DURATION:
 		x.Marshal(x.Sprintf("%sduration", name), XDR_Duration(u.Duration()))
@@ -18414,14 +18413,14 @@ func (v *Int128_xdr) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%slowbits", name), XDR_uint64(&v.Lowbits))
 }
 func XDR_Int128_xdr(v *Int128_xdr) *Int128_xdr { return v }
-type XdrType_Timestamp struct {
+type XdrType_TimePoint struct {
 	XdrType_uint64
 }
-func XDR_Timestamp(v *Timestamp) XdrType_Timestamp {
-	return XdrType_Timestamp{XDR_uint64(v)}
+func XDR_TimePoint(v *TimePoint) XdrType_TimePoint {
+	return XdrType_TimePoint{XDR_uint64(v)}
 }
-func (XdrType_Timestamp) XdrTypeName() string { return "Timestamp" }
-func (v XdrType_Timestamp) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+func (XdrType_TimePoint) XdrTypeName() string { return "TimePoint" }
+func (v XdrType_TimePoint) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type XdrType_RuntimeMemoryOffset struct {
 	XdrType_uint32
 }
