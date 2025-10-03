@@ -211,6 +211,7 @@ type Config struct {
 	Catchup_config *CatchupConfig
 	Scp_config *SCPConfig
 	Baton_config *BatonConfig
+	Repair_config *RepairConfig
 }
 
 // SysErr is a int32, which is derived from a SyscallErrorCode.
@@ -999,6 +1000,13 @@ type HogexecPrecompiledNativeContracts int32
 const (
 	KNativeContractHogToken HogexecPrecompiledNativeContracts = 0
 )
+
+type RepairConfig struct {
+	Base_delay_msec Milliseconds
+	Max_delay_msec Milliseconds
+	Multiplier_nom uint32
+	Multiplier_denom uint32
+}
 
 type MissingTransactions struct {
 	Transaction_hashes []SignedTransactionHash
@@ -4100,6 +4108,77 @@ func (v _XdrPtr_BatonConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_BatonConfig) XdrTypeName() string { return "BatonConfig*" }
 func (v _XdrPtr_BatonConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_BatonConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_RepairConfig struct {
+	p **RepairConfig
+}
+type _ptrflag_RepairConfig _XdrPtr_RepairConfig
+func (v _ptrflag_RepairConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_RepairConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("RepairConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_RepairConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_RepairConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(RepairConfig)
+		}
+	default:
+		XdrPanic("*RepairConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_RepairConfig) XdrTypeName() string { return "RepairConfig?" }
+func (v _ptrflag_RepairConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_RepairConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_RepairConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_RepairConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_RepairConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_RepairConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(RepairConfig)
+	}
+}
+func (v _XdrPtr_RepairConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_RepairConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_RepairConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_RepairConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_RepairConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_RepairConfig) XdrTypeName() string { return "RepairConfig*" }
+func (v _XdrPtr_RepairConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_RepairConfig) XdrValue() interface{} { return *v.p }
 type XdrType_Config = *Config
 func (v *Config) XdrPointer() interface{} { return v }
 func (Config) XdrTypeName() string { return "Config" }
@@ -4118,6 +4197,7 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scatchup_config", name), _XdrPtr_CatchupConfig{&v.Catchup_config})
 	x.Marshal(x.Sprintf("%sscp_config", name), _XdrPtr_SCPConfig{&v.Scp_config})
 	x.Marshal(x.Sprintf("%sbaton_config", name), _XdrPtr_BatonConfig{&v.Baton_config})
+	x.Marshal(x.Sprintf("%srepair_config", name), _XdrPtr_RepairConfig{&v.Repair_config})
 }
 func XDR_Config(v *Config) *Config { return v }
 type XdrType_SysErrXDR struct {
@@ -11658,6 +11738,21 @@ func (v HogexecPrecompiledNativeContracts) XdrValue() interface{} { return v }
 func (v *HogexecPrecompiledNativeContracts) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_HogexecPrecompiledNativeContracts = *HogexecPrecompiledNativeContracts
 func XDR_HogexecPrecompiledNativeContracts(v *HogexecPrecompiledNativeContracts) *HogexecPrecompiledNativeContracts { return v }
+type XdrType_RepairConfig = *RepairConfig
+func (v *RepairConfig) XdrPointer() interface{} { return v }
+func (RepairConfig) XdrTypeName() string { return "RepairConfig" }
+func (v RepairConfig) XdrValue() interface{} { return v }
+func (v *RepairConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *RepairConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sbase_delay_msec", name), XDR_Milliseconds(&v.Base_delay_msec))
+	x.Marshal(x.Sprintf("%smax_delay_msec", name), XDR_Milliseconds(&v.Max_delay_msec))
+	x.Marshal(x.Sprintf("%smultiplier_nom", name), XDR_uint32(&v.Multiplier_nom))
+	x.Marshal(x.Sprintf("%smultiplier_denom", name), XDR_uint32(&v.Multiplier_denom))
+}
+func XDR_RepairConfig(v *RepairConfig) *RepairConfig { return v }
 type XdrType_MissingTransactions = *MissingTransactions
 func (v *MissingTransactions) XdrPointer() interface{} { return v }
 func (MissingTransactions) XdrTypeName() string { return "MissingTransactions" }
