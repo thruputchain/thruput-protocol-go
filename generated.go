@@ -989,7 +989,7 @@ type MultiplexMessage struct {
 type BlockHash = SHA256Hash
 
 type Nomination struct {
-	Proposer ValidatorID
+	Proposer ValidatorPublicInfo
 	Block_height BlockHeight
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
@@ -11687,7 +11687,7 @@ func (v *Nomination) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
+	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
