@@ -1286,7 +1286,6 @@ const (
 type CoordCard struct {
 	Protocol Protocol
 	Address_for_sched ServerAddress
-	Current_block_id BlockID
 }
 
 type SchedulerNominationOutcome int32
@@ -1323,6 +1322,8 @@ type SchedulerValidationResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   SchedulerValidationOK:
 	//      Db_tip() *DbTip
+	//   SchedulerValidationMissingTxs:
+	//      Missing_tx_hashes() *[]SignedTransactionHash
 	//   default:
 	//      void
 	Outcome SchedulerValidationOutcome
@@ -1333,11 +1334,10 @@ type SchedulerCoord1 interface {
 	Schedulercoord_null(context.Context, ) error
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
 	Schedulercoord_submit_unvetted(context.Context, SignedTransactionBatch) error
-	Schedulercoord_submit_vetted(context.Context, ValidatorID, SignedTransactionBatch) error
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
+	Schedulercoord_commit_block(context.Context, BlockID) error
 	Schedcoord_get_tip(context.Context, ) (DbTipResult, error)
-	Schedcoord_load_genesis_block(context.Context, GenesisBlock) (DbSchedResult, error)
 }
 
 // ShardCard uniquely describes a database shard instance and its initial
@@ -1352,8 +1352,21 @@ type ShardCard struct {
 	Address_for_sched ServerAddress
 }
 
+type Delta struct {
+	Address ContractAddress
+	Hog_delta Int128_xdr
+}
+
+type HogsTransferred struct {
+	// The height of the block in which these transfers occurred. The scheduler
+	// uses this height to update average hog ages.
+	Block BlockHeight
+	Deltas []Delta
+}
+
 type SchedDb1 interface {
 	Scheddb_intro_shard(context.Context, ShardCard) error
+	Scheddb_hogs_transferred(context.Context, HogsTransferred) error
 }
 
 // Uniquely describes an event server instance.
@@ -13082,7 +13095,6 @@ func (v *CoordCard) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sprotocol", name), XDR_Protocol(&v.Protocol))
 	x.Marshal(x.Sprintf("%saddress_for_sched", name), XDR_ServerAddress(&v.Address_for_sched))
-	x.Marshal(x.Sprintf("%scurrent_block_id", name), XDR_BlockID(&v.Current_block_id))
 }
 func XDR_CoordCard(v *CoordCard) *CoordCard { return v }
 var _XdrNames_SchedulerNominationOutcome = map[int32]string{
@@ -13268,6 +13280,21 @@ func (u *SchedulerValidationResult) Db_tip() *DbTip {
 		return nil
 	}
 }
+func (u *SchedulerValidationResult) Missing_tx_hashes() *[]SignedTransactionHash {
+	switch u.Outcome {
+	case SchedulerValidationMissingTxs:
+		if v, ok := u._u.(*[]SignedTransactionHash); ok {
+			return v
+		} else {
+			var zero []SignedTransactionHash
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("SchedulerValidationResult.Missing_tx_hashes accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
 func (u SchedulerValidationResult) XdrValid() bool {
 	return true
 }
@@ -13281,6 +13308,8 @@ func (u *SchedulerValidationResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case SchedulerValidationOK:
 		return XDR_DbTip(u.Db_tip())
+	case SchedulerValidationMissingTxs:
+		return (*_XdrVec_unbounded_SignedTransactionHash)(u.Missing_tx_hashes())
 	default:
 		return nil
 	}
@@ -13289,6 +13318,8 @@ func (u *SchedulerValidationResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case SchedulerValidationOK:
 		return "Db_tip"
+	case SchedulerValidationMissingTxs:
+		return "Missing_tx_hashes"
 	default:
 		return ""
 	}
@@ -13306,6 +13337,9 @@ func (u *SchedulerValidationResult) XdrRecurse(x XDR, name string) {
 	switch u.Outcome {
 	case SchedulerValidationOK:
 		x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(u.Db_tip()))
+		return
+	case SchedulerValidationMissingTxs:
+		x.Marshal(x.Sprintf("%smissing_tx_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(u.Missing_tx_hashes()))
 		return
 	default:
 		return
@@ -13411,7 +13445,7 @@ type xdrProc_Schedulercoord_submit_unvetted struct {
 }
 func (xdrProc_Schedulercoord_submit_unvetted) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_submit_unvetted) Vers() uint32 { return 1 }
-func (xdrProc_Schedulercoord_submit_unvetted) Proc() uint32 { return 10 }
+func (xdrProc_Schedulercoord_submit_unvetted) Proc() uint32 { return 2 }
 func (xdrProc_Schedulercoord_submit_unvetted) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedulercoord_submit_unvetted) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedulercoord_submit_unvetted) ProcName() string { return "schedulercoord_submit_unvetted" }
@@ -13450,78 +13484,13 @@ func (p *xdrSrvProc_Schedulercoord_submit_unvetted) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_unvetted{} // XXX
 
-type xdrProcArg_Schedulercoord_submit_vetted struct {
-	a1 *ValidatorID
-	a2 *SignedTransactionBatch
-}
-func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrPointer() interface{} { return v }
-func (xdrProcArg_Schedulercoord_submit_vetted) XdrTypeName() string { return "xdrProcArg_Schedulercoord_submit_vetted" }
-func (v xdrProcArg_Schedulercoord_submit_vetted) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(ValidatorID) }
-	XDR_ValidatorID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(SignedTransactionBatch) }
-	XDR_SignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Schedulercoord_submit_vetted(v *xdrProcArg_Schedulercoord_submit_vetted) *xdrProcArg_Schedulercoord_submit_vetted { return v }
-var _ XdrType = &xdrProcArg_Schedulercoord_submit_vetted{} // XXX
-
-type xdrProc_Schedulercoord_submit_vetted struct {
-	Arg *xdrProcArg_Schedulercoord_submit_vetted
-	Res *XdrVoid
-}
-func (xdrProc_Schedulercoord_submit_vetted) Prog() uint32 { return 1986466065 }
-func (xdrProc_Schedulercoord_submit_vetted) Vers() uint32 { return 1 }
-func (xdrProc_Schedulercoord_submit_vetted) Proc() uint32 { return 20 }
-func (xdrProc_Schedulercoord_submit_vetted) ProgName() string { return "SchedulerCoord" }
-func (xdrProc_Schedulercoord_submit_vetted) VersName() string { return "SchedulerCoord1" }
-func (xdrProc_Schedulercoord_submit_vetted) ProcName() string { return "schedulercoord_submit_vetted" }
-func (p *xdrProc_Schedulercoord_submit_vetted) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Schedulercoord_submit_vetted)
-	}
-	return XDR_xdrProcArg_Schedulercoord_submit_vetted(p.Arg)
-}
-func (p *xdrProc_Schedulercoord_submit_vetted) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Res)
-}
-var _ XdrProc = &xdrProc_Schedulercoord_submit_vetted{} // XXX
-
-type xdrSrvProc_Schedulercoord_submit_vetted struct {
-	xdrProc_Schedulercoord_submit_vetted
-	Srv SchedulerCoord1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Schedulercoord_submit_vetted) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SchedulerCoord1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Schedulercoord_submit_vetted) Do() {
-	err := p.Srv.Schedulercoord_submit_vetted(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_vetted{} // XXX
-
 type xdrProc_Schedulercoord_nominate struct {
 	Arg *DbTip
 	Res *SchedulerNominationResult
 }
 func (xdrProc_Schedulercoord_nominate) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_nominate) Vers() uint32 { return 1 }
-func (xdrProc_Schedulercoord_nominate) Proc() uint32 { return 30 }
+func (xdrProc_Schedulercoord_nominate) Proc() uint32 { return 3 }
 func (xdrProc_Schedulercoord_nominate) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedulercoord_nominate) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedulercoord_nominate) ProcName() string { return "schedulercoord_nominate" }
@@ -13588,7 +13557,7 @@ type xdrProc_Schedulercoord_validate struct {
 }
 func (xdrProc_Schedulercoord_validate) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_validate) Vers() uint32 { return 1 }
-func (xdrProc_Schedulercoord_validate) Proc() uint32 { return 40 }
+func (xdrProc_Schedulercoord_validate) Proc() uint32 { return 4 }
 func (xdrProc_Schedulercoord_validate) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedulercoord_validate) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedulercoord_validate) ProcName() string { return "schedulercoord_validate" }
@@ -13629,13 +13598,58 @@ func (p *xdrSrvProc_Schedulercoord_validate) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_validate{} // XXX
 
+type xdrProc_Schedulercoord_commit_block struct {
+	Arg *BlockID
+	Res *XdrVoid
+}
+func (xdrProc_Schedulercoord_commit_block) Prog() uint32 { return 1986466065 }
+func (xdrProc_Schedulercoord_commit_block) Vers() uint32 { return 1 }
+func (xdrProc_Schedulercoord_commit_block) Proc() uint32 { return 5 }
+func (xdrProc_Schedulercoord_commit_block) ProgName() string { return "SchedulerCoord" }
+func (xdrProc_Schedulercoord_commit_block) VersName() string { return "SchedulerCoord1" }
+func (xdrProc_Schedulercoord_commit_block) ProcName() string { return "schedulercoord_commit_block" }
+func (p *xdrProc_Schedulercoord_commit_block) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(BlockID)
+	}
+	return XDR_BlockID(p.Arg)
+}
+func (p *xdrProc_Schedulercoord_commit_block) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedulercoord_commit_block{} // XXX
+
+type xdrSrvProc_Schedulercoord_commit_block struct {
+	xdrProc_Schedulercoord_commit_block
+	Srv SchedulerCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedulercoord_commit_block) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedulerCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedulercoord_commit_block) Do() {
+	err := p.Srv.Schedulercoord_commit_block(p.Ctx, *p.Arg)
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_commit_block{} // XXX
+
 type xdrProc_Schedcoord_get_tip struct {
 	Arg *XdrVoid
 	Res *DbTipResult
 }
 func (xdrProc_Schedcoord_get_tip) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedcoord_get_tip) Vers() uint32 { return 1 }
-func (xdrProc_Schedcoord_get_tip) Proc() uint32 { return 50 }
+func (xdrProc_Schedcoord_get_tip) Proc() uint32 { return 6 }
 func (xdrProc_Schedcoord_get_tip) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedcoord_get_tip) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedcoord_get_tip) ProcName() string { return "schedcoord_get_tip" }
@@ -13676,53 +13690,6 @@ func (p *xdrSrvProc_Schedcoord_get_tip) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedcoord_get_tip{} // XXX
 
-type xdrProc_Schedcoord_load_genesis_block struct {
-	Arg *GenesisBlock
-	Res *DbSchedResult
-}
-func (xdrProc_Schedcoord_load_genesis_block) Prog() uint32 { return 1986466065 }
-func (xdrProc_Schedcoord_load_genesis_block) Vers() uint32 { return 1 }
-func (xdrProc_Schedcoord_load_genesis_block) Proc() uint32 { return 60 }
-func (xdrProc_Schedcoord_load_genesis_block) ProgName() string { return "SchedulerCoord" }
-func (xdrProc_Schedcoord_load_genesis_block) VersName() string { return "SchedulerCoord1" }
-func (xdrProc_Schedcoord_load_genesis_block) ProcName() string { return "schedcoord_load_genesis_block" }
-func (p *xdrProc_Schedcoord_load_genesis_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(GenesisBlock)
-	}
-	return XDR_GenesisBlock(p.Arg)
-}
-func (p *xdrProc_Schedcoord_load_genesis_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(DbSchedResult)
-	}
-	return XDR_DbSchedResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Schedcoord_load_genesis_block{} // XXX
-
-type xdrSrvProc_Schedcoord_load_genesis_block struct {
-	xdrProc_Schedcoord_load_genesis_block
-	Srv SchedulerCoord1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Schedcoord_load_genesis_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SchedulerCoord1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Schedcoord_load_genesis_block) Do() {
-	r, err := p.Srv.Schedcoord_load_genesis_block(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Schedcoord_load_genesis_block{} // XXX
-
 func init() {
 	XdrCatalog[1986466065<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -13730,18 +13697,16 @@ func init() {
 			return &xdrProc_Schedulercoord_null{}
 		case 1:
 			return &xdrProc_Schedulercoord_intro_coord{}
-		case 10:
+		case 2:
 			return &xdrProc_Schedulercoord_submit_unvetted{}
-		case 20:
-			return &xdrProc_Schedulercoord_submit_vetted{}
-		case 30:
+		case 3:
 			return &xdrProc_Schedulercoord_nominate{}
-		case 40:
+		case 4:
 			return &xdrProc_Schedulercoord_validate{}
-		case 50:
+		case 5:
+			return &xdrProc_Schedulercoord_commit_block{}
+		case 6:
 			return &xdrProc_Schedcoord_get_tip{}
-		case 60:
-			return &xdrProc_Schedcoord_load_genesis_block{}
 		}
 		return nil
 	}
@@ -13760,18 +13725,16 @@ func (s SchedulerCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedulercoord_null{ Srv: s.Srv }
 	case 1:  // schedulercoord_intro_coord
 		return &xdrSrvProc_Schedulercoord_intro_coord{ Srv: s.Srv }
-	case 10:  // schedulercoord_submit_unvetted
+	case 2:  // schedulercoord_submit_unvetted
 		return &xdrSrvProc_Schedulercoord_submit_unvetted{ Srv: s.Srv }
-	case 20:  // schedulercoord_submit_vetted
-		return &xdrSrvProc_Schedulercoord_submit_vetted{ Srv: s.Srv }
-	case 30:  // schedulercoord_nominate
+	case 3:  // schedulercoord_nominate
 		return &xdrSrvProc_Schedulercoord_nominate{ Srv: s.Srv }
-	case 40:  // schedulercoord_validate
+	case 4:  // schedulercoord_validate
 		return &xdrSrvProc_Schedulercoord_validate{ Srv: s.Srv }
-	case 50:  // schedcoord_get_tip
+	case 5:  // schedulercoord_commit_block
+		return &xdrSrvProc_Schedulercoord_commit_block{ Srv: s.Srv }
+	case 6:  // schedcoord_get_tip
 		return &xdrSrvProc_Schedcoord_get_tip{ Srv: s.Srv }
-	case 60:  // schedcoord_load_genesis_block
-		return &xdrSrvProc_Schedcoord_load_genesis_block{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -13810,16 +13773,6 @@ func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Conte
 	}
 	return nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context, a1 ValidatorID, a2 SignedTransactionBatch) error {
-	var proc xdrProc_Schedulercoord_submit_vetted
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
-	}
-	return nil
-}
 func (c SchedulerCoord1_Client) Schedulercoord_nominate(ctx context.Context, a1 DbTip) (r SchedulerNominationResult, _ error) {
 	var proc xdrProc_Schedulercoord_nominate
 	proc.Arg = &a1
@@ -13838,16 +13791,16 @@ func (c SchedulerCoord1_Client) Schedulercoord_validate(ctx context.Context, a1 
 	}
 	return *proc.Res, nil
 }
+func (c SchedulerCoord1_Client) Schedulercoord_commit_block(ctx context.Context, a1 BlockID) error {
+	var proc xdrProc_Schedulercoord_commit_block
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
+}
 func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
 	var proc xdrProc_Schedcoord_get_tip
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c SchedulerCoord1_Client) Schedcoord_load_genesis_block(ctx context.Context, a1 GenesisBlock) (r DbSchedResult, _ error) {
-	var proc xdrProc_Schedcoord_load_genesis_block
-	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -13869,6 +13822,87 @@ func (v *ShardCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%saddress_for_sched", name), XDR_ServerAddress(&v.Address_for_sched))
 }
 func XDR_ShardCard(v *ShardCard) *ShardCard { return v }
+type XdrType_Delta = *Delta
+func (v *Delta) XdrPointer() interface{} { return v }
+func (Delta) XdrTypeName() string { return "Delta" }
+func (v Delta) XdrValue() interface{} { return v }
+func (v *Delta) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Delta) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%saddress", name), XDR_ContractAddress(&v.Address))
+	x.Marshal(x.Sprintf("%shog_delta", name), XDR_Int128_xdr(&v.Hog_delta))
+}
+func XDR_Delta(v *Delta) *Delta { return v }
+type _XdrVec_unbounded_Delta []Delta
+func (_XdrVec_unbounded_Delta) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_Delta) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_Delta length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_Delta length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_Delta) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_Delta) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]Delta, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_Delta) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_Delta(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_Delta) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_Delta) XdrTypeName() string { return "Delta<>" }
+func (v *_XdrVec_unbounded_Delta) XdrPointer() interface{} { return (*[]Delta)(v) }
+func (v _XdrVec_unbounded_Delta) XdrValue() interface{} { return ([]Delta)(v) }
+func (v *_XdrVec_unbounded_Delta) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_HogsTransferred = *HogsTransferred
+func (v *HogsTransferred) XdrPointer() interface{} { return v }
+func (HogsTransferred) XdrTypeName() string { return "HogsTransferred" }
+func (v HogsTransferred) XdrValue() interface{} { return v }
+func (v *HogsTransferred) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *HogsTransferred) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sblock", name), XDR_BlockHeight(&v.Block))
+	x.Marshal(x.Sprintf("%sdeltas", name), (*_XdrVec_unbounded_Delta)(&v.Deltas))
+}
+func XDR_HogsTransferred(v *HogsTransferred) *HogsTransferred { return v }
 
 type xdrProc_Scheddb_intro_shard struct {
 	Arg *ShardCard
@@ -13915,11 +13949,58 @@ func (p *xdrSrvProc_Scheddb_intro_shard) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Scheddb_intro_shard{} // XXX
 
+type xdrProc_Scheddb_hogs_transferred struct {
+	Arg *HogsTransferred
+	Res *XdrVoid
+}
+func (xdrProc_Scheddb_hogs_transferred) Prog() uint32 { return 2129107352 }
+func (xdrProc_Scheddb_hogs_transferred) Vers() uint32 { return 1 }
+func (xdrProc_Scheddb_hogs_transferred) Proc() uint32 { return 2 }
+func (xdrProc_Scheddb_hogs_transferred) ProgName() string { return "SchedDb" }
+func (xdrProc_Scheddb_hogs_transferred) VersName() string { return "SchedDb1" }
+func (xdrProc_Scheddb_hogs_transferred) ProcName() string { return "scheddb_hogs_transferred" }
+func (p *xdrProc_Scheddb_hogs_transferred) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(HogsTransferred)
+	}
+	return XDR_HogsTransferred(p.Arg)
+}
+func (p *xdrProc_Scheddb_hogs_transferred) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Scheddb_hogs_transferred{} // XXX
+
+type xdrSrvProc_Scheddb_hogs_transferred struct {
+	xdrProc_Scheddb_hogs_transferred
+	Srv SchedDb1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Scheddb_hogs_transferred) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedDb1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Scheddb_hogs_transferred) Do() {
+	err := p.Srv.Scheddb_hogs_transferred(p.Ctx, *p.Arg)
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Scheddb_hogs_transferred{} // XXX
+
 func init() {
 	XdrCatalog[2129107352<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 1:
 			return &xdrProc_Scheddb_intro_shard{}
+		case 2:
+			return &xdrProc_Scheddb_hogs_transferred{}
 		}
 		return nil
 	}
@@ -13936,6 +14017,8 @@ func (s SchedDb1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 1:  // scheddb_intro_shard
 		return &xdrSrvProc_Scheddb_intro_shard{ Srv: s.Srv }
+	case 2:  // scheddb_hogs_transferred
+		return &xdrSrvProc_Scheddb_hogs_transferred{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -13953,6 +14036,14 @@ func (c SchedDb1_Client) WithContext(ctx context.Context) SchedDb1 {
 }
 func (c SchedDb1_Client) Scheddb_intro_shard(ctx context.Context, a1 ShardCard) error {
 	var proc xdrProc_Scheddb_intro_shard
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
+}
+func (c SchedDb1_Client) Scheddb_hogs_transferred(ctx context.Context, a1 HogsTransferred) error {
+	var proc xdrProc_Scheddb_hogs_transferred
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
