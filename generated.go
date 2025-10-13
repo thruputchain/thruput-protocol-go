@@ -67,7 +67,8 @@ type CatchupBlock struct {
 	Block_height BlockHeight
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
-	Proposed_transactions []ProposedTransaction
+	Signed_transactions []SignedTransaction
+	Nominated_transactions []NominatedTransaction
 }
 
 type CatchupSpan struct {
@@ -893,7 +894,7 @@ type LoadgenExtensionResult struct {
 
 type LoadgenInterfaceV1 interface {
 	Generate_experiment(context.Context, ExperimentConfig) (LoadgenResult, error)
-	Extend_experiment(context.Context, LoadgenContextID, uint64) (LoadgenExtensionResult, error)
+	Extend_experiment(context.Context, LoadgenContextID, uint64, BlockHeight) (LoadgenExtensionResult, error)
 }
 
 type MultiplexMessageType int32
@@ -1566,6 +1567,7 @@ type StorageCostModelXdr struct {
 	Base_contract_deployment_cost Int128_xdr
 	Contract_deployment_cost_per_byte Int128_xdr
 	Auth_per_key_cost Int128_xdr
+	Replay_cache_cost_per_entry Int128_xdr
 }
 
 type StorageItemRPCFlags int32
@@ -1586,6 +1588,8 @@ const (
 	KItemTypeReplayCache StorageItemType = 3
 	KItemTypeAuthData StorageItemType = 4
 	KItemTypeDeployedContractHash StorageItemType = 5
+	// TODO(stutsman) use ReplayCache above instead once storage_item stuff is updated.
+	KItemTypeReplayCacheData StorageItemType = 6
 	KItemTypeDeleted StorageItemType = -1
 )
 
@@ -1595,6 +1599,11 @@ type Bytestring = []byte
 
 type ReplayCacheMetadata struct {
 	Minimum_threshold uint64
+}
+
+// TODO(stutsman) use name ReplayCache instead and update storage_item instead?
+type ReplayCacheData struct {
+	Uniquifiers []Uniquifier
 }
 
 type StorageItem struct {
@@ -1607,6 +1616,8 @@ type StorageItem struct {
 	//      void
 	//   KItemTypeReplayCache:
 	//      Replay_cache_metadata() *ReplayCacheMetadata
+	//   KItemTypeReplayCacheData:
+	//      Replay_cache_data() *ReplayCacheData
 	//   KItemTypeAuthData:
 	//      Auth_data() *AccountAuthData
 	//   KItemTypeDeployedContractHash:
@@ -1625,6 +1636,7 @@ const (
 	KDeltaTypeNonnegativeIntAdd StorageDeltaType = 5
 	KDeltaTypeAuthDataChange StorageDeltaType = 6
 	KDeltaTypeDeployContract StorageDeltaType = 7
+	KDeltaTypeConsumeUniquifier StorageDeltaType = 8
 )
 
 type AuthDataChangeSigner struct {
@@ -1641,9 +1653,14 @@ type NonnegativeInt128SetAddArgs struct {
 	Add_value Int128_xdr
 }
 
+// TODO(stutsman) remove once db_interface is unified with new hogdb changes?
 type ReplayCacheModifyArgs struct {
 	Minimum_threshold uint64
 	Nonces []ReplayNonce
+}
+
+type ConsumeUniquifierArgs struct {
+	Uniquifier Uniquifier
 }
 
 type StorageDelta struct {
@@ -1664,6 +1681,8 @@ type StorageDelta struct {
 	//      Auth_data_change() *AuthDataChangeArgs
 	//   KDeltaTypeDeployContract:
 	//      Deployed_contract_hash() *DeployedContractHash
+	//   KDeltaTypeConsumeUniquifier:
+	//      Consume_uniquifier_args() *ConsumeUniquifierArgs
 	Type StorageDeltaType
 	_u interface{}
 }
@@ -1870,9 +1889,6 @@ type NondeterministicProposalData struct {
 
 // A signed transaction, with the nondeterministic data from the proposer
 // attached to it.
-// TODO(petar): Who is the signer? The originator of the transaction or the
-// validator proposing it?
-// TODO(petar): Should the signature capture the non-deterministic data?
 type ProposedTransaction struct {
 	Signed_tx SignedTransaction
 	Nondeterministic_proposal_data NondeterministicProposalData
@@ -1979,6 +1995,7 @@ const (
 	KStorageKeyTypeFreeNativeTokenBalance StorageKeyType = 1
 	KStorageKeyTypeAccountAuthData StorageKeyType = 2
 	KStorageKeyTypeAddressMetadata StorageKeyType = 3
+	KStorageKeyTypeReplayCache StorageKeyType = 4
 )
 
 type StorageKey struct {
@@ -1990,6 +2007,8 @@ type StorageKey struct {
 	//   KStorageKeyTypeAccountAuthData:
 	//      void
 	//   KStorageKeyTypeAddressMetadata:
+	//      void
+	//   KStorageKeyTypeReplayCache:
 	//      void
 	Key_type StorageKeyType
 	_u interface{}
@@ -2380,20 +2399,20 @@ func (v *SubmittedTransactions) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Transactions))
 }
 func XDR_SubmittedTransactions(v *SubmittedTransactions) *SubmittedTransactions { return v }
-type _XdrVec_unbounded_ProposedTransaction []ProposedTransaction
-func (_XdrVec_unbounded_ProposedTransaction) XdrBound() uint32 {
+type _XdrVec_unbounded_NominatedTransaction []NominatedTransaction
+func (_XdrVec_unbounded_NominatedTransaction) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_ProposedTransaction) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_NominatedTransaction) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_ProposedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_ProposedTransaction) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_NominatedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_NominatedTransaction) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -2410,31 +2429,31 @@ func (v *_XdrVec_unbounded_ProposedTransaction) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]ProposedTransaction, int(length), newcap)
+	nv := make([]NominatedTransaction, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_ProposedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_NominatedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_ProposedTransaction) XdrTypeName() string { return "ProposedTransaction<>" }
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrPointer() interface{} { return (*[]ProposedTransaction)(v) }
-func (v _XdrVec_unbounded_ProposedTransaction) XdrValue() interface{} { return ([]ProposedTransaction)(v) }
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_XdrVec_unbounded_NominatedTransaction) XdrTypeName() string { return "NominatedTransaction<>" }
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrPointer() interface{} { return (*[]NominatedTransaction)(v) }
+func (v _XdrVec_unbounded_NominatedTransaction) XdrValue() interface{} { return ([]NominatedTransaction)(v) }
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_CatchupBlock = *CatchupBlock
 func (v *CatchupBlock) XdrPointer() interface{} { return v }
 func (CatchupBlock) XdrTypeName() string { return "CatchupBlock" }
@@ -2447,7 +2466,8 @@ func (v *CatchupBlock) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
-	x.Marshal(x.Sprintf("%sproposed_transactions", name), (*_XdrVec_unbounded_ProposedTransaction)(&v.Proposed_transactions))
+	x.Marshal(x.Sprintf("%ssigned_transactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Signed_transactions))
+	x.Marshal(x.Sprintf("%snominated_transactions", name), (*_XdrVec_unbounded_NominatedTransaction)(&v.Nominated_transactions))
 }
 func XDR_CatchupBlock(v *CatchupBlock) *CatchupBlock { return v }
 type XdrType_CatchupSpan = *CatchupSpan
@@ -8289,6 +8309,61 @@ func XDR_SignedTransactionBatch(v *SignedTransactionBatch) XdrType_SignedTransac
 }
 func (XdrType_SignedTransactionBatch) XdrTypeName() string { return "SignedTransactionBatch" }
 func (v XdrType_SignedTransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SignedTransaction }
+type _XdrVec_unbounded_ProposedTransaction []ProposedTransaction
+func (_XdrVec_unbounded_ProposedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_ProposedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_ProposedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_ProposedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]ProposedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_ProposedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_ProposedTransaction) XdrTypeName() string { return "ProposedTransaction<>" }
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrPointer() interface{} { return (*[]ProposedTransaction)(v) }
+func (v _XdrVec_unbounded_ProposedTransaction) XdrValue() interface{} { return ([]ProposedTransaction)(v) }
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_ProposedTransactionBatch struct {
 	*_XdrVec_unbounded_ProposedTransaction
 }
@@ -10673,6 +10748,7 @@ var _ XdrSrvProc = &xdrSrvProc_Generate_experiment{} // XXX
 type xdrProcArg_Extend_experiment struct {
 	a1 *LoadgenContextID
 	a2 *uint64
+	a3 *BlockHeight
 }
 func (v *xdrProcArg_Extend_experiment) XdrPointer() interface{} { return v }
 func (xdrProcArg_Extend_experiment) XdrTypeName() string { return "xdrProcArg_Extend_experiment" }
@@ -10686,6 +10762,8 @@ func (v *xdrProcArg_Extend_experiment) XdrRecurse(x XDR, name string) {
 	XDR_LoadgenContextID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(uint64) }
 	XDR_uint64(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(BlockHeight) }
+	XDR_BlockHeight(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Extend_experiment(v *xdrProcArg_Extend_experiment) *xdrProcArg_Extend_experiment { return v }
 var _ XdrType = &xdrProcArg_Extend_experiment{} // XXX
@@ -10728,7 +10806,7 @@ func (p *xdrSrvProc_Extend_experiment) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Extend_experiment) Do() {
-	r, err := p.Srv.Extend_experiment(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Extend_experiment(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
 	p.Res = &r
 
 	if err != nil {
@@ -10785,11 +10863,12 @@ func (c LoadgenInterfaceV1_Client) Generate_experiment(ctx context.Context, a1 E
 	}
 	return *proc.Res, nil
 }
-func (c LoadgenInterfaceV1_Client) Extend_experiment(ctx context.Context, a1 LoadgenContextID, a2 uint64) (r LoadgenExtensionResult, _ error) {
+func (c LoadgenInterfaceV1_Client) Extend_experiment(ctx context.Context, a1 LoadgenContextID, a2 uint64, a3 BlockHeight) (r LoadgenExtensionResult, _ error) {
 	var proc xdrProc_Extend_experiment
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
+	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -10986,61 +11065,6 @@ func (_XdrVec_unbounded_SignedTransactionHash) XdrTypeName() string { return "Si
 func (v *_XdrVec_unbounded_SignedTransactionHash) XdrPointer() interface{} { return (*[]SignedTransactionHash)(v) }
 func (v _XdrVec_unbounded_SignedTransactionHash) XdrValue() interface{} { return ([]SignedTransactionHash)(v) }
 func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type _XdrVec_unbounded_NominatedTransaction []NominatedTransaction
-func (_XdrVec_unbounded_NominatedTransaction) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_NominatedTransaction) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_NominatedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_NominatedTransaction) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]NominatedTransaction, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_NominatedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_NominatedTransaction) XdrTypeName() string { return "NominatedTransaction<>" }
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrPointer() interface{} { return (*[]NominatedTransaction)(v) }
-func (v _XdrVec_unbounded_NominatedTransaction) XdrValue() interface{} { return ([]NominatedTransaction)(v) }
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_Nomination = *Nomination
 func (v *Nomination) XdrPointer() interface{} { return v }
 func (Nomination) XdrTypeName() string { return "Nomination" }
@@ -16665,6 +16689,7 @@ func (v *StorageCostModelXdr) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sbase_contract_deployment_cost", name), XDR_Int128_xdr(&v.Base_contract_deployment_cost))
 	x.Marshal(x.Sprintf("%scontract_deployment_cost_per_byte", name), XDR_Int128_xdr(&v.Contract_deployment_cost_per_byte))
 	x.Marshal(x.Sprintf("%sauth_per_key_cost", name), XDR_Int128_xdr(&v.Auth_per_key_cost))
+	x.Marshal(x.Sprintf("%sreplay_cache_cost_per_entry", name), XDR_Int128_xdr(&v.Replay_cache_cost_per_entry))
 }
 func XDR_StorageCostModelXdr(v *StorageCostModelXdr) *StorageCostModelXdr { return v }
 var _XdrNames_StorageItemRPCFlags = map[int32]string{
@@ -16724,6 +16749,7 @@ var _XdrNames_StorageItemType = map[int32]string{
 	int32(KItemTypeReplayCache): "kItemTypeReplayCache",
 	int32(KItemTypeAuthData): "kItemTypeAuthData",
 	int32(KItemTypeDeployedContractHash): "kItemTypeDeployedContractHash",
+	int32(KItemTypeReplayCacheData): "kItemTypeReplayCacheData",
 	int32(KItemTypeDeleted): "kItemTypeDeleted",
 }
 var _XdrValues_StorageItemType = map[string]int32{
@@ -16733,6 +16759,7 @@ var _XdrValues_StorageItemType = map[string]int32{
 	"kItemTypeReplayCache": int32(KItemTypeReplayCache),
 	"kItemTypeAuthData": int32(KItemTypeAuthData),
 	"kItemTypeDeployedContractHash": int32(KItemTypeDeployedContractHash),
+	"kItemTypeReplayCacheData": int32(KItemTypeReplayCacheData),
 	"kItemTypeDeleted": int32(KItemTypeDeleted),
 }
 func (StorageItemType) XdrEnumNames() map[int32]string {
@@ -16789,11 +16816,79 @@ func (v *ReplayCacheMetadata) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sminimum_threshold", name), XDR_uint64(&v.Minimum_threshold))
 }
 func XDR_ReplayCacheMetadata(v *ReplayCacheMetadata) *ReplayCacheMetadata { return v }
+type _XdrVec_unbounded_Uniquifier []Uniquifier
+func (_XdrVec_unbounded_Uniquifier) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_Uniquifier) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_Uniquifier length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_Uniquifier length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_Uniquifier) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_Uniquifier) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]Uniquifier, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_Uniquifier) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_Uniquifier(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_Uniquifier) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_Uniquifier) XdrTypeName() string { return "Uniquifier<>" }
+func (v *_XdrVec_unbounded_Uniquifier) XdrPointer() interface{} { return (*[]Uniquifier)(v) }
+func (v _XdrVec_unbounded_Uniquifier) XdrValue() interface{} { return ([]Uniquifier)(v) }
+func (v *_XdrVec_unbounded_Uniquifier) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ReplayCacheData = *ReplayCacheData
+func (v *ReplayCacheData) XdrPointer() interface{} { return v }
+func (ReplayCacheData) XdrTypeName() string { return "ReplayCacheData" }
+func (v ReplayCacheData) XdrValue() interface{} { return v }
+func (v *ReplayCacheData) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ReplayCacheData) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%suniquifiers", name), (*_XdrVec_unbounded_Uniquifier)(&v.Uniquifiers))
+}
+func XDR_ReplayCacheData(v *ReplayCacheData) *ReplayCacheData { return v }
 var _XdrTags_StorageItem = map[int32]bool{
 	XdrToI32(KItemTypeBytestring): true,
 	XdrToI32(KItemTypeNonnegativeInt): true,
 	XdrToI32(KItemTypeRetrocausalQueue): true,
 	XdrToI32(KItemTypeReplayCache): true,
+	XdrToI32(KItemTypeReplayCacheData): true,
 	XdrToI32(KItemTypeAuthData): true,
 	XdrToI32(KItemTypeDeployedContractHash): true,
 }
@@ -16845,6 +16940,21 @@ func (u *StorageItem) Replay_cache_metadata() *ReplayCacheMetadata {
 		return nil
 	}
 }
+func (u *StorageItem) Replay_cache_data() *ReplayCacheData {
+	switch u.Type {
+	case KItemTypeReplayCacheData:
+		if v, ok := u._u.(*ReplayCacheData); ok {
+			return v
+		} else {
+			var zero ReplayCacheData
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageItem.Replay_cache_data accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u *StorageItem) Auth_data() *AccountAuthData {
 	switch u.Type {
 	case KItemTypeAuthData:
@@ -16877,7 +16987,7 @@ func (u *StorageItem) Deployed_contract_hash() *DeployedContractHash {
 }
 func (u StorageItem) XdrValid() bool {
 	switch u.Type {
-	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue,KItemTypeReplayCache,KItemTypeAuthData,KItemTypeDeployedContractHash:
+	case KItemTypeBytestring,KItemTypeNonnegativeInt,KItemTypeRetrocausalQueue,KItemTypeReplayCache,KItemTypeReplayCacheData,KItemTypeAuthData,KItemTypeDeployedContractHash:
 		return true
 	}
 	return false
@@ -16898,6 +17008,8 @@ func (u *StorageItem) XdrUnionBody() XdrType {
 		return nil
 	case KItemTypeReplayCache:
 		return XDR_ReplayCacheMetadata(u.Replay_cache_metadata())
+	case KItemTypeReplayCacheData:
+		return XDR_ReplayCacheData(u.Replay_cache_data())
 	case KItemTypeAuthData:
 		return XDR_AccountAuthData(u.Auth_data())
 	case KItemTypeDeployedContractHash:
@@ -16915,6 +17027,8 @@ func (u *StorageItem) XdrUnionBodyName() string {
 		return ""
 	case KItemTypeReplayCache:
 		return "Replay_cache_metadata"
+	case KItemTypeReplayCacheData:
+		return "Replay_cache_data"
 	case KItemTypeAuthData:
 		return "Auth_data"
 	case KItemTypeDeployedContractHash:
@@ -16944,6 +17058,9 @@ func (u *StorageItem) XdrRecurse(x XDR, name string) {
 	case KItemTypeReplayCache:
 		x.Marshal(x.Sprintf("%sreplay_cache_metadata", name), XDR_ReplayCacheMetadata(u.Replay_cache_metadata()))
 		return
+	case KItemTypeReplayCacheData:
+		x.Marshal(x.Sprintf("%sreplay_cache_data", name), XDR_ReplayCacheData(u.Replay_cache_data()))
+		return
 	case KItemTypeAuthData:
 		x.Marshal(x.Sprintf("%sauth_data", name), XDR_AccountAuthData(u.Auth_data()))
 		return
@@ -16963,6 +17080,7 @@ var _XdrNames_StorageDeltaType = map[int32]string{
 	int32(KDeltaTypeNonnegativeIntAdd): "kDeltaTypeNonnegativeIntAdd",
 	int32(KDeltaTypeAuthDataChange): "kDeltaTypeAuthDataChange",
 	int32(KDeltaTypeDeployContract): "kDeltaTypeDeployContract",
+	int32(KDeltaTypeConsumeUniquifier): "kDeltaTypeConsumeUniquifier",
 }
 var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeBytestringSet": int32(KDeltaTypeBytestringSet),
@@ -16973,6 +17091,7 @@ var _XdrValues_StorageDeltaType = map[string]int32{
 	"kDeltaTypeNonnegativeIntAdd": int32(KDeltaTypeNonnegativeIntAdd),
 	"kDeltaTypeAuthDataChange": int32(KDeltaTypeAuthDataChange),
 	"kDeltaTypeDeployContract": int32(KDeltaTypeDeployContract),
+	"kDeltaTypeConsumeUniquifier": int32(KDeltaTypeConsumeUniquifier),
 }
 func (StorageDeltaType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageDeltaType
@@ -17169,6 +17288,18 @@ func (v *ReplayCacheModifyArgs) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snonces", name), (*_XdrVec_unbounded_ReplayNonce)(&v.Nonces))
 }
 func XDR_ReplayCacheModifyArgs(v *ReplayCacheModifyArgs) *ReplayCacheModifyArgs { return v }
+type XdrType_ConsumeUniquifierArgs = *ConsumeUniquifierArgs
+func (v *ConsumeUniquifierArgs) XdrPointer() interface{} { return v }
+func (ConsumeUniquifierArgs) XdrTypeName() string { return "ConsumeUniquifierArgs" }
+func (v ConsumeUniquifierArgs) XdrValue() interface{} { return v }
+func (v *ConsumeUniquifierArgs) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ConsumeUniquifierArgs) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%suniquifier", name), XDR_Uniquifier(&v.Uniquifier))
+}
+func XDR_ConsumeUniquifierArgs(v *ConsumeUniquifierArgs) *ConsumeUniquifierArgs { return v }
 var _XdrTags_StorageDelta = map[int32]bool{
 	XdrToI32(KDeltaTypeBytestringSet): true,
 	XdrToI32(KDeltaTypeNonnegativeIntSetAdd): true,
@@ -17178,6 +17309,7 @@ var _XdrTags_StorageDelta = map[int32]bool{
 	XdrToI32(KDeltaTypeReplayCacheModify): true,
 	XdrToI32(KDeltaTypeAuthDataChange): true,
 	XdrToI32(KDeltaTypeDeployContract): true,
+	XdrToI32(KDeltaTypeConsumeUniquifier): true,
 }
 func (_ StorageDelta) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageDelta
@@ -17287,9 +17419,24 @@ func (u *StorageDelta) Deployed_contract_hash() *DeployedContractHash {
 		return nil
 	}
 }
+func (u *StorageDelta) Consume_uniquifier_args() *ConsumeUniquifierArgs {
+	switch u.Type {
+	case KDeltaTypeConsumeUniquifier:
+		if v, ok := u._u.(*ConsumeUniquifierArgs); ok {
+			return v
+		} else {
+			var zero ConsumeUniquifierArgs
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("StorageDelta.Consume_uniquifier_args accessed when Type == %v", u.Type)
+		return nil
+	}
+}
 func (u StorageDelta) XdrValid() bool {
 	switch u.Type {
-	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify,KDeltaTypeAuthDataChange,KDeltaTypeDeployContract:
+	case KDeltaTypeBytestringSet,KDeltaTypeNonnegativeIntSetAdd,KDeltaTypeNonnegativeIntAdd,KDeltaTypeDelete,KDeltaTypeRetrocausalQueue,KDeltaTypeReplayCacheModify,KDeltaTypeAuthDataChange,KDeltaTypeDeployContract,KDeltaTypeConsumeUniquifier:
 		return true
 	}
 	return false
@@ -17318,6 +17465,8 @@ func (u *StorageDelta) XdrUnionBody() XdrType {
 		return XDR_AuthDataChangeArgs(u.Auth_data_change())
 	case KDeltaTypeDeployContract:
 		return XDR_DeployedContractHash(u.Deployed_contract_hash())
+	case KDeltaTypeConsumeUniquifier:
+		return XDR_ConsumeUniquifierArgs(u.Consume_uniquifier_args())
 	}
 	return nil
 }
@@ -17339,6 +17488,8 @@ func (u *StorageDelta) XdrUnionBodyName() string {
 		return "Auth_data_change"
 	case KDeltaTypeDeployContract:
 		return "Deployed_contract_hash"
+	case KDeltaTypeConsumeUniquifier:
+		return "Consume_uniquifier_args"
 	}
 	return ""
 }
@@ -17375,6 +17526,9 @@ func (u *StorageDelta) XdrRecurse(x XDR, name string) {
 		return
 	case KDeltaTypeDeployContract:
 		x.Marshal(x.Sprintf("%sdeployed_contract_hash", name), XDR_DeployedContractHash(u.Deployed_contract_hash()))
+		return
+	case KDeltaTypeConsumeUniquifier:
+		x.Marshal(x.Sprintf("%sconsume_uniquifier_args", name), XDR_ConsumeUniquifierArgs(u.Consume_uniquifier_args()))
 		return
 	}
 	XdrPanic("invalid Type (%v) in StorageDelta", u.Type)
@@ -19003,12 +19157,14 @@ var _XdrNames_StorageKeyType = map[int32]string{
 	int32(KStorageKeyTypeFreeNativeTokenBalance): "kStorageKeyTypeFreeNativeTokenBalance",
 	int32(KStorageKeyTypeAccountAuthData): "kStorageKeyTypeAccountAuthData",
 	int32(KStorageKeyTypeAddressMetadata): "kStorageKeyTypeAddressMetadata",
+	int32(KStorageKeyTypeReplayCache): "kStorageKeyTypeReplayCache",
 }
 var _XdrValues_StorageKeyType = map[string]int32{
 	"kStorageKeyTypeContractData": int32(KStorageKeyTypeContractData),
 	"kStorageKeyTypeFreeNativeTokenBalance": int32(KStorageKeyTypeFreeNativeTokenBalance),
 	"kStorageKeyTypeAccountAuthData": int32(KStorageKeyTypeAccountAuthData),
 	"kStorageKeyTypeAddressMetadata": int32(KStorageKeyTypeAddressMetadata),
+	"kStorageKeyTypeReplayCache": int32(KStorageKeyTypeReplayCache),
 }
 func (StorageKeyType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageKeyType
@@ -19049,6 +19205,7 @@ var _XdrTags_StorageKey = map[int32]bool{
 	XdrToI32(KStorageKeyTypeFreeNativeTokenBalance): true,
 	XdrToI32(KStorageKeyTypeAccountAuthData): true,
 	XdrToI32(KStorageKeyTypeAddressMetadata): true,
+	XdrToI32(KStorageKeyTypeReplayCache): true,
 }
 func (_ StorageKey) XdrValidTags() map[int32]bool {
 	return _XdrTags_StorageKey
@@ -19070,7 +19227,7 @@ func (u *StorageKey) Contract_data_key() *StorageKeyContractData {
 }
 func (u StorageKey) XdrValid() bool {
 	switch u.Key_type {
-	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance,KStorageKeyTypeAccountAuthData,KStorageKeyTypeAddressMetadata:
+	case KStorageKeyTypeContractData,KStorageKeyTypeFreeNativeTokenBalance,KStorageKeyTypeAccountAuthData,KStorageKeyTypeAddressMetadata,KStorageKeyTypeReplayCache:
 		return true
 	}
 	return false
@@ -19091,6 +19248,8 @@ func (u *StorageKey) XdrUnionBody() XdrType {
 		return nil
 	case KStorageKeyTypeAddressMetadata:
 		return nil
+	case KStorageKeyTypeReplayCache:
+		return nil
 	}
 	return nil
 }
@@ -19103,6 +19262,8 @@ func (u *StorageKey) XdrUnionBodyName() string {
 	case KStorageKeyTypeAccountAuthData:
 		return ""
 	case KStorageKeyTypeAddressMetadata:
+		return ""
+	case KStorageKeyTypeReplayCache:
 		return ""
 	}
 	return ""
@@ -19126,6 +19287,8 @@ func (u *StorageKey) XdrRecurse(x XDR, name string) {
 	case KStorageKeyTypeAccountAuthData:
 		return
 	case KStorageKeyTypeAddressMetadata:
+		return
+	case KStorageKeyTypeReplayCache:
 		return
 	}
 	XdrPanic("invalid Key_type (%v) in StorageKey", u.Key_type)
