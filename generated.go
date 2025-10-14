@@ -107,6 +107,7 @@ type SubmittedTransactions struct {
 }
 
 type CatchupBlock struct {
+	Proposer ValidatorPublicInfo
 	Block_height BlockHeight
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
@@ -2774,6 +2775,7 @@ func (v *CatchupBlock) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
