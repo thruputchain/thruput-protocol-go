@@ -1399,6 +1399,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_commit_block(context.Context, BlockID) error
 	Schedcoord_get_tip(context.Context, ) (DbTipResult, error)
 	Schedcoord_load_genesis_block(context.Context, GenesisBlock) (DbSchedResult, error)
+	Schedcoord_lookup_transactions(context.Context, SignedTransactionHashBatch) (OptSignedTransactionBatch, error)
 }
 
 // ShardCard uniquely describes a database shard instance and its initial
@@ -1909,6 +1910,12 @@ type SignedTransaction struct {
 	// These signatures are over corresponding AuthClaimPreimage objects.
 	Signatures []DecoratedSignatureList
 }
+
+type OptSignedTransaction = *SignedTransaction
+
+type OptSignedTransactionBatch = []OptSignedTransaction
+
+type SignedTransactionHashBatch = []SignedTransactionHash
 
 // Nondeterministic data attached to a transaction by the proposer.
 type NondeterministicProposalData struct {
@@ -14397,6 +14404,53 @@ func (p *xdrSrvProc_Schedcoord_load_genesis_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedcoord_load_genesis_block{} // XXX
 
+type xdrProc_Schedcoord_lookup_transactions struct {
+	Arg *SignedTransactionHashBatch
+	Res *OptSignedTransactionBatch
+}
+func (xdrProc_Schedcoord_lookup_transactions) Prog() uint32 { return 1986466065 }
+func (xdrProc_Schedcoord_lookup_transactions) Vers() uint32 { return 1 }
+func (xdrProc_Schedcoord_lookup_transactions) Proc() uint32 { return 100 }
+func (xdrProc_Schedcoord_lookup_transactions) ProgName() string { return "SchedulerCoord" }
+func (xdrProc_Schedcoord_lookup_transactions) VersName() string { return "SchedulerCoord1" }
+func (xdrProc_Schedcoord_lookup_transactions) ProcName() string { return "schedcoord_lookup_transactions" }
+func (p *xdrProc_Schedcoord_lookup_transactions) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SignedTransactionHashBatch)
+	}
+	return XDR_SignedTransactionHashBatch(p.Arg)
+}
+func (p *xdrProc_Schedcoord_lookup_transactions) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(OptSignedTransactionBatch)
+	}
+	return XDR_OptSignedTransactionBatch(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedcoord_lookup_transactions{} // XXX
+
+type xdrSrvProc_Schedcoord_lookup_transactions struct {
+	xdrProc_Schedcoord_lookup_transactions
+	Srv SchedulerCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedcoord_lookup_transactions) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedulerCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedcoord_lookup_transactions) Do() {
+	r, err := p.Srv.Schedcoord_lookup_transactions(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedcoord_lookup_transactions{} // XXX
+
 func init() {
 	XdrCatalog[1986466065<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -14418,6 +14472,8 @@ func init() {
 			return &xdrProc_Schedcoord_get_tip{}
 		case 8:
 			return &xdrProc_Schedcoord_load_genesis_block{}
+		case 100:
+			return &xdrProc_Schedcoord_lookup_transactions{}
 		}
 		return nil
 	}
@@ -14450,6 +14506,8 @@ func (s SchedulerCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedcoord_get_tip{ Srv: s.Srv }
 	case 8:  // schedcoord_load_genesis_block
 		return &xdrSrvProc_Schedcoord_load_genesis_block{ Srv: s.Srv }
+	case 100:  // schedcoord_lookup_transactions
+		return &xdrSrvProc_Schedcoord_lookup_transactions{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -14533,6 +14591,14 @@ func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbT
 }
 func (c SchedulerCoord1_Client) Schedcoord_load_genesis_block(ctx context.Context, a1 GenesisBlock) (r DbSchedResult, _ error) {
 	var proc xdrProc_Schedcoord_load_genesis_block
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c SchedulerCoord1_Client) Schedcoord_lookup_transactions(ctx context.Context, a1 SignedTransactionHashBatch) (r OptSignedTransactionBatch, _ error) {
+	var proc xdrProc_Schedcoord_lookup_transactions
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
@@ -19138,6 +19204,156 @@ func (v *SignedTransaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%ssignatures", name), (*_XdrVec_unbounded_DecoratedSignatureList)(&v.Signatures))
 }
 func XDR_SignedTransaction(v *SignedTransaction) *SignedTransaction { return v }
+type _XdrPtr_SignedTransaction struct {
+	p **SignedTransaction
+}
+type _ptrflag_SignedTransaction _XdrPtr_SignedTransaction
+func (v _ptrflag_SignedTransaction) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_SignedTransaction) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("SignedTransaction flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_SignedTransaction) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_SignedTransaction) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(SignedTransaction)
+		}
+	default:
+		XdrPanic("*SignedTransaction present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_SignedTransaction) XdrTypeName() string { return "SignedTransaction?" }
+func (v _ptrflag_SignedTransaction) XdrPointer() interface{} { return nil }
+func (v _ptrflag_SignedTransaction) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_SignedTransaction) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_SignedTransaction) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_SignedTransaction) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(SignedTransaction)
+	}
+}
+func (v _XdrPtr_SignedTransaction) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_SignedTransaction(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_SignedTransaction) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_SignedTransaction(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_SignedTransaction) XdrTypeName() string { return "SignedTransaction*" }
+func (v _XdrPtr_SignedTransaction) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_SignedTransaction) XdrValue() interface{} { return *v.p }
+type XdrType_OptSignedTransaction struct {
+	_XdrPtr_SignedTransaction
+}
+func XDR_OptSignedTransaction(v *OptSignedTransaction) XdrType_OptSignedTransaction {
+	return XdrType_OptSignedTransaction{_XdrPtr_SignedTransaction{v}}
+}
+func (XdrType_OptSignedTransaction) XdrTypeName() string { return "OptSignedTransaction" }
+func (v XdrType_OptSignedTransaction) XdrUnwrap() XdrType { return v._XdrPtr_SignedTransaction }
+type _XdrVec_unbounded_OptSignedTransaction []OptSignedTransaction
+func (_XdrVec_unbounded_OptSignedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_OptSignedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_OptSignedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_OptSignedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_OptSignedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_OptSignedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]OptSignedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_OptSignedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_OptSignedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_OptSignedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_OptSignedTransaction) XdrTypeName() string { return "OptSignedTransaction<>" }
+func (v *_XdrVec_unbounded_OptSignedTransaction) XdrPointer() interface{} { return (*[]OptSignedTransaction)(v) }
+func (v _XdrVec_unbounded_OptSignedTransaction) XdrValue() interface{} { return ([]OptSignedTransaction)(v) }
+func (v *_XdrVec_unbounded_OptSignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_OptSignedTransactionBatch struct {
+	*_XdrVec_unbounded_OptSignedTransaction
+}
+func XDR_OptSignedTransactionBatch(v *OptSignedTransactionBatch) XdrType_OptSignedTransactionBatch {
+	return XdrType_OptSignedTransactionBatch{(*_XdrVec_unbounded_OptSignedTransaction)(v)}
+}
+func (XdrType_OptSignedTransactionBatch) XdrTypeName() string { return "OptSignedTransactionBatch" }
+func (v XdrType_OptSignedTransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_OptSignedTransaction }
+type XdrType_SignedTransactionHashBatch struct {
+	*_XdrVec_unbounded_SignedTransactionHash
+}
+func XDR_SignedTransactionHashBatch(v *SignedTransactionHashBatch) XdrType_SignedTransactionHashBatch {
+	return XdrType_SignedTransactionHashBatch{(*_XdrVec_unbounded_SignedTransactionHash)(v)}
+}
+func (XdrType_SignedTransactionHashBatch) XdrTypeName() string { return "SignedTransactionHashBatch" }
+func (v XdrType_SignedTransactionHashBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SignedTransactionHash }
 type XdrType_NondeterministicProposalData = *NondeterministicProposalData
 func (v *NondeterministicProposalData) XdrPointer() interface{} { return v }
 func (NondeterministicProposalData) XdrTypeName() string { return "NondeterministicProposalData" }
