@@ -175,11 +175,23 @@ type CIProcStatus struct {
 	_u interface{}
 }
 
+type CIWorkDirStatus struct {
+	// The union discriminant Error_code selects among the following arms:
+	//   KCIServerErrorCodeOK:
+	//      Work_dir() *string
+	//   default:
+	//      void
+	Error_code CIServerErrorCode
+	_u interface{}
+}
+
 type CIServer1 interface {
 	Ciserver_start(context.Context, HogdGitHash, ServerConfig) (CIServerErrorCode, error)
-	Ciserver_stop(context.Context, HogdGitHash) error
-	Ciserver_shutdown(context.Context, HogdGitHash) error
+	Ciserver_stop(context.Context, HogdGitHash) (CIServerErrorCode, error)
+	Ciserver_shutdown(context.Context, HogdGitHash) (CIServerErrorCode, error)
 	Ciserver_query_proc_status(context.Context, HogdGitHash) (CIProcStatus, error)
+	Ciserver_query_work_dir(context.Context, HogdGitHash) (CIWorkDirStatus, error)
+	Ciserver_clear_work_dir(context.Context, HogdGitHash) (CIServerErrorCode, error)
 }
 
 type Milliseconds = int64
@@ -705,6 +717,7 @@ type ExecValidateBatchResult = []ExecResult
 
 type ExecutorSched1 interface {
 	Executorsched_null(context.Context, ) error
+	Executorsched_ready(context.Context, ) (ExecResult, error)
 	Executorsched_propose_transaction(context.Context, BlockID, SignedTransaction) (ExecProposeResult, error)
 	Executorsched_validate_transaction(context.Context, BlockID, ProposedTransaction) (ExecResult, error)
 	Executorsched_propose_batch(context.Context, BlockID, SignedTransactionBatch) (ExecProposeBatchResult, error)
@@ -1380,10 +1393,12 @@ type SchedulerCoord1 interface {
 	Schedulercoord_null(context.Context, ) error
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
 	Schedulercoord_submit_unvetted(context.Context, SignedTransactionBatch) error
+	Schedulercoord_submit_vetted(context.Context, ValidatorID, SignedTransactionBatch) error
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID) error
 	Schedcoord_get_tip(context.Context, ) (DbTipResult, error)
+	Schedcoord_load_genesis_block(context.Context, GenesisBlock) (DbSchedResult, error)
 }
 
 // ShardCard uniquely describes a database shard instance and its initial
@@ -3300,6 +3315,68 @@ func (u *CIProcStatus) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_CIProcStatus(v *CIProcStatus) *CIProcStatus { return v}
+func (_ CIWorkDirStatus) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *CIWorkDirStatus) Work_dir() *string {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		if v, ok := u._u.(*string); ok {
+			return v
+		} else {
+			var zero string
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("CIWorkDirStatus.Work_dir accessed when Error_code == %v", u.Error_code)
+		return nil
+	}
+}
+func (u CIWorkDirStatus) XdrValid() bool {
+	return true
+}
+func (u *CIWorkDirStatus) XdrUnionTag() XdrNum32 {
+	return XDR_CIServerErrorCode(&u.Error_code)
+}
+func (u *CIWorkDirStatus) XdrUnionTagName() string {
+	return "Error_code"
+}
+func (u *CIWorkDirStatus) XdrUnionBody() XdrType {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		return XdrString{u.Work_dir(), 0xffffffff}
+	default:
+		return nil
+	}
+}
+func (u *CIWorkDirStatus) XdrUnionBodyName() string {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		return "Work_dir"
+	default:
+		return ""
+	}
+}
+type XdrType_CIWorkDirStatus = *CIWorkDirStatus
+func (v *CIWorkDirStatus) XdrPointer() interface{} { return v }
+func (CIWorkDirStatus) XdrTypeName() string { return "CIWorkDirStatus" }
+func (v CIWorkDirStatus) XdrValue() interface{} { return v }
+func (v *CIWorkDirStatus) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *CIWorkDirStatus) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_CIServerErrorCode(&u.Error_code).XdrMarshal(x, x.Sprintf("%serror_code", name))
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		x.Marshal(x.Sprintf("%swork_dir", name), XdrString{u.Work_dir(), 0xffffffff})
+		return
+	default:
+		return
+	}
+}
+func XDR_CIWorkDirStatus(v *CIWorkDirStatus) *CIWorkDirStatus { return v}
 
 type xdrProcArg_Ciserver_start struct {
 	a1 *HogdGitHash
@@ -3370,7 +3447,7 @@ var _ XdrSrvProc = &xdrSrvProc_Ciserver_start{} // XXX
 
 type xdrProc_Ciserver_stop struct {
 	Arg *HogdGitHash
-	Res *XdrVoid
+	Res *CIServerErrorCode
 }
 func (xdrProc_Ciserver_stop) Prog() uint32 { return 286357096 }
 func (xdrProc_Ciserver_stop) Vers() uint32 { return 1 }
@@ -3386,9 +3463,9 @@ func (p *xdrProc_Ciserver_stop) GetArg() XdrType {
 }
 func (p *xdrProc_Ciserver_stop) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(CIServerErrorCode)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_CIServerErrorCode(p.Res)
 }
 var _ XdrProc = &xdrProc_Ciserver_stop{} // XXX
 
@@ -3406,7 +3483,9 @@ func (p *xdrSrvProc_Ciserver_stop) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Ciserver_stop) Do() {
-	err := p.Srv.Ciserver_stop(p.Ctx, *p.Arg)
+	r, err := p.Srv.Ciserver_stop(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -3415,7 +3494,7 @@ var _ XdrSrvProc = &xdrSrvProc_Ciserver_stop{} // XXX
 
 type xdrProc_Ciserver_shutdown struct {
 	Arg *HogdGitHash
-	Res *XdrVoid
+	Res *CIServerErrorCode
 }
 func (xdrProc_Ciserver_shutdown) Prog() uint32 { return 286357096 }
 func (xdrProc_Ciserver_shutdown) Vers() uint32 { return 1 }
@@ -3431,9 +3510,9 @@ func (p *xdrProc_Ciserver_shutdown) GetArg() XdrType {
 }
 func (p *xdrProc_Ciserver_shutdown) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(CIServerErrorCode)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_CIServerErrorCode(p.Res)
 }
 var _ XdrProc = &xdrProc_Ciserver_shutdown{} // XXX
 
@@ -3451,7 +3530,9 @@ func (p *xdrSrvProc_Ciserver_shutdown) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Ciserver_shutdown) Do() {
-	err := p.Srv.Ciserver_shutdown(p.Ctx, *p.Arg)
+	r, err := p.Srv.Ciserver_shutdown(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -3505,6 +3586,100 @@ func (p *xdrSrvProc_Ciserver_query_proc_status) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Ciserver_query_proc_status{} // XXX
 
+type xdrProc_Ciserver_query_work_dir struct {
+	Arg *HogdGitHash
+	Res *CIWorkDirStatus
+}
+func (xdrProc_Ciserver_query_work_dir) Prog() uint32 { return 286357096 }
+func (xdrProc_Ciserver_query_work_dir) Vers() uint32 { return 1 }
+func (xdrProc_Ciserver_query_work_dir) Proc() uint32 { return 4 }
+func (xdrProc_Ciserver_query_work_dir) ProgName() string { return "CIServer" }
+func (xdrProc_Ciserver_query_work_dir) VersName() string { return "CIServer1" }
+func (xdrProc_Ciserver_query_work_dir) ProcName() string { return "ciserver_query_work_dir" }
+func (p *xdrProc_Ciserver_query_work_dir) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(HogdGitHash)
+	}
+	return XDR_HogdGitHash(p.Arg)
+}
+func (p *xdrProc_Ciserver_query_work_dir) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(CIWorkDirStatus)
+	}
+	return XDR_CIWorkDirStatus(p.Res)
+}
+var _ XdrProc = &xdrProc_Ciserver_query_work_dir{} // XXX
+
+type xdrSrvProc_Ciserver_query_work_dir struct {
+	xdrProc_Ciserver_query_work_dir
+	Srv CIServer1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Ciserver_query_work_dir) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) CIServer1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Ciserver_query_work_dir) Do() {
+	r, err := p.Srv.Ciserver_query_work_dir(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Ciserver_query_work_dir{} // XXX
+
+type xdrProc_Ciserver_clear_work_dir struct {
+	Arg *HogdGitHash
+	Res *CIServerErrorCode
+}
+func (xdrProc_Ciserver_clear_work_dir) Prog() uint32 { return 286357096 }
+func (xdrProc_Ciserver_clear_work_dir) Vers() uint32 { return 1 }
+func (xdrProc_Ciserver_clear_work_dir) Proc() uint32 { return 5 }
+func (xdrProc_Ciserver_clear_work_dir) ProgName() string { return "CIServer" }
+func (xdrProc_Ciserver_clear_work_dir) VersName() string { return "CIServer1" }
+func (xdrProc_Ciserver_clear_work_dir) ProcName() string { return "ciserver_clear_work_dir" }
+func (p *xdrProc_Ciserver_clear_work_dir) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(HogdGitHash)
+	}
+	return XDR_HogdGitHash(p.Arg)
+}
+func (p *xdrProc_Ciserver_clear_work_dir) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(CIServerErrorCode)
+	}
+	return XDR_CIServerErrorCode(p.Res)
+}
+var _ XdrProc = &xdrProc_Ciserver_clear_work_dir{} // XXX
+
+type xdrSrvProc_Ciserver_clear_work_dir struct {
+	xdrProc_Ciserver_clear_work_dir
+	Srv CIServer1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Ciserver_clear_work_dir) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) CIServer1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Ciserver_clear_work_dir) Do() {
+	r, err := p.Srv.Ciserver_clear_work_dir(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Ciserver_clear_work_dir{} // XXX
+
 func init() {
 	XdrCatalog[286357096<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -3516,6 +3691,10 @@ func init() {
 			return &xdrProc_Ciserver_shutdown{}
 		case 3:
 			return &xdrProc_Ciserver_query_proc_status{}
+		case 4:
+			return &xdrProc_Ciserver_query_work_dir{}
+		case 5:
+			return &xdrProc_Ciserver_clear_work_dir{}
 		}
 		return nil
 	}
@@ -3538,6 +3717,10 @@ func (s CIServer1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Ciserver_shutdown{ Srv: s.Srv }
 	case 3:  // ciserver_query_proc_status
 		return &xdrSrvProc_Ciserver_query_proc_status{ Srv: s.Srv }
+	case 4:  // ciserver_query_work_dir
+		return &xdrSrvProc_Ciserver_query_work_dir{ Srv: s.Srv }
+	case 5:  // ciserver_clear_work_dir
+		return &xdrSrvProc_Ciserver_clear_work_dir{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -3563,24 +3746,40 @@ func (c CIServer1_Client) Ciserver_start(ctx context.Context, a1 HogdGitHash, a2
 	}
 	return *proc.Res, nil
 }
-func (c CIServer1_Client) Ciserver_stop(ctx context.Context, a1 HogdGitHash) error {
+func (c CIServer1_Client) Ciserver_stop(ctx context.Context, a1 HogdGitHash) (r CIServerErrorCode, _ error) {
 	var proc xdrProc_Ciserver_stop
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
-func (c CIServer1_Client) Ciserver_shutdown(ctx context.Context, a1 HogdGitHash) error {
+func (c CIServer1_Client) Ciserver_shutdown(ctx context.Context, a1 HogdGitHash) (r CIServerErrorCode, _ error) {
 	var proc xdrProc_Ciserver_shutdown
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c CIServer1_Client) Ciserver_query_proc_status(ctx context.Context, a1 HogdGitHash) (r CIProcStatus, _ error) {
 	var proc xdrProc_Ciserver_query_proc_status
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c CIServer1_Client) Ciserver_query_work_dir(ctx context.Context, a1 HogdGitHash) (r CIWorkDirStatus, _ error) {
+	var proc xdrProc_Ciserver_query_work_dir
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c CIServer1_Client) Ciserver_clear_work_dir(ctx context.Context, a1 HogdGitHash) (r CIServerErrorCode, _ error) {
+	var proc xdrProc_Ciserver_clear_work_dir
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
@@ -8858,6 +9057,53 @@ func (p *xdrSrvProc_Executorsched_null) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Executorsched_null{} // XXX
 
+type xdrProc_Executorsched_ready struct {
+	Arg *XdrVoid
+	Res *ExecResult
+}
+func (xdrProc_Executorsched_ready) Prog() uint32 { return 2129107353 }
+func (xdrProc_Executorsched_ready) Vers() uint32 { return 1 }
+func (xdrProc_Executorsched_ready) Proc() uint32 { return 1 }
+func (xdrProc_Executorsched_ready) ProgName() string { return "ExecutorSched" }
+func (xdrProc_Executorsched_ready) VersName() string { return "ExecutorSched1" }
+func (xdrProc_Executorsched_ready) ProcName() string { return "executorsched_ready" }
+func (p *xdrProc_Executorsched_ready) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Arg)
+}
+func (p *xdrProc_Executorsched_ready) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(ExecResult)
+	}
+	return XDR_ExecResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Executorsched_ready{} // XXX
+
+type xdrSrvProc_Executorsched_ready struct {
+	xdrProc_Executorsched_ready
+	Srv ExecutorSched1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Executorsched_ready) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) ExecutorSched1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Executorsched_ready) Do() {
+	r, err := p.Srv.Executorsched_ready(p.Ctx, )
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Executorsched_ready{} // XXX
+
 type xdrProcArg_Executorsched_propose_transaction struct {
 	a1 *BlockID
 	a2 *SignedTransaction
@@ -9315,6 +9561,8 @@ func init() {
 		switch(p) {
 		case 0:
 			return &xdrProc_Executorsched_null{}
+		case 1:
+			return &xdrProc_Executorsched_ready{}
 		case 10:
 			return &xdrProc_Executorsched_propose_transaction{}
 		case 20:
@@ -9347,6 +9595,8 @@ func (s ExecutorSched1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // executorsched_null
 		return &xdrSrvProc_Executorsched_null{ Srv: s.Srv }
+	case 1:  // executorsched_ready
+		return &xdrSrvProc_Executorsched_ready{ Srv: s.Srv }
 	case 10:  // executorsched_propose_transaction
 		return &xdrSrvProc_Executorsched_propose_transaction{ Srv: s.Srv }
 	case 20:  // executorsched_validate_transaction
@@ -9384,6 +9634,13 @@ func (c ExecutorSched1_Client) Executorsched_null(ctx context.Context, ) error {
 		return err
 	}
 	return nil
+}
+func (c ExecutorSched1_Client) Executorsched_ready(ctx context.Context, ) (r ExecResult, _ error) {
+	var proc xdrProc_Executorsched_ready
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
 }
 func (c ExecutorSched1_Client) Executorsched_propose_transaction(ctx context.Context, a1 BlockID, a2 SignedTransaction) (r ExecProposeResult, _ error) {
 	var proc xdrProc_Executorsched_propose_transaction
@@ -13822,13 +14079,78 @@ func (p *xdrSrvProc_Schedulercoord_submit_unvetted) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_unvetted{} // XXX
 
+type xdrProcArg_Schedulercoord_submit_vetted struct {
+	a1 *ValidatorID
+	a2 *SignedTransactionBatch
+}
+func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrPointer() interface{} { return v }
+func (xdrProcArg_Schedulercoord_submit_vetted) XdrTypeName() string { return "xdrProcArg_Schedulercoord_submit_vetted" }
+func (v xdrProcArg_Schedulercoord_submit_vetted) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(ValidatorID) }
+	XDR_ValidatorID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(SignedTransactionBatch) }
+	XDR_SignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Schedulercoord_submit_vetted(v *xdrProcArg_Schedulercoord_submit_vetted) *xdrProcArg_Schedulercoord_submit_vetted { return v }
+var _ XdrType = &xdrProcArg_Schedulercoord_submit_vetted{} // XXX
+
+type xdrProc_Schedulercoord_submit_vetted struct {
+	Arg *xdrProcArg_Schedulercoord_submit_vetted
+	Res *XdrVoid
+}
+func (xdrProc_Schedulercoord_submit_vetted) Prog() uint32 { return 1986466065 }
+func (xdrProc_Schedulercoord_submit_vetted) Vers() uint32 { return 1 }
+func (xdrProc_Schedulercoord_submit_vetted) Proc() uint32 { return 3 }
+func (xdrProc_Schedulercoord_submit_vetted) ProgName() string { return "SchedulerCoord" }
+func (xdrProc_Schedulercoord_submit_vetted) VersName() string { return "SchedulerCoord1" }
+func (xdrProc_Schedulercoord_submit_vetted) ProcName() string { return "schedulercoord_submit_vetted" }
+func (p *xdrProc_Schedulercoord_submit_vetted) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Schedulercoord_submit_vetted)
+	}
+	return XDR_xdrProcArg_Schedulercoord_submit_vetted(p.Arg)
+}
+func (p *xdrProc_Schedulercoord_submit_vetted) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedulercoord_submit_vetted{} // XXX
+
+type xdrSrvProc_Schedulercoord_submit_vetted struct {
+	xdrProc_Schedulercoord_submit_vetted
+	Srv SchedulerCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedulercoord_submit_vetted) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedulerCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedulercoord_submit_vetted) Do() {
+	err := p.Srv.Schedulercoord_submit_vetted(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_vetted{} // XXX
+
 type xdrProc_Schedulercoord_nominate struct {
 	Arg *DbTip
 	Res *SchedulerNominationResult
 }
 func (xdrProc_Schedulercoord_nominate) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_nominate) Vers() uint32 { return 1 }
-func (xdrProc_Schedulercoord_nominate) Proc() uint32 { return 3 }
+func (xdrProc_Schedulercoord_nominate) Proc() uint32 { return 4 }
 func (xdrProc_Schedulercoord_nominate) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedulercoord_nominate) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedulercoord_nominate) ProcName() string { return "schedulercoord_nominate" }
@@ -13895,7 +14217,7 @@ type xdrProc_Schedulercoord_validate struct {
 }
 func (xdrProc_Schedulercoord_validate) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_validate) Vers() uint32 { return 1 }
-func (xdrProc_Schedulercoord_validate) Proc() uint32 { return 4 }
+func (xdrProc_Schedulercoord_validate) Proc() uint32 { return 5 }
 func (xdrProc_Schedulercoord_validate) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedulercoord_validate) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedulercoord_validate) ProcName() string { return "schedulercoord_validate" }
@@ -13942,7 +14264,7 @@ type xdrProc_Schedulercoord_commit_block struct {
 }
 func (xdrProc_Schedulercoord_commit_block) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_commit_block) Vers() uint32 { return 1 }
-func (xdrProc_Schedulercoord_commit_block) Proc() uint32 { return 5 }
+func (xdrProc_Schedulercoord_commit_block) Proc() uint32 { return 6 }
 func (xdrProc_Schedulercoord_commit_block) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedulercoord_commit_block) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedulercoord_commit_block) ProcName() string { return "schedulercoord_commit_block" }
@@ -13987,7 +14309,7 @@ type xdrProc_Schedcoord_get_tip struct {
 }
 func (xdrProc_Schedcoord_get_tip) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedcoord_get_tip) Vers() uint32 { return 1 }
-func (xdrProc_Schedcoord_get_tip) Proc() uint32 { return 6 }
+func (xdrProc_Schedcoord_get_tip) Proc() uint32 { return 7 }
 func (xdrProc_Schedcoord_get_tip) ProgName() string { return "SchedulerCoord" }
 func (xdrProc_Schedcoord_get_tip) VersName() string { return "SchedulerCoord1" }
 func (xdrProc_Schedcoord_get_tip) ProcName() string { return "schedcoord_get_tip" }
@@ -14028,6 +14350,53 @@ func (p *xdrSrvProc_Schedcoord_get_tip) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedcoord_get_tip{} // XXX
 
+type xdrProc_Schedcoord_load_genesis_block struct {
+	Arg *GenesisBlock
+	Res *DbSchedResult
+}
+func (xdrProc_Schedcoord_load_genesis_block) Prog() uint32 { return 1986466065 }
+func (xdrProc_Schedcoord_load_genesis_block) Vers() uint32 { return 1 }
+func (xdrProc_Schedcoord_load_genesis_block) Proc() uint32 { return 8 }
+func (xdrProc_Schedcoord_load_genesis_block) ProgName() string { return "SchedulerCoord" }
+func (xdrProc_Schedcoord_load_genesis_block) VersName() string { return "SchedulerCoord1" }
+func (xdrProc_Schedcoord_load_genesis_block) ProcName() string { return "schedcoord_load_genesis_block" }
+func (p *xdrProc_Schedcoord_load_genesis_block) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(GenesisBlock)
+	}
+	return XDR_GenesisBlock(p.Arg)
+}
+func (p *xdrProc_Schedcoord_load_genesis_block) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(DbSchedResult)
+	}
+	return XDR_DbSchedResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedcoord_load_genesis_block{} // XXX
+
+type xdrSrvProc_Schedcoord_load_genesis_block struct {
+	xdrProc_Schedcoord_load_genesis_block
+	Srv SchedulerCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedcoord_load_genesis_block) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedulerCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedcoord_load_genesis_block) Do() {
+	r, err := p.Srv.Schedcoord_load_genesis_block(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedcoord_load_genesis_block{} // XXX
+
 func init() {
 	XdrCatalog[1986466065<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -14038,13 +14407,17 @@ func init() {
 		case 2:
 			return &xdrProc_Schedulercoord_submit_unvetted{}
 		case 3:
-			return &xdrProc_Schedulercoord_nominate{}
+			return &xdrProc_Schedulercoord_submit_vetted{}
 		case 4:
-			return &xdrProc_Schedulercoord_validate{}
+			return &xdrProc_Schedulercoord_nominate{}
 		case 5:
-			return &xdrProc_Schedulercoord_commit_block{}
+			return &xdrProc_Schedulercoord_validate{}
 		case 6:
+			return &xdrProc_Schedulercoord_commit_block{}
+		case 7:
 			return &xdrProc_Schedcoord_get_tip{}
+		case 8:
+			return &xdrProc_Schedcoord_load_genesis_block{}
 		}
 		return nil
 	}
@@ -14065,14 +14438,18 @@ func (s SchedulerCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedulercoord_intro_coord{ Srv: s.Srv }
 	case 2:  // schedulercoord_submit_unvetted
 		return &xdrSrvProc_Schedulercoord_submit_unvetted{ Srv: s.Srv }
-	case 3:  // schedulercoord_nominate
+	case 3:  // schedulercoord_submit_vetted
+		return &xdrSrvProc_Schedulercoord_submit_vetted{ Srv: s.Srv }
+	case 4:  // schedulercoord_nominate
 		return &xdrSrvProc_Schedulercoord_nominate{ Srv: s.Srv }
-	case 4:  // schedulercoord_validate
+	case 5:  // schedulercoord_validate
 		return &xdrSrvProc_Schedulercoord_validate{ Srv: s.Srv }
-	case 5:  // schedulercoord_commit_block
+	case 6:  // schedulercoord_commit_block
 		return &xdrSrvProc_Schedulercoord_commit_block{ Srv: s.Srv }
-	case 6:  // schedcoord_get_tip
+	case 7:  // schedcoord_get_tip
 		return &xdrSrvProc_Schedcoord_get_tip{ Srv: s.Srv }
+	case 8:  // schedcoord_load_genesis_block
+		return &xdrSrvProc_Schedcoord_load_genesis_block{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -14111,6 +14488,16 @@ func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Conte
 	}
 	return nil
 }
+func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context, a1 ValidatorID, a2 SignedTransactionBatch) error {
+	var proc xdrProc_Schedulercoord_submit_vetted
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
+}
 func (c SchedulerCoord1_Client) Schedulercoord_nominate(ctx context.Context, a1 DbTip) (r SchedulerNominationResult, _ error) {
 	var proc xdrProc_Schedulercoord_nominate
 	proc.Arg = &a1
@@ -14139,6 +14526,14 @@ func (c SchedulerCoord1_Client) Schedulercoord_commit_block(ctx context.Context,
 }
 func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
 	var proc xdrProc_Schedcoord_get_tip
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c SchedulerCoord1_Client) Schedcoord_load_genesis_block(ctx context.Context, a1 GenesisBlock) (r DbSchedResult, _ error) {
+	var proc xdrProc_Schedcoord_load_genesis_block
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
