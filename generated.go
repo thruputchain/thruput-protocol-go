@@ -279,6 +279,8 @@ type ConsensusValue struct {
 	Upgrades []Upgrade // bound 6
 }
 
+type ConsensusValueHash = SHA256Hash
+
 // SysErr is a int32, which is derived from a SyscallErrorCode.
 type SysErrXDR = int32
 
@@ -4858,6 +4860,14 @@ func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
 }
 func XDR_ConsensusValue(v *ConsensusValue) *ConsensusValue { return v }
+type XdrType_ConsensusValueHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_ConsensusValueHash(v *ConsensusValueHash) XdrType_ConsensusValueHash {
+	return XdrType_ConsensusValueHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_ConsensusValueHash) XdrTypeName() string { return "ConsensusValueHash" }
+func (v XdrType_ConsensusValueHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type XdrType_SysErrXDR struct {
 	XdrType_int32
 }
