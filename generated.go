@@ -107,12 +107,8 @@ type SubmittedTransactions struct {
 }
 
 type CatchupBlock struct {
-	Proposer ValidatorPublicInfo
-	Block_height BlockHeight
-	Block_hash BlockHash
-	Prev_block_hash BlockHash
+	Consensus_value ConsensusValue
 	Signed_transactions []SignedTransaction
-	Nominated_transactions []NominatedTransaction
 }
 
 type CatchupSpan struct {
@@ -2748,61 +2744,6 @@ func (v *SubmittedTransactions) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Transactions))
 }
 func XDR_SubmittedTransactions(v *SubmittedTransactions) *SubmittedTransactions { return v }
-type _XdrVec_unbounded_NominatedTransaction []NominatedTransaction
-func (_XdrVec_unbounded_NominatedTransaction) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_NominatedTransaction) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_NominatedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_NominatedTransaction) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]NominatedTransaction, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_NominatedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_NominatedTransaction) XdrTypeName() string { return "NominatedTransaction<>" }
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrPointer() interface{} { return (*[]NominatedTransaction)(v) }
-func (v _XdrVec_unbounded_NominatedTransaction) XdrValue() interface{} { return ([]NominatedTransaction)(v) }
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_CatchupBlock = *CatchupBlock
 func (v *CatchupBlock) XdrPointer() interface{} { return v }
 func (CatchupBlock) XdrTypeName() string { return "CatchupBlock" }
@@ -2812,12 +2753,8 @@ func (v *CatchupBlock) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
-	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
-	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
-	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
+	x.Marshal(x.Sprintf("%sconsensus_value", name), XDR_ConsensusValue(&v.Consensus_value))
 	x.Marshal(x.Sprintf("%ssigned_transactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Signed_transactions))
-	x.Marshal(x.Sprintf("%snominated_transactions", name), (*_XdrVec_unbounded_NominatedTransaction)(&v.Nominated_transactions))
 }
 func XDR_CatchupBlock(v *CatchupBlock) *CatchupBlock { return v }
 type XdrType_CatchupSpan = *CatchupSpan
@@ -11743,6 +11680,61 @@ func (_XdrVec_unbounded_SignedTransactionHash) XdrTypeName() string { return "Si
 func (v *_XdrVec_unbounded_SignedTransactionHash) XdrPointer() interface{} { return (*[]SignedTransactionHash)(v) }
 func (v _XdrVec_unbounded_SignedTransactionHash) XdrValue() interface{} { return ([]SignedTransactionHash)(v) }
 func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type _XdrVec_unbounded_NominatedTransaction []NominatedTransaction
+func (_XdrVec_unbounded_NominatedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_NominatedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_NominatedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_NominatedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]NominatedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_NominatedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_NominatedTransaction) XdrTypeName() string { return "NominatedTransaction<>" }
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrPointer() interface{} { return (*[]NominatedTransaction)(v) }
+func (v _XdrVec_unbounded_NominatedTransaction) XdrValue() interface{} { return ([]NominatedTransaction)(v) }
+func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_Nomination = *Nomination
 func (v *Nomination) XdrPointer() interface{} { return v }
 func (Nomination) XdrTypeName() string { return "Nomination" }
