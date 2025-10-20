@@ -254,6 +254,12 @@ type BatonConfig struct {
 	Max_catchup_height int32
 }
 
+type StorageConfig struct {
+	Reclaim_interval_msec Milliseconds
+	Max_catchup_blocks int32
+	Max_scp_slots int32
+}
+
 type Config struct {
 	Validator_config *ValidatorConfig
 	Wallet_config *WalletConfig
@@ -265,6 +271,7 @@ type Config struct {
 	Scp_config *SCPConfig
 	Baton_config *BatonConfig
 	Repair_config *RepairConfig
+	Storage_config *StorageConfig
 }
 
 type Upgrade = []byte // bound 128
@@ -3989,6 +3996,20 @@ func (v *BatonConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%smax_catchup_height", name), XDR_int32(&v.Max_catchup_height))
 }
 func XDR_BatonConfig(v *BatonConfig) *BatonConfig { return v }
+type XdrType_StorageConfig = *StorageConfig
+func (v *StorageConfig) XdrPointer() interface{} { return v }
+func (StorageConfig) XdrTypeName() string { return "StorageConfig" }
+func (v StorageConfig) XdrValue() interface{} { return v }
+func (v *StorageConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *StorageConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sreclaim_interval_msec", name), XDR_Milliseconds(&v.Reclaim_interval_msec))
+	x.Marshal(x.Sprintf("%smax_catchup_blocks", name), XDR_int32(&v.Max_catchup_blocks))
+	x.Marshal(x.Sprintf("%smax_scp_slots", name), XDR_int32(&v.Max_scp_slots))
+}
+func XDR_StorageConfig(v *StorageConfig) *StorageConfig { return v }
 type _XdrPtr_ValidatorConfig struct {
 	p **ValidatorConfig
 }
@@ -4699,6 +4720,77 @@ func (v _XdrPtr_RepairConfig) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_RepairConfig) XdrTypeName() string { return "RepairConfig*" }
 func (v _XdrPtr_RepairConfig) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_RepairConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_StorageConfig struct {
+	p **StorageConfig
+}
+type _ptrflag_StorageConfig _XdrPtr_StorageConfig
+func (v _ptrflag_StorageConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_StorageConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("StorageConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_StorageConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_StorageConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(StorageConfig)
+		}
+	default:
+		XdrPanic("*StorageConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_StorageConfig) XdrTypeName() string { return "StorageConfig?" }
+func (v _ptrflag_StorageConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_StorageConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_StorageConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_StorageConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_StorageConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_StorageConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(StorageConfig)
+	}
+}
+func (v _XdrPtr_StorageConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_StorageConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_StorageConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_StorageConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_StorageConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_StorageConfig) XdrTypeName() string { return "StorageConfig*" }
+func (v _XdrPtr_StorageConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_StorageConfig) XdrValue() interface{} { return *v.p }
 type XdrType_Config = *Config
 func (v *Config) XdrPointer() interface{} { return v }
 func (Config) XdrTypeName() string { return "Config" }
@@ -4718,6 +4810,7 @@ func (v *Config) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sscp_config", name), _XdrPtr_SCPConfig{&v.Scp_config})
 	x.Marshal(x.Sprintf("%sbaton_config", name), _XdrPtr_BatonConfig{&v.Baton_config})
 	x.Marshal(x.Sprintf("%srepair_config", name), _XdrPtr_RepairConfig{&v.Repair_config})
+	x.Marshal(x.Sprintf("%sstorage_config", name), _XdrPtr_StorageConfig{&v.Storage_config})
 }
 func XDR_Config(v *Config) *Config { return v }
 type XdrType_Upgrade struct {
