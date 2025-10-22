@@ -280,6 +280,7 @@ type ConsensusValue struct {
 	Timestamp TimePoint
 	Nomination Nomination
 	Upgrades []Upgrade // bound 6
+	Prev_cv_hash ConsensusValueHash
 }
 
 type ConsensusValueHash = SHA256Hash
@@ -4888,6 +4889,7 @@ func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
 	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
 	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
+	x.Marshal(x.Sprintf("%sprev_cv_hash", name), XDR_ConsensusValueHash(&v.Prev_cv_hash))
 }
 func XDR_ConsensusValue(v *ConsensusValue) *ConsensusValue { return v }
 type XdrType_ConsensusValueHash struct {
