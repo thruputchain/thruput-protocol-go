@@ -283,6 +283,8 @@ type ConsensusValue struct {
 	Prev_cv_hash ConsensusValueHash
 }
 
+type OptConsensusValue = *ConsensusValue
+
 type ConsensusValueHash = SHA256Hash
 
 type ConsensusValueCue struct {
@@ -1043,6 +1045,7 @@ type RepairedTransactions struct {
 type Repair1 interface {
 	Repair_null(context.Context, ) error
 	Repair_missing_txs(context.Context, MissingTransactionsEnvelope) (RepairedTransactions, error)
+	Repair_missing_cv(context.Context, ConsensusValueHash) (OptConsensusValue, error)
 }
 
 const KQueueEntryMaxLen = 256
@@ -4897,6 +4900,85 @@ func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sprev_cv_hash", name), XDR_ConsensusValueHash(&v.Prev_cv_hash))
 }
 func XDR_ConsensusValue(v *ConsensusValue) *ConsensusValue { return v }
+type _XdrPtr_ConsensusValue struct {
+	p **ConsensusValue
+}
+type _ptrflag_ConsensusValue _XdrPtr_ConsensusValue
+func (v _ptrflag_ConsensusValue) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_ConsensusValue) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("ConsensusValue flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_ConsensusValue) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_ConsensusValue) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(ConsensusValue)
+		}
+	default:
+		XdrPanic("*ConsensusValue present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_ConsensusValue) XdrTypeName() string { return "ConsensusValue?" }
+func (v _ptrflag_ConsensusValue) XdrPointer() interface{} { return nil }
+func (v _ptrflag_ConsensusValue) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_ConsensusValue) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_ConsensusValue) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_ConsensusValue) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_ConsensusValue) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(ConsensusValue)
+	}
+}
+func (v _XdrPtr_ConsensusValue) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_ConsensusValue(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_ConsensusValue) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_ConsensusValue) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_ConsensusValue(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_ConsensusValue) XdrTypeName() string { return "ConsensusValue*" }
+func (v _XdrPtr_ConsensusValue) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_ConsensusValue) XdrValue() interface{} { return *v.p }
+type XdrType_OptConsensusValue struct {
+	_XdrPtr_ConsensusValue
+}
+func XDR_OptConsensusValue(v *OptConsensusValue) XdrType_OptConsensusValue {
+	return XdrType_OptConsensusValue{_XdrPtr_ConsensusValue{v}}
+}
+func (XdrType_OptConsensusValue) XdrTypeName() string { return "OptConsensusValue" }
+func (v XdrType_OptConsensusValue) XdrUnwrap() XdrType { return v._XdrPtr_ConsensusValue }
 type XdrType_ConsensusValueHash struct {
 	XdrType_SHA256Hash
 }
@@ -12064,6 +12146,53 @@ func (p *xdrSrvProc_Repair_missing_txs) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Repair_missing_txs{} // XXX
 
+type xdrProc_Repair_missing_cv struct {
+	Arg *ConsensusValueHash
+	Res *OptConsensusValue
+}
+func (xdrProc_Repair_missing_cv) Prog() uint32 { return 573820108 }
+func (xdrProc_Repair_missing_cv) Vers() uint32 { return 1 }
+func (xdrProc_Repair_missing_cv) Proc() uint32 { return 20 }
+func (xdrProc_Repair_missing_cv) ProgName() string { return "Repair" }
+func (xdrProc_Repair_missing_cv) VersName() string { return "Repair1" }
+func (xdrProc_Repair_missing_cv) ProcName() string { return "repair_missing_cv" }
+func (p *xdrProc_Repair_missing_cv) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(ConsensusValueHash)
+	}
+	return XDR_ConsensusValueHash(p.Arg)
+}
+func (p *xdrProc_Repair_missing_cv) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(OptConsensusValue)
+	}
+	return XDR_OptConsensusValue(p.Res)
+}
+var _ XdrProc = &xdrProc_Repair_missing_cv{} // XXX
+
+type xdrSrvProc_Repair_missing_cv struct {
+	xdrProc_Repair_missing_cv
+	Srv Repair1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Repair_missing_cv) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) Repair1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Repair_missing_cv) Do() {
+	r, err := p.Srv.Repair_missing_cv(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Repair_missing_cv{} // XXX
+
 func init() {
 	XdrCatalog[573820108<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -12071,6 +12200,8 @@ func init() {
 			return &xdrProc_Repair_null{}
 		case 10:
 			return &xdrProc_Repair_missing_txs{}
+		case 20:
+			return &xdrProc_Repair_missing_cv{}
 		}
 		return nil
 	}
@@ -12089,6 +12220,8 @@ func (s Repair1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Repair_null{ Srv: s.Srv }
 	case 10:  // repair_missing_txs
 		return &xdrSrvProc_Repair_missing_txs{ Srv: s.Srv }
+	case 20:  // repair_missing_cv
+		return &xdrSrvProc_Repair_missing_cv{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -12113,6 +12246,14 @@ func (c Repair1_Client) Repair_null(ctx context.Context, ) error {
 }
 func (c Repair1_Client) Repair_missing_txs(ctx context.Context, a1 MissingTransactionsEnvelope) (r RepairedTransactions, _ error) {
 	var proc xdrProc_Repair_missing_txs
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c Repair1_Client) Repair_missing_cv(ctx context.Context, a1 ConsensusValueHash) (r OptConsensusValue, _ error) {
+	var proc xdrProc_Repair_missing_cv
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
