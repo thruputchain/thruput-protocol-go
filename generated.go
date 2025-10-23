@@ -285,6 +285,11 @@ type ConsensusValue struct {
 
 type ConsensusValueHash = SHA256Hash
 
+type ConsensusValueCue struct {
+	Repair_fallback ValidatorPublicInfo
+	Cv_hash ConsensusValueHash
+}
+
 // SysErr is a int32, which is derived from a SyscallErrorCode.
 type SysErrXDR = int32
 
@@ -4900,6 +4905,19 @@ func XDR_ConsensusValueHash(v *ConsensusValueHash) XdrType_ConsensusValueHash {
 }
 func (XdrType_ConsensusValueHash) XdrTypeName() string { return "ConsensusValueHash" }
 func (v XdrType_ConsensusValueHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_ConsensusValueCue = *ConsensusValueCue
+func (v *ConsensusValueCue) XdrPointer() interface{} { return v }
+func (ConsensusValueCue) XdrTypeName() string { return "ConsensusValueCue" }
+func (v ConsensusValueCue) XdrValue() interface{} { return v }
+func (v *ConsensusValueCue) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ConsensusValueCue) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%srepair_fallback", name), XDR_ValidatorPublicInfo(&v.Repair_fallback))
+	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusValueHash(&v.Cv_hash))
+}
+func XDR_ConsensusValueCue(v *ConsensusValueCue) *ConsensusValueCue { return v }
 type XdrType_SysErrXDR struct {
 	XdrType_int32
 }
