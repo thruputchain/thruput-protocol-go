@@ -288,7 +288,7 @@ type OptConsensusValue = *ConsensusValue
 type ConsensusValueHash = SHA256Hash
 
 type ConsensusValueCue struct {
-	Repair_fallback ValidatorPublicInfo
+	Proposer ValidatorPublicInfo
 	Cv_hash ConsensusValueHash
 }
 
@@ -4999,7 +4999,7 @@ func (v *ConsensusValueCue) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%srepair_fallback", name), XDR_ValidatorPublicInfo(&v.Repair_fallback))
+	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
 	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusValueHash(&v.Cv_hash))
 }
 func XDR_ConsensusValueCue(v *ConsensusValueCue) *ConsensusValueCue { return v }
