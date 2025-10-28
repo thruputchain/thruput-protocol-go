@@ -290,6 +290,7 @@ type ConsensusValueHash = SHA256Hash
 type ConsensusValueCue struct {
 	Proposer ValidatorPublicInfo
 	Cv_hash ConsensusValueHash
+	Block_hash BlockHash
 }
 
 // SysErr is a int32, which is derived from a SyscallErrorCode.
@@ -5001,6 +5002,7 @@ func (v *ConsensusValueCue) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
 	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusValueHash(&v.Cv_hash))
+	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 }
 func XDR_ConsensusValueCue(v *ConsensusValueCue) *ConsensusValueCue { return v }
 type XdrType_SysErrXDR struct {
