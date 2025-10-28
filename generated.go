@@ -290,6 +290,7 @@ type ConsensusValueHash = SHA256Hash
 type ConsensusValueCue struct {
 	Proposer ValidatorPublicInfo
 	Cv_hash ConsensusValueHash
+	Prev_cv_hash ConsensusValueHash
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
 }
@@ -5003,6 +5004,7 @@ func (v *ConsensusValueCue) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
 	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusValueHash(&v.Cv_hash))
+	x.Marshal(x.Sprintf("%sprev_cv_hash", name), XDR_ConsensusValueHash(&v.Prev_cv_hash))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
 }
