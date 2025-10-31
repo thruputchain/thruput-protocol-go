@@ -1078,6 +1078,7 @@ type Repair1 interface {
 	Repair_null(context.Context, ) error
 	Repair_missing_txs(context.Context, MissingTransactionsEnvelope) (RepairedTransactions, error)
 	Repair_missing_cv(context.Context, ConsensusValueHash) (OptConsensusValue, error)
+	Repair_missing_scp_envelopes(context.Context, SCPSlotIndex) (SCPEnvelopes, error)
 }
 
 const KQueueEntryMaxLen = 256
@@ -1668,6 +1669,8 @@ type SCPEnvelope struct {
 	Statement SCPStatement
 	Signature Signature
 }
+
+type SCPEnvelopes = []SCPEnvelope
 
 // supports things like: A,B,C,(D,E,F),(G,H,(I,J,K,L))
 // only allows 2 levels of nesting
@@ -12219,6 +12222,53 @@ func (p *xdrSrvProc_Repair_missing_cv) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Repair_missing_cv{} // XXX
 
+type xdrProc_Repair_missing_scp_envelopes struct {
+	Arg *SCPSlotIndex
+	Res *SCPEnvelopes
+}
+func (xdrProc_Repair_missing_scp_envelopes) Prog() uint32 { return 573820108 }
+func (xdrProc_Repair_missing_scp_envelopes) Vers() uint32 { return 1 }
+func (xdrProc_Repair_missing_scp_envelopes) Proc() uint32 { return 30 }
+func (xdrProc_Repair_missing_scp_envelopes) ProgName() string { return "Repair" }
+func (xdrProc_Repair_missing_scp_envelopes) VersName() string { return "Repair1" }
+func (xdrProc_Repair_missing_scp_envelopes) ProcName() string { return "repair_missing_scp_envelopes" }
+func (p *xdrProc_Repair_missing_scp_envelopes) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SCPSlotIndex)
+	}
+	return XDR_SCPSlotIndex(p.Arg)
+}
+func (p *xdrProc_Repair_missing_scp_envelopes) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(SCPEnvelopes)
+	}
+	return XDR_SCPEnvelopes(p.Res)
+}
+var _ XdrProc = &xdrProc_Repair_missing_scp_envelopes{} // XXX
+
+type xdrSrvProc_Repair_missing_scp_envelopes struct {
+	xdrProc_Repair_missing_scp_envelopes
+	Srv Repair1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Repair_missing_scp_envelopes) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) Repair1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Repair_missing_scp_envelopes) Do() {
+	r, err := p.Srv.Repair_missing_scp_envelopes(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Repair_missing_scp_envelopes{} // XXX
+
 func init() {
 	XdrCatalog[573820108<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -12228,6 +12278,8 @@ func init() {
 			return &xdrProc_Repair_missing_txs{}
 		case 20:
 			return &xdrProc_Repair_missing_cv{}
+		case 30:
+			return &xdrProc_Repair_missing_scp_envelopes{}
 		}
 		return nil
 	}
@@ -12248,6 +12300,8 @@ func (s Repair1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Repair_missing_txs{ Srv: s.Srv }
 	case 20:  // repair_missing_cv
 		return &xdrSrvProc_Repair_missing_cv{ Srv: s.Srv }
+	case 30:  // repair_missing_scp_envelopes
+		return &xdrSrvProc_Repair_missing_scp_envelopes{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -12280,6 +12334,14 @@ func (c Repair1_Client) Repair_missing_txs(ctx context.Context, a1 MissingTransa
 }
 func (c Repair1_Client) Repair_missing_cv(ctx context.Context, a1 ConsensusValueHash) (r OptConsensusValue, _ error) {
 	var proc xdrProc_Repair_missing_cv
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c Repair1_Client) Repair_missing_scp_envelopes(ctx context.Context, a1 SCPSlotIndex) (r SCPEnvelopes, _ error) {
+	var proc xdrProc_Repair_missing_scp_envelopes
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
@@ -17618,6 +17680,69 @@ func (v *SCPEnvelope) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
 }
 func XDR_SCPEnvelope(v *SCPEnvelope) *SCPEnvelope { return v }
+type _XdrVec_unbounded_SCPEnvelope []SCPEnvelope
+func (_XdrVec_unbounded_SCPEnvelope) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SCPEnvelope) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SCPEnvelope length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SCPEnvelope length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SCPEnvelope) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SCPEnvelope) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SCPEnvelope, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SCPEnvelope) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SCPEnvelope(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SCPEnvelope) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SCPEnvelope) XdrTypeName() string { return "SCPEnvelope<>" }
+func (v *_XdrVec_unbounded_SCPEnvelope) XdrPointer() interface{} { return (*[]SCPEnvelope)(v) }
+func (v _XdrVec_unbounded_SCPEnvelope) XdrValue() interface{} { return ([]SCPEnvelope)(v) }
+func (v *_XdrVec_unbounded_SCPEnvelope) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SCPEnvelopes struct {
+	*_XdrVec_unbounded_SCPEnvelope
+}
+func XDR_SCPEnvelopes(v *SCPEnvelopes) XdrType_SCPEnvelopes {
+	return XdrType_SCPEnvelopes{(*_XdrVec_unbounded_SCPEnvelope)(v)}
+}
+func (XdrType_SCPEnvelopes) XdrTypeName() string { return "SCPEnvelopes" }
+func (v XdrType_SCPEnvelopes) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SCPEnvelope }
 type _XdrVec_unbounded_SCPNodeID []SCPNodeID
 func (_XdrVec_unbounded_SCPNodeID) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
