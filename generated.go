@@ -927,13 +927,13 @@ type LockObject = string
 
 type LockObjects = []LockObject
 
-type LockHandle = string
+type LockLease = string
 
 type HogLock1 interface {
 	Hoglock_null(context.Context, ) error
-	Hoglock_lock(context.Context, LockObjects) (LockHandle, error)
-	Hoglock_refresh(context.Context, LockHandle) error
-	Hoglock_check(context.Context, LockHandle) (bool, error)
+	Hoglock_lock(context.Context, LockObjects) (LockLease, error)
+	Hoglock_renew(context.Context, LockLease) error
+	Hoglock_check(context.Context, LockLease) (bool, error)
 }
 
 type ExperimentType int32
@@ -11215,14 +11215,14 @@ func XDR_LockObjects(v *LockObjects) XdrType_LockObjects {
 }
 func (XdrType_LockObjects) XdrTypeName() string { return "LockObjects" }
 func (v XdrType_LockObjects) XdrUnwrap() XdrType { return v._XdrVec_unbounded_LockObject }
-type XdrType_LockHandle struct {
+type XdrType_LockLease struct {
 	XdrString
 }
-func XDR_LockHandle(v *LockHandle) XdrType_LockHandle {
-	return XdrType_LockHandle{XdrString{v, 0xffffffff}}
+func XDR_LockLease(v *LockLease) XdrType_LockLease {
+	return XdrType_LockLease{XdrString{v, 0xffffffff}}
 }
-func (XdrType_LockHandle) XdrTypeName() string { return "LockHandle" }
-func (v XdrType_LockHandle) XdrUnwrap() XdrType { return v.XdrString }
+func (XdrType_LockLease) XdrTypeName() string { return "LockLease" }
+func (v XdrType_LockLease) XdrUnwrap() XdrType { return v.XdrString }
 
 type xdrProc_Hoglock_null struct {
 	Arg *XdrVoid
@@ -11271,7 +11271,7 @@ var _ XdrSrvProc = &xdrSrvProc_Hoglock_null{} // XXX
 
 type xdrProc_Hoglock_lock struct {
 	Arg *LockObjects
-	Res *LockHandle
+	Res *LockLease
 }
 func (xdrProc_Hoglock_lock) Prog() uint32 { return 571552835 }
 func (xdrProc_Hoglock_lock) Vers() uint32 { return 1 }
@@ -11287,9 +11287,9 @@ func (p *xdrProc_Hoglock_lock) GetArg() XdrType {
 }
 func (p *xdrProc_Hoglock_lock) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(LockHandle)
+		p.Res = new(LockLease)
 	}
-	return XDR_LockHandle(p.Res)
+	return XDR_LockLease(p.Res)
 }
 var _ XdrProc = &xdrProc_Hoglock_lock{} // XXX
 
@@ -11316,36 +11316,36 @@ func (p *xdrSrvProc_Hoglock_lock) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Hoglock_lock{} // XXX
 
-type xdrProc_Hoglock_refresh struct {
-	Arg *LockHandle
+type xdrProc_Hoglock_renew struct {
+	Arg *LockLease
 	Res *XdrVoid
 }
-func (xdrProc_Hoglock_refresh) Prog() uint32 { return 571552835 }
-func (xdrProc_Hoglock_refresh) Vers() uint32 { return 1 }
-func (xdrProc_Hoglock_refresh) Proc() uint32 { return 2 }
-func (xdrProc_Hoglock_refresh) ProgName() string { return "HogLock" }
-func (xdrProc_Hoglock_refresh) VersName() string { return "HogLock1" }
-func (xdrProc_Hoglock_refresh) ProcName() string { return "hoglock_refresh" }
-func (p *xdrProc_Hoglock_refresh) GetArg() XdrType {
+func (xdrProc_Hoglock_renew) Prog() uint32 { return 571552835 }
+func (xdrProc_Hoglock_renew) Vers() uint32 { return 1 }
+func (xdrProc_Hoglock_renew) Proc() uint32 { return 2 }
+func (xdrProc_Hoglock_renew) ProgName() string { return "HogLock" }
+func (xdrProc_Hoglock_renew) VersName() string { return "HogLock1" }
+func (xdrProc_Hoglock_renew) ProcName() string { return "hoglock_renew" }
+func (p *xdrProc_Hoglock_renew) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(LockHandle)
+		p.Arg = new(LockLease)
 	}
-	return XDR_LockHandle(p.Arg)
+	return XDR_LockLease(p.Arg)
 }
-func (p *xdrProc_Hoglock_refresh) GetRes() XdrType {
+func (p *xdrProc_Hoglock_renew) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Hoglock_refresh{} // XXX
+var _ XdrProc = &xdrProc_Hoglock_renew{} // XXX
 
-type xdrSrvProc_Hoglock_refresh struct {
-	xdrProc_Hoglock_refresh
+type xdrSrvProc_Hoglock_renew struct {
+	xdrProc_Hoglock_renew
 	Srv HogLock1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Hoglock_refresh) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Hoglock_renew) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) HogLock1
 	}); ok {
@@ -11353,16 +11353,16 @@ func (p *xdrSrvProc_Hoglock_refresh) SetContext(ctx context.Context) {
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Hoglock_refresh) Do() {
-	err := p.Srv.Hoglock_refresh(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Hoglock_renew) Do() {
+	err := p.Srv.Hoglock_renew(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Hoglock_refresh{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Hoglock_renew{} // XXX
 
 type xdrProc_Hoglock_check struct {
-	Arg *LockHandle
+	Arg *LockLease
 	Res *bool
 }
 func (xdrProc_Hoglock_check) Prog() uint32 { return 571552835 }
@@ -11373,9 +11373,9 @@ func (xdrProc_Hoglock_check) VersName() string { return "HogLock1" }
 func (xdrProc_Hoglock_check) ProcName() string { return "hoglock_check" }
 func (p *xdrProc_Hoglock_check) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(LockHandle)
+		p.Arg = new(LockLease)
 	}
-	return XDR_LockHandle(p.Arg)
+	return XDR_LockLease(p.Arg)
 }
 func (p *xdrProc_Hoglock_check) GetRes() XdrType {
 	if p.Res == nil {
@@ -11416,7 +11416,7 @@ func init() {
 		case 1:
 			return &xdrProc_Hoglock_lock{}
 		case 2:
-			return &xdrProc_Hoglock_refresh{}
+			return &xdrProc_Hoglock_renew{}
 		case 3:
 			return &xdrProc_Hoglock_check{}
 		}
@@ -11437,8 +11437,8 @@ func (s HogLock1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Hoglock_null{ Srv: s.Srv }
 	case 1:  // hoglock_lock
 		return &xdrSrvProc_Hoglock_lock{ Srv: s.Srv }
-	case 2:  // hoglock_refresh
-		return &xdrSrvProc_Hoglock_refresh{ Srv: s.Srv }
+	case 2:  // hoglock_renew
+		return &xdrSrvProc_Hoglock_renew{ Srv: s.Srv }
 	case 3:  // hoglock_check
 		return &xdrSrvProc_Hoglock_check{ Srv: s.Srv }
 	default:
@@ -11463,7 +11463,7 @@ func (c HogLock1_Client) Hoglock_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c HogLock1_Client) Hoglock_lock(ctx context.Context, a1 LockObjects) (r LockHandle, _ error) {
+func (c HogLock1_Client) Hoglock_lock(ctx context.Context, a1 LockObjects) (r LockLease, _ error) {
 	var proc xdrProc_Hoglock_lock
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -11471,15 +11471,15 @@ func (c HogLock1_Client) Hoglock_lock(ctx context.Context, a1 LockObjects) (r Lo
 	}
 	return *proc.Res, nil
 }
-func (c HogLock1_Client) Hoglock_refresh(ctx context.Context, a1 LockHandle) error {
-	var proc xdrProc_Hoglock_refresh
+func (c HogLock1_Client) Hoglock_renew(ctx context.Context, a1 LockLease) error {
+	var proc xdrProc_Hoglock_renew
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
 	return nil
 }
-func (c HogLock1_Client) Hoglock_check(ctx context.Context, a1 LockHandle) (r bool, _ error) {
+func (c HogLock1_Client) Hoglock_check(ctx context.Context, a1 LockLease) (r bool, _ error) {
 	var proc xdrProc_Hoglock_check
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
