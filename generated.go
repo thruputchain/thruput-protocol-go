@@ -167,7 +167,7 @@ type DBAuthResultBatch = []DBAuthResult
 type DBAuth1 interface {
 	Authdb_get_auth_data(context.Context, BlockHeight, ContractAddress) (DBAuthResult, error)
 	Authdb_get_auth_data_batch(context.Context, BlockHeight, ContractAddressBatch) (DBAuthResultBatch, error)
-	Dbauth_intro(context.Context, AuthCard) error
+	Dbauth_intro(context.Context, AuthCard) (bool, error)
 }
 
 type IntroAuthResult struct {
@@ -1144,11 +1144,17 @@ const KMempoolDbServerPort = 8072
 
 const KMempoolEventServerPort = 8073
 
+const KMempoolAuthServerPort = 8074
+
 const KExecutorMempoolServerPort = 8090
 
 const KEventExecutorServerPort = 8091
 
 const KEventMempoolServerPort = 8092
+
+const KAuthDbServerPort = 8093
+
+const KAuthMempoolServerPort = 8094
 
 const KCIControlServerPort = 11111
 
@@ -1518,6 +1524,16 @@ const (
 	SchedulerNominationError SchedulerNominationOutcome = 1
 )
 
+type SchedulerNominationResult struct {
+	// The union discriminant Outcome selects among the following arms:
+	//   SchedulerNominationOK:
+	//      Block_id() *BlockID
+	//   default:
+	//      void
+	Outcome SchedulerNominationOutcome
+	_u interface{}
+}
+
 type SchedulerValidationOutcome int32
 const (
 	SchedulerValidationOK SchedulerValidationOutcome = 0
@@ -1539,14 +1555,20 @@ type SchedulerValidationResult struct {
 	_u interface{}
 }
 
+type SchedulerCommitOutcome int32
+const (
+	SchedulerCommitOK SchedulerCommitOutcome = 0
+	SchedulerCommitBlockNotFound SchedulerCommitOutcome = 1
+)
+
 type SchedulerCoord1 interface {
 	Schedulercoord_null(context.Context, ) error
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
 	Schedulercoord_submit_unvetted(context.Context, SignedTransactionBatch) error
 	Schedulercoord_submit_vetted(context.Context, ValidatorID, SignedTransactionBatch) error
-	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationOutcome, error)
+	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
-	Schedulercoord_commit_block(context.Context, BlockID) error
+	Schedulercoord_commit_block(context.Context, BlockID) (SchedulerCommitOutcome, error)
 	Schedcoord_get_tip(context.Context, ) (DbTipResult, error)
 	Schedcoord_load_genesis_block(context.Context, GenesisBlock) (DbSchedResult, error)
 	Schedcoord_lookup_transactions(context.Context, SignedTransactionHashBatch) (OptSignedTransactionBatch, error)
@@ -3809,7 +3831,7 @@ var _ XdrSrvProc = &xdrSrvProc_Authdb_get_auth_data_batch{} // XXX
 
 type xdrProc_Dbauth_intro struct {
 	Arg *AuthCard
-	Res *XdrVoid
+	Res *bool
 }
 func (xdrProc_Dbauth_intro) Prog() uint32 { return 2326297257 }
 func (xdrProc_Dbauth_intro) Vers() uint32 { return 1 }
@@ -3825,9 +3847,9 @@ func (p *xdrProc_Dbauth_intro) GetArg() XdrType {
 }
 func (p *xdrProc_Dbauth_intro) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(bool)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_bool(p.Res)
 }
 var _ XdrProc = &xdrProc_Dbauth_intro{} // XXX
 
@@ -3845,7 +3867,9 @@ func (p *xdrSrvProc_Dbauth_intro) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dbauth_intro) Do() {
-	err := p.Srv.Dbauth_intro(p.Ctx, *p.Arg)
+	r, err := p.Srv.Dbauth_intro(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -3916,13 +3940,13 @@ func (c DBAuth1_Client) Authdb_get_auth_data_batch(ctx context.Context, a1 Block
 	}
 	return *proc.Res, nil
 }
-func (c DBAuth1_Client) Dbauth_intro(ctx context.Context, a1 AuthCard) error {
+func (c DBAuth1_Client) Dbauth_intro(ctx context.Context, a1 AuthCard) (r bool, _ error) {
 	var proc xdrProc_Dbauth_intro
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 type _XdrVec_unbounded_ShardCard []ShardCard
 func (_XdrVec_unbounded_ShardCard) XdrBound() uint32 {
@@ -16021,6 +16045,68 @@ func (v SchedulerNominationOutcome) XdrValue() interface{} { return v }
 func (v *SchedulerNominationOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_SchedulerNominationOutcome = *SchedulerNominationOutcome
 func XDR_SchedulerNominationOutcome(v *SchedulerNominationOutcome) *SchedulerNominationOutcome { return v }
+func (_ SchedulerNominationResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *SchedulerNominationResult) Block_id() *BlockID {
+	switch u.Outcome {
+	case SchedulerNominationOK:
+		if v, ok := u._u.(*BlockID); ok {
+			return v
+		} else {
+			var zero BlockID
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("SchedulerNominationResult.Block_id accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u SchedulerNominationResult) XdrValid() bool {
+	return true
+}
+func (u *SchedulerNominationResult) XdrUnionTag() XdrNum32 {
+	return XDR_SchedulerNominationOutcome(&u.Outcome)
+}
+func (u *SchedulerNominationResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *SchedulerNominationResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case SchedulerNominationOK:
+		return XDR_BlockID(u.Block_id())
+	default:
+		return nil
+	}
+}
+func (u *SchedulerNominationResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case SchedulerNominationOK:
+		return "Block_id"
+	default:
+		return ""
+	}
+}
+type XdrType_SchedulerNominationResult = *SchedulerNominationResult
+func (v *SchedulerNominationResult) XdrPointer() interface{} { return v }
+func (SchedulerNominationResult) XdrTypeName() string { return "SchedulerNominationResult" }
+func (v SchedulerNominationResult) XdrValue() interface{} { return v }
+func (v *SchedulerNominationResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *SchedulerNominationResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_SchedulerNominationOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case SchedulerNominationOK:
+		x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(u.Block_id()))
+		return
+	default:
+		return
+	}
+}
+func XDR_SchedulerNominationResult(v *SchedulerNominationResult) *SchedulerNominationResult { return v}
 var _XdrNames_SchedulerValidationOutcome = map[int32]string{
 	int32(SchedulerValidationOK): "SchedulerValidationOK",
 	int32(SchedulerValidationInvalid): "SchedulerValidationInvalid",
@@ -16153,6 +16239,48 @@ func (u *SchedulerValidationResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_SchedulerValidationResult(v *SchedulerValidationResult) *SchedulerValidationResult { return v}
+var _XdrNames_SchedulerCommitOutcome = map[int32]string{
+	int32(SchedulerCommitOK): "SchedulerCommitOK",
+	int32(SchedulerCommitBlockNotFound): "SchedulerCommitBlockNotFound",
+}
+var _XdrValues_SchedulerCommitOutcome = map[string]int32{
+	"SchedulerCommitOK": int32(SchedulerCommitOK),
+	"SchedulerCommitBlockNotFound": int32(SchedulerCommitBlockNotFound),
+}
+func (SchedulerCommitOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_SchedulerCommitOutcome
+}
+func (v SchedulerCommitOutcome) String() string {
+	if s, ok := _XdrNames_SchedulerCommitOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SchedulerCommitOutcome#%d", v)
+}
+func (v *SchedulerCommitOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SchedulerCommitOutcome[stok]; ok {
+			*v = SchedulerCommitOutcome(val)
+			return nil
+		} else if stok == "SchedulerCommitOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SchedulerCommitOutcome.", stok))
+	}
+}
+func (v SchedulerCommitOutcome) GetU32() uint32 { return uint32(v) }
+func (v *SchedulerCommitOutcome) SetU32(n uint32) { *v = SchedulerCommitOutcome(n) }
+func (v *SchedulerCommitOutcome) XdrPointer() interface{} { return v }
+func (SchedulerCommitOutcome) XdrTypeName() string { return "SchedulerCommitOutcome" }
+func (v SchedulerCommitOutcome) XdrValue() interface{} { return v }
+func (v *SchedulerCommitOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedulerCommitOutcome = *SchedulerCommitOutcome
+func XDR_SchedulerCommitOutcome(v *SchedulerCommitOutcome) *SchedulerCommitOutcome { return v }
 
 type xdrProc_Schedulercoord_null struct {
 	Arg *XdrVoid
@@ -16358,7 +16486,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_vetted{} // XXX
 
 type xdrProc_Schedulercoord_nominate struct {
 	Arg *DbTip
-	Res *SchedulerNominationOutcome
+	Res *SchedulerNominationResult
 }
 func (xdrProc_Schedulercoord_nominate) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_nominate) Vers() uint32 { return 1 }
@@ -16374,9 +16502,9 @@ func (p *xdrProc_Schedulercoord_nominate) GetArg() XdrType {
 }
 func (p *xdrProc_Schedulercoord_nominate) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(SchedulerNominationOutcome)
+		p.Res = new(SchedulerNominationResult)
 	}
-	return XDR_SchedulerNominationOutcome(p.Res)
+	return XDR_SchedulerNominationResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Schedulercoord_nominate{} // XXX
 
@@ -16472,7 +16600,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_validate{} // XXX
 
 type xdrProc_Schedulercoord_commit_block struct {
 	Arg *BlockID
-	Res *XdrVoid
+	Res *SchedulerCommitOutcome
 }
 func (xdrProc_Schedulercoord_commit_block) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedulercoord_commit_block) Vers() uint32 { return 1 }
@@ -16488,9 +16616,9 @@ func (p *xdrProc_Schedulercoord_commit_block) GetArg() XdrType {
 }
 func (p *xdrProc_Schedulercoord_commit_block) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(SchedulerCommitOutcome)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_SchedulerCommitOutcome(p.Res)
 }
 var _ XdrProc = &xdrProc_Schedulercoord_commit_block{} // XXX
 
@@ -16508,7 +16636,9 @@ func (p *xdrSrvProc_Schedulercoord_commit_block) SetContext(ctx context.Context)
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Schedulercoord_commit_block) Do() {
-	err := p.Srv.Schedulercoord_commit_block(p.Ctx, *p.Arg)
+	r, err := p.Srv.Schedulercoord_commit_block(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -16761,7 +16891,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context
 	}
 	return nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_nominate(ctx context.Context, a1 DbTip) (r SchedulerNominationOutcome, _ error) {
+func (c SchedulerCoord1_Client) Schedulercoord_nominate(ctx context.Context, a1 DbTip) (r SchedulerNominationResult, _ error) {
 	var proc xdrProc_Schedulercoord_nominate
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -16779,13 +16909,13 @@ func (c SchedulerCoord1_Client) Schedulercoord_validate(ctx context.Context, a1 
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_commit_block(ctx context.Context, a1 BlockID) error {
+func (c SchedulerCoord1_Client) Schedulercoord_commit_block(ctx context.Context, a1 BlockID) (r SchedulerCommitOutcome, _ error) {
 	var proc xdrProc_Schedulercoord_commit_block
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
 	var proc xdrProc_Schedcoord_get_tip
