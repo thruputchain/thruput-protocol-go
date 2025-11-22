@@ -1020,17 +1020,15 @@ type LockObjects = []LockObject
 
 type LockLease = string
 
-type HogChan = string
-
-type HogMsg = string
+type HogNamespace = string
 
 type HogLock1 interface {
 	Hoglock_null(context.Context, ) error
 	Hoglock_lock(context.Context, LockObjects) (LockLease, error)
 	Hoglock_renew(context.Context, LockLease) error
 	Hoglock_check(context.Context, LockLease) (bool, error)
-	Hoglock_signal(context.Context, HogChan, HogMsg) error
-	Hoglock_wait(context.Context, HogChan, HogMsg) error
+	Hoglock_signal(context.Context, HogNamespace) error
+	Hoglock_wait(context.Context, HogNamespace) error
 }
 
 type ExperimentType int32
@@ -12742,22 +12740,14 @@ func XDR_LockLease(v *LockLease) XdrType_LockLease {
 }
 func (XdrType_LockLease) XdrTypeName() string { return "LockLease" }
 func (v XdrType_LockLease) XdrUnwrap() XdrType { return v.XdrString }
-type XdrType_HogChan struct {
+type XdrType_HogNamespace struct {
 	XdrString
 }
-func XDR_HogChan(v *HogChan) XdrType_HogChan {
-	return XdrType_HogChan{XdrString{v, 0xffffffff}}
+func XDR_HogNamespace(v *HogNamespace) XdrType_HogNamespace {
+	return XdrType_HogNamespace{XdrString{v, 0xffffffff}}
 }
-func (XdrType_HogChan) XdrTypeName() string { return "HogChan" }
-func (v XdrType_HogChan) XdrUnwrap() XdrType { return v.XdrString }
-type XdrType_HogMsg struct {
-	XdrString
-}
-func XDR_HogMsg(v *HogMsg) XdrType_HogMsg {
-	return XdrType_HogMsg{XdrString{v, 0xffffffff}}
-}
-func (XdrType_HogMsg) XdrTypeName() string { return "HogMsg" }
-func (v XdrType_HogMsg) XdrUnwrap() XdrType { return v.XdrString }
+func (XdrType_HogNamespace) XdrTypeName() string { return "HogNamespace" }
+func (v XdrType_HogNamespace) XdrUnwrap() XdrType { return v.XdrString }
 
 type xdrProc_Hoglock_null struct {
 	Arg *XdrVoid
@@ -12943,28 +12933,8 @@ func (p *xdrSrvProc_Hoglock_check) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Hoglock_check{} // XXX
 
-type xdrProcArg_Hoglock_signal struct {
-	a1 *HogChan
-	a2 *HogMsg
-}
-func (v *xdrProcArg_Hoglock_signal) XdrPointer() interface{} { return v }
-func (xdrProcArg_Hoglock_signal) XdrTypeName() string { return "xdrProcArg_Hoglock_signal" }
-func (v xdrProcArg_Hoglock_signal) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Hoglock_signal) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Hoglock_signal) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(HogChan) }
-	XDR_HogChan(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(HogMsg) }
-	XDR_HogMsg(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Hoglock_signal(v *xdrProcArg_Hoglock_signal) *xdrProcArg_Hoglock_signal { return v }
-var _ XdrType = &xdrProcArg_Hoglock_signal{} // XXX
-
 type xdrProc_Hoglock_signal struct {
-	Arg *xdrProcArg_Hoglock_signal
+	Arg *HogNamespace
 	Res *XdrVoid
 }
 func (xdrProc_Hoglock_signal) Prog() uint32 { return 571552835 }
@@ -12975,9 +12945,9 @@ func (xdrProc_Hoglock_signal) VersName() string { return "HogLock1" }
 func (xdrProc_Hoglock_signal) ProcName() string { return "hoglock_signal" }
 func (p *xdrProc_Hoglock_signal) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Hoglock_signal)
+		p.Arg = new(HogNamespace)
 	}
-	return XDR_xdrProcArg_Hoglock_signal(p.Arg)
+	return XDR_HogNamespace(p.Arg)
 }
 func (p *xdrProc_Hoglock_signal) GetRes() XdrType {
 	if p.Res == nil {
@@ -13001,35 +12971,15 @@ func (p *xdrSrvProc_Hoglock_signal) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Hoglock_signal) Do() {
-	err := p.Srv.Hoglock_signal(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	err := p.Srv.Hoglock_signal(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Hoglock_signal{} // XXX
 
-type xdrProcArg_Hoglock_wait struct {
-	a1 *HogChan
-	a2 *HogMsg
-}
-func (v *xdrProcArg_Hoglock_wait) XdrPointer() interface{} { return v }
-func (xdrProcArg_Hoglock_wait) XdrTypeName() string { return "xdrProcArg_Hoglock_wait" }
-func (v xdrProcArg_Hoglock_wait) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Hoglock_wait) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Hoglock_wait) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(HogChan) }
-	XDR_HogChan(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(HogMsg) }
-	XDR_HogMsg(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Hoglock_wait(v *xdrProcArg_Hoglock_wait) *xdrProcArg_Hoglock_wait { return v }
-var _ XdrType = &xdrProcArg_Hoglock_wait{} // XXX
-
 type xdrProc_Hoglock_wait struct {
-	Arg *xdrProcArg_Hoglock_wait
+	Arg *HogNamespace
 	Res *XdrVoid
 }
 func (xdrProc_Hoglock_wait) Prog() uint32 { return 571552835 }
@@ -13040,9 +12990,9 @@ func (xdrProc_Hoglock_wait) VersName() string { return "HogLock1" }
 func (xdrProc_Hoglock_wait) ProcName() string { return "hoglock_wait" }
 func (p *xdrProc_Hoglock_wait) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Hoglock_wait)
+		p.Arg = new(HogNamespace)
 	}
-	return XDR_xdrProcArg_Hoglock_wait(p.Arg)
+	return XDR_HogNamespace(p.Arg)
 }
 func (p *xdrProc_Hoglock_wait) GetRes() XdrType {
 	if p.Res == nil {
@@ -13066,7 +13016,7 @@ func (p *xdrSrvProc_Hoglock_wait) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Hoglock_wait) Do() {
-	err := p.Srv.Hoglock_wait(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	err := p.Srv.Hoglock_wait(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
@@ -13160,21 +13110,17 @@ func (c HogLock1_Client) Hoglock_check(ctx context.Context, a1 LockLease) (r boo
 	}
 	return *proc.Res, nil
 }
-func (c HogLock1_Client) Hoglock_signal(ctx context.Context, a1 HogChan, a2 HogMsg) error {
+func (c HogLock1_Client) Hoglock_signal(ctx context.Context, a1 HogNamespace) error {
 	var proc xdrProc_Hoglock_signal
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
 	return nil
 }
-func (c HogLock1_Client) Hoglock_wait(ctx context.Context, a1 HogChan, a2 HogMsg) error {
+func (c HogLock1_Client) Hoglock_wait(ctx context.Context, a1 HogNamespace) error {
 	var proc xdrProc_Hoglock_wait
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
