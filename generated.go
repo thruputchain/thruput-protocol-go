@@ -1030,7 +1030,7 @@ type HogLock1 interface {
 	Hoglock_renew(context.Context, LockLease) error
 	Hoglock_check(context.Context, LockLease) (bool, error)
 	Hoglock_signal(context.Context, HogNamespaces) error
-	Hoglock_wait(context.Context, HogNamespace) error
+	Hoglock_wait(context.Context, HogNamespaces) error
 }
 
 type ExperimentType int32
@@ -13044,7 +13044,7 @@ func (p *xdrSrvProc_Hoglock_signal) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Hoglock_signal{} // XXX
 
 type xdrProc_Hoglock_wait struct {
-	Arg *HogNamespace
+	Arg *HogNamespaces
 	Res *XdrVoid
 }
 func (xdrProc_Hoglock_wait) Prog() uint32 { return 571552835 }
@@ -13055,9 +13055,9 @@ func (xdrProc_Hoglock_wait) VersName() string { return "HogLock1" }
 func (xdrProc_Hoglock_wait) ProcName() string { return "hoglock_wait" }
 func (p *xdrProc_Hoglock_wait) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(HogNamespace)
+		p.Arg = new(HogNamespaces)
 	}
-	return XDR_HogNamespace(p.Arg)
+	return XDR_HogNamespaces(p.Arg)
 }
 func (p *xdrProc_Hoglock_wait) GetRes() XdrType {
 	if p.Res == nil {
@@ -13183,7 +13183,7 @@ func (c HogLock1_Client) Hoglock_signal(ctx context.Context, a1 HogNamespaces) e
 	}
 	return nil
 }
-func (c HogLock1_Client) Hoglock_wait(ctx context.Context, a1 HogNamespace) error {
+func (c HogLock1_Client) Hoglock_wait(ctx context.Context, a1 HogNamespaces) error {
 	var proc xdrProc_Hoglock_wait
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
