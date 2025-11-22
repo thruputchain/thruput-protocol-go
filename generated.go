@@ -1022,12 +1022,14 @@ type LockLease = string
 
 type HogNamespace = string
 
+type HogNamespaces = []HogNamespace
+
 type HogLock1 interface {
 	Hoglock_null(context.Context, ) error
 	Hoglock_lock(context.Context, LockObjects) (LockLease, error)
 	Hoglock_renew(context.Context, LockLease) error
 	Hoglock_check(context.Context, LockLease) (bool, error)
-	Hoglock_signal(context.Context, HogNamespace) error
+	Hoglock_signal(context.Context, HogNamespaces) error
 	Hoglock_wait(context.Context, HogNamespace) error
 }
 
@@ -12748,6 +12750,69 @@ func XDR_HogNamespace(v *HogNamespace) XdrType_HogNamespace {
 }
 func (XdrType_HogNamespace) XdrTypeName() string { return "HogNamespace" }
 func (v XdrType_HogNamespace) XdrUnwrap() XdrType { return v.XdrString }
+type _XdrVec_unbounded_HogNamespace []HogNamespace
+func (_XdrVec_unbounded_HogNamespace) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_HogNamespace) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_HogNamespace length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_HogNamespace length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_HogNamespace) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_HogNamespace) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]HogNamespace, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_HogNamespace) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_HogNamespace(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_HogNamespace) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_HogNamespace) XdrTypeName() string { return "HogNamespace<>" }
+func (v *_XdrVec_unbounded_HogNamespace) XdrPointer() interface{} { return (*[]HogNamespace)(v) }
+func (v _XdrVec_unbounded_HogNamespace) XdrValue() interface{} { return ([]HogNamespace)(v) }
+func (v *_XdrVec_unbounded_HogNamespace) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_HogNamespaces struct {
+	*_XdrVec_unbounded_HogNamespace
+}
+func XDR_HogNamespaces(v *HogNamespaces) XdrType_HogNamespaces {
+	return XdrType_HogNamespaces{(*_XdrVec_unbounded_HogNamespace)(v)}
+}
+func (XdrType_HogNamespaces) XdrTypeName() string { return "HogNamespaces" }
+func (v XdrType_HogNamespaces) XdrUnwrap() XdrType { return v._XdrVec_unbounded_HogNamespace }
 
 type xdrProc_Hoglock_null struct {
 	Arg *XdrVoid
@@ -12934,7 +12999,7 @@ func (p *xdrSrvProc_Hoglock_check) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Hoglock_check{} // XXX
 
 type xdrProc_Hoglock_signal struct {
-	Arg *HogNamespace
+	Arg *HogNamespaces
 	Res *XdrVoid
 }
 func (xdrProc_Hoglock_signal) Prog() uint32 { return 571552835 }
@@ -12945,9 +13010,9 @@ func (xdrProc_Hoglock_signal) VersName() string { return "HogLock1" }
 func (xdrProc_Hoglock_signal) ProcName() string { return "hoglock_signal" }
 func (p *xdrProc_Hoglock_signal) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(HogNamespace)
+		p.Arg = new(HogNamespaces)
 	}
-	return XDR_HogNamespace(p.Arg)
+	return XDR_HogNamespaces(p.Arg)
 }
 func (p *xdrProc_Hoglock_signal) GetRes() XdrType {
 	if p.Res == nil {
@@ -13110,7 +13175,7 @@ func (c HogLock1_Client) Hoglock_check(ctx context.Context, a1 LockLease) (r boo
 	}
 	return *proc.Res, nil
 }
-func (c HogLock1_Client) Hoglock_signal(ctx context.Context, a1 HogNamespace) error {
+func (c HogLock1_Client) Hoglock_signal(ctx context.Context, a1 HogNamespaces) error {
 	var proc xdrProc_Hoglock_signal
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
