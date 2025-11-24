@@ -376,6 +376,7 @@ type ConsensusValueCue struct {
 	Proposer ValidatorPublicInfo
 	Cv_hash ConsensusValueHash
 	Prev_cv_hash ConsensusValueHash
+	Block_height BlockHeight
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
 }
@@ -767,6 +768,9 @@ type EventSched1 interface {
 const KMaxEventLength = 1024
 
 const KMaxTopics = 3
+
+// #[rust(newtype)]
+type Topic = [32]byte
 
 type TxEmittedEvent struct {
 	Contract_address ContractAddress
@@ -6436,6 +6440,7 @@ func (v *ConsensusValueCue) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
 	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusValueHash(&v.Cv_hash))
 	x.Marshal(x.Sprintf("%sprev_cv_hash", name), XDR_ConsensusValueHash(&v.Prev_cv_hash))
+	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
 }
@@ -10392,6 +10397,14 @@ func (c EventSched1_Client) Eventsched_abandon_block(ctx context.Context, a1 Blo
 	}
 	return *proc.Res, nil
 }
+type XdrType_Topic struct {
+	*_XdrArray_32_opaque
+}
+func XDR_Topic(v *Topic) XdrType_Topic {
+	return XdrType_Topic{(*_XdrArray_32_opaque)(v)}
+}
+func (XdrType_Topic) XdrTypeName() string { return "Topic" }
+func (v XdrType_Topic) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_TxEmittedEvent = *TxEmittedEvent
 func (v *TxEmittedEvent) XdrPointer() interface{} { return v }
 func (TxEmittedEvent) XdrTypeName() string { return "TxEmittedEvent" }
