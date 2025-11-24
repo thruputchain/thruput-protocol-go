@@ -333,6 +333,7 @@ type CatchupConfig struct {
 }
 
 type BatonConfig struct {
+	Skew_msec Milliseconds
 	Heartbeat_msec Milliseconds
 	Patience_msec Milliseconds
 	Max_catchup_height int32
@@ -5435,6 +5436,7 @@ func (v *BatonConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%sskew_msec", name), XDR_Milliseconds(&v.Skew_msec))
 	x.Marshal(x.Sprintf("%sheartbeat_msec", name), XDR_Milliseconds(&v.Heartbeat_msec))
 	x.Marshal(x.Sprintf("%spatience_msec", name), XDR_Milliseconds(&v.Patience_msec))
 	x.Marshal(x.Sprintf("%smax_catchup_height", name), XDR_int32(&v.Max_catchup_height))
