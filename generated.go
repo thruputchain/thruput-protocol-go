@@ -1201,7 +1201,7 @@ type RepairedTransactions struct {
 type Repair1 interface {
 	Repair_null(context.Context, ) error
 	Repair_missing_txs(context.Context, MissingTransactionsEnvelope) (RepairedTransactions, error)
-	Repair_missing_cv(context.Context, ConsensusValueHash) (OptConsensusValue, error)
+	Repair_missing_cv(context.Context, ConsensusValueHash, BlockHeight) (OptConsensusValue, error)
 	Repair_missing_scp_envelopes(context.Context, SCPSlotIndex) (SCPEnvelopes, error)
 }
 
@@ -14316,8 +14316,28 @@ func (p *xdrSrvProc_Repair_missing_txs) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Repair_missing_txs{} // XXX
 
+type xdrProcArg_Repair_missing_cv struct {
+	a1 *ConsensusValueHash
+	a2 *BlockHeight
+}
+func (v *xdrProcArg_Repair_missing_cv) XdrPointer() interface{} { return v }
+func (xdrProcArg_Repair_missing_cv) XdrTypeName() string { return "xdrProcArg_Repair_missing_cv" }
+func (v xdrProcArg_Repair_missing_cv) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Repair_missing_cv) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Repair_missing_cv) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(ConsensusValueHash) }
+	XDR_ConsensusValueHash(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(BlockHeight) }
+	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Repair_missing_cv(v *xdrProcArg_Repair_missing_cv) *xdrProcArg_Repair_missing_cv { return v }
+var _ XdrType = &xdrProcArg_Repair_missing_cv{} // XXX
+
 type xdrProc_Repair_missing_cv struct {
-	Arg *ConsensusValueHash
+	Arg *xdrProcArg_Repair_missing_cv
 	Res *OptConsensusValue
 }
 func (xdrProc_Repair_missing_cv) Prog() uint32 { return 573820108 }
@@ -14328,9 +14348,9 @@ func (xdrProc_Repair_missing_cv) VersName() string { return "Repair1" }
 func (xdrProc_Repair_missing_cv) ProcName() string { return "repair_missing_cv" }
 func (p *xdrProc_Repair_missing_cv) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(ConsensusValueHash)
+		p.Arg = new(xdrProcArg_Repair_missing_cv)
 	}
-	return XDR_ConsensusValueHash(p.Arg)
+	return XDR_xdrProcArg_Repair_missing_cv(p.Arg)
 }
 func (p *xdrProc_Repair_missing_cv) GetRes() XdrType {
 	if p.Res == nil {
@@ -14354,7 +14374,7 @@ func (p *xdrSrvProc_Repair_missing_cv) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Repair_missing_cv) Do() {
-	r, err := p.Srv.Repair_missing_cv(p.Ctx, *p.Arg)
+	r, err := p.Srv.Repair_missing_cv(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -14473,9 +14493,11 @@ func (c Repair1_Client) Repair_missing_txs(ctx context.Context, a1 MissingTransa
 	}
 	return *proc.Res, nil
 }
-func (c Repair1_Client) Repair_missing_cv(ctx context.Context, a1 ConsensusValueHash) (r OptConsensusValue, _ error) {
+func (c Repair1_Client) Repair_missing_cv(ctx context.Context, a1 ConsensusValueHash, a2 BlockHeight) (r OptConsensusValue, _ error) {
 	var proc xdrProc_Repair_missing_cv
-	proc.Arg = &a1
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
