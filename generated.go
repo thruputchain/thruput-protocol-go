@@ -1012,9 +1012,14 @@ type HogNamespace = string
 
 type HogNamespaces = []HogNamespace
 
+type HogAsk struct {
+	Fixed HogHosts
+	Variable HogHosts
+}
+
 type HogLock1 interface {
 	Hoglock_null(context.Context, ) error
-	Hoglock_lock(context.Context, HogXID, HogHosts) error
+	Hoglock_lock(context.Context, HogXID, HogAsk) (HogHosts, error)
 	Hoglock_renew(context.Context, HogXID) error
 	Hoglock_check(context.Context, HogXID) (bool, error)
 	Hoglock_signal(context.Context, HogXID, HogNamespaces) error
@@ -12684,6 +12689,19 @@ func XDR_HogNamespaces(v *HogNamespaces) XdrType_HogNamespaces {
 }
 func (XdrType_HogNamespaces) XdrTypeName() string { return "HogNamespaces" }
 func (v XdrType_HogNamespaces) XdrUnwrap() XdrType { return v._XdrVec_unbounded_HogNamespace }
+type XdrType_HogAsk = *HogAsk
+func (v *HogAsk) XdrPointer() interface{} { return v }
+func (HogAsk) XdrTypeName() string { return "HogAsk" }
+func (v HogAsk) XdrValue() interface{} { return v }
+func (v *HogAsk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *HogAsk) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sfixed", name), XDR_HogHosts(&v.Fixed))
+	x.Marshal(x.Sprintf("%svariable", name), XDR_HogHosts(&v.Variable))
+}
+func XDR_HogAsk(v *HogAsk) *HogAsk { return v }
 
 type xdrProc_Hoglock_null struct {
 	Arg *XdrVoid
@@ -12732,7 +12750,7 @@ var _ XdrSrvProc = &xdrSrvProc_Hoglock_null{} // XXX
 
 type xdrProcArg_Hoglock_lock struct {
 	a1 *HogXID
-	a2 *HogHosts
+	a2 *HogAsk
 }
 func (v *xdrProcArg_Hoglock_lock) XdrPointer() interface{} { return v }
 func (xdrProcArg_Hoglock_lock) XdrTypeName() string { return "xdrProcArg_Hoglock_lock" }
@@ -12744,15 +12762,15 @@ func (v *xdrProcArg_Hoglock_lock) XdrRecurse(x XDR, name string) {
 	}
 	if v.a1 == nil { v.a1 = new(HogXID) }
 	XDR_HogXID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(HogHosts) }
-	XDR_HogHosts(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(HogAsk) }
+	XDR_HogAsk(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Hoglock_lock(v *xdrProcArg_Hoglock_lock) *xdrProcArg_Hoglock_lock { return v }
 var _ XdrType = &xdrProcArg_Hoglock_lock{} // XXX
 
 type xdrProc_Hoglock_lock struct {
 	Arg *xdrProcArg_Hoglock_lock
-	Res *XdrVoid
+	Res *HogHosts
 }
 func (xdrProc_Hoglock_lock) Prog() uint32 { return 571552835 }
 func (xdrProc_Hoglock_lock) Vers() uint32 { return 1 }
@@ -12768,9 +12786,9 @@ func (p *xdrProc_Hoglock_lock) GetArg() XdrType {
 }
 func (p *xdrProc_Hoglock_lock) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(HogHosts)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_HogHosts(p.Res)
 }
 var _ XdrProc = &xdrProc_Hoglock_lock{} // XXX
 
@@ -12788,7 +12806,9 @@ func (p *xdrSrvProc_Hoglock_lock) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Hoglock_lock) Do() {
-	err := p.Srv.Hoglock_lock(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Hoglock_lock(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -13080,15 +13100,15 @@ func (c HogLock1_Client) Hoglock_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c HogLock1_Client) Hoglock_lock(ctx context.Context, a1 HogXID, a2 HogHosts) error {
+func (c HogLock1_Client) Hoglock_lock(ctx context.Context, a1 HogXID, a2 HogAsk) (r HogHosts, _ error) {
 	var proc xdrProc_Hoglock_lock
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c HogLock1_Client) Hoglock_renew(ctx context.Context, a1 HogXID) error {
 	var proc xdrProc_Hoglock_renew
