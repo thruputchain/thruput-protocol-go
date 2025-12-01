@@ -1014,7 +1014,7 @@ type HogNamespaces = []HogNamespace
 
 type HogAsk struct {
 	Fixed HogHosts
-	Variable HogHosts
+	Variable int64
 }
 
 type HogLock1 interface {
@@ -12699,7 +12699,7 @@ func (v *HogAsk) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sfixed", name), XDR_HogHosts(&v.Fixed))
-	x.Marshal(x.Sprintf("%svariable", name), XDR_HogHosts(&v.Variable))
+	x.Marshal(x.Sprintf("%svariable", name), XDR_int64(&v.Variable))
 }
 func XDR_HogAsk(v *HogAsk) *HogAsk { return v }
 
