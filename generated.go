@@ -563,22 +563,6 @@ type DbBlockResult struct {
 	_u interface{}
 }
 
-type DbTip struct {
-	Height BlockHeight
-	Hash BlockHash
-	Id BlockID
-}
-
-type DbTipResult struct {
-	// The union discriminant Result selects among the following arms:
-	//   DbSchedResultOK:
-	//      Db_tip() *DbTip
-	//   default:
-	//      void
-	Result DbSchedResult
-	_u interface{}
-}
-
 type DbShardResult int32
 const (
 	ShardOK DbShardResult = 0
@@ -589,7 +573,6 @@ type DbSched1 interface {
 	Dbsched_get_account_auth_data(context.Context, BlockID, ContractAddressBatch) (DbAccountAuthDataBatchResult, error)
 	Dbsched_get_hog_ages(context.Context, ContractAddressBatch) (HogAgeResult, error)
 	Dbsched_write_hog_ages(context.Context, HogAgeBatch) (DbSchedResult, error)
-	Dbsched_get_tip(context.Context, ) (DbTipResult, error)
 	Dbsched_create_snapshot(context.Context, BlockID, BlockID, BlockExecutionMode) (DbSchedResult, error)
 	Dbsched_commit_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
@@ -851,7 +834,7 @@ type ExecutorSched1 interface {
 	Executorsched_validate_batch(context.Context, BlockID, ProposedTransactionBatch) (ExecValidateBatchResult, error)
 	Executorsched_open_proposal_block(context.Context, BlockID) (ExecResult, error)
 	Executorsched_open_validation_block(context.Context, BlockID) (ExecResult, error)
-	Executorsched_finish_block(context.Context, BlockID) error
+	Executorsched_finish_block(context.Context, BlockID) (ExecResult, error)
 	Executorsched_shutdown(context.Context, ) error
 }
 
@@ -1123,9 +1106,6 @@ type MultiplexMessage struct {
 	_u interface{}
 }
 
-// XXX(petar): BlockHash should be renamed to MerkleHash
-type BlockHash = SHA256Hash
-
 // XXX(petar): Nomination should be renamed to Proposal
 type Nomination struct {
 	Proposer ValidatorPublicInfo
@@ -1245,9 +1225,6 @@ type RetrocausalQueueDelta struct {
 	Insert RetrocausalQueueInsertDelta
 }
 
-// An internal unique ID describing a block.
-type BlockID = uint64
-
 // Internal unique ID describing a transaction.
 // Can be reused across blocks but cannot be reused within one block.
 type TransactionID = uint64
@@ -1263,8 +1240,6 @@ const (
 	// Lookup on an item in the database that does not exist.
 	// Used by any database lookup RPC, not just for one type.
 	KRPCNotFound RPCError = 1
-	// Executor in bad state to validate or propose.
-	KRPCBadExecutorState RPCError = 2
 	// BlockID does not exist, or is not in correct state
 	KRPCBadBlockID RPCError = 3
 	// bad storage modification
@@ -1571,6 +1546,7 @@ type SchedulerCommitOutcome int32
 const (
 	SchedulerCommitOK SchedulerCommitOutcome = 0
 	SchedulerCommitBlockNotFound SchedulerCommitOutcome = 1
+	SchedulerCommitRace SchedulerCommitOutcome = 2
 )
 
 type SchedulerCoord1 interface {
@@ -1581,7 +1557,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID) (SchedulerCommitOutcome, error)
-	Schedcoord_get_tip(context.Context, ) (DbTipResult, error)
+	Schedcoord_get_tip(context.Context, ) (DbTip, error)
 	Schedcoord_load_genesis_block(context.Context, GenesisBlock) (DbSchedResult, error)
 	Schedcoord_lookup_transactions(context.Context, SignedTransactionHashBatch) (OptSignedTransactionBatch, error)
 }
@@ -2301,6 +2277,18 @@ type BlockHeight = int64
 type Weight = uint32
 
 type BitMap = uint64
+
+// XXX(petar): BlockHash should be renamed to MerkleHash
+type BlockHash = SHA256Hash
+
+// An internal unique ID describing a block.
+type BlockID = uint64
+
+type DbTip struct {
+	Height BlockHeight
+	Hash BlockHash
+	Id BlockID
+}
 
 // ServerAddress is an IP (or hostname) and port address, separated by a
 // colon.
@@ -7706,82 +7694,6 @@ func (u *DbBlockResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_DbBlockResult(v *DbBlockResult) *DbBlockResult { return v}
-type XdrType_DbTip = *DbTip
-func (v *DbTip) XdrPointer() interface{} { return v }
-func (DbTip) XdrTypeName() string { return "DbTip" }
-func (v DbTip) XdrValue() interface{} { return v }
-func (v *DbTip) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *DbTip) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
-	x.Marshal(x.Sprintf("%shash", name), XDR_BlockHash(&v.Hash))
-	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
-}
-func XDR_DbTip(v *DbTip) *DbTip { return v }
-func (_ DbTipResult) XdrValidTags() map[int32]bool {
-	return nil
-}
-func (u *DbTipResult) Db_tip() *DbTip {
-	switch u.Result {
-	case DbSchedResultOK:
-		if v, ok := u._u.(*DbTip); ok {
-			return v
-		} else {
-			var zero DbTip
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("DbTipResult.Db_tip accessed when Result == %v", u.Result)
-		return nil
-	}
-}
-func (u DbTipResult) XdrValid() bool {
-	return true
-}
-func (u *DbTipResult) XdrUnionTag() XdrNum32 {
-	return XDR_DbSchedResult(&u.Result)
-}
-func (u *DbTipResult) XdrUnionTagName() string {
-	return "Result"
-}
-func (u *DbTipResult) XdrUnionBody() XdrType {
-	switch u.Result {
-	case DbSchedResultOK:
-		return XDR_DbTip(u.Db_tip())
-	default:
-		return nil
-	}
-}
-func (u *DbTipResult) XdrUnionBodyName() string {
-	switch u.Result {
-	case DbSchedResultOK:
-		return "Db_tip"
-	default:
-		return ""
-	}
-}
-type XdrType_DbTipResult = *DbTipResult
-func (v *DbTipResult) XdrPointer() interface{} { return v }
-func (DbTipResult) XdrTypeName() string { return "DbTipResult" }
-func (v DbTipResult) XdrValue() interface{} { return v }
-func (v *DbTipResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (u *DbTipResult) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	XDR_DbSchedResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
-	switch u.Result {
-	case DbSchedResultOK:
-		x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(u.Db_tip()))
-		return
-	default:
-		return
-	}
-}
-func XDR_DbTipResult(v *DbTipResult) *DbTipResult { return v}
 var _XdrNames_DbShardResult = map[int32]string{
 	int32(ShardOK): "ShardOK",
 }
@@ -8028,53 +7940,6 @@ func (p *xdrSrvProc_Dbsched_write_hog_ages) Do() {
 	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbsched_write_hog_ages{} // XXX
-
-type xdrProc_Dbsched_get_tip struct {
-	Arg *XdrVoid
-	Res *DbTipResult
-}
-func (xdrProc_Dbsched_get_tip) Prog() uint32 { return 2290646759 }
-func (xdrProc_Dbsched_get_tip) Vers() uint32 { return 1 }
-func (xdrProc_Dbsched_get_tip) Proc() uint32 { return 4 }
-func (xdrProc_Dbsched_get_tip) ProgName() string { return "DbSched" }
-func (xdrProc_Dbsched_get_tip) VersName() string { return "DbSched1" }
-func (xdrProc_Dbsched_get_tip) ProcName() string { return "dbsched_get_tip" }
-func (p *xdrProc_Dbsched_get_tip) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Arg)
-}
-func (p *xdrProc_Dbsched_get_tip) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(DbTipResult)
-	}
-	return XDR_DbTipResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Dbsched_get_tip{} // XXX
-
-type xdrSrvProc_Dbsched_get_tip struct {
-	xdrProc_Dbsched_get_tip
-	Srv DbSched1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Dbsched_get_tip) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) DbSched1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Dbsched_get_tip) Do() {
-	r, err := p.Srv.Dbsched_get_tip(p.Ctx, )
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Dbsched_get_tip{} // XXX
 
 type xdrProcArg_Dbsched_create_snapshot struct {
 	a1 *BlockID
@@ -8345,8 +8210,6 @@ func init() {
 			return &xdrProc_Dbsched_get_hog_ages{}
 		case 3:
 			return &xdrProc_Dbsched_write_hog_ages{}
-		case 4:
-			return &xdrProc_Dbsched_get_tip{}
 		case 5:
 			return &xdrProc_Dbsched_create_snapshot{}
 		case 6:
@@ -8379,8 +8242,6 @@ func (s DbSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbsched_get_hog_ages{ Srv: s.Srv }
 	case 3:  // dbsched_write_hog_ages
 		return &xdrSrvProc_Dbsched_write_hog_ages{ Srv: s.Srv }
-	case 4:  // dbsched_get_tip
-		return &xdrSrvProc_Dbsched_get_tip{ Srv: s.Srv }
 	case 5:  // dbsched_create_snapshot
 		return &xdrSrvProc_Dbsched_create_snapshot{ Srv: s.Srv }
 	case 6:  // dbsched_commit_snapshot
@@ -8434,13 +8295,6 @@ func (c DbSched1_Client) Dbsched_get_hog_ages(ctx context.Context, a1 ContractAd
 func (c DbSched1_Client) Dbsched_write_hog_ages(ctx context.Context, a1 HogAgeBatch) (r DbSchedResult, _ error) {
 	var proc xdrProc_Dbsched_write_hog_ages
 	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c DbSched1_Client) Dbsched_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
-	var proc xdrProc_Dbsched_get_tip
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -11261,7 +11115,7 @@ var _ XdrSrvProc = &xdrSrvProc_Executorsched_open_validation_block{} // XXX
 
 type xdrProc_Executorsched_finish_block struct {
 	Arg *BlockID
-	Res *XdrVoid
+	Res *ExecResult
 }
 func (xdrProc_Executorsched_finish_block) Prog() uint32 { return 2129107353 }
 func (xdrProc_Executorsched_finish_block) Vers() uint32 { return 1 }
@@ -11277,9 +11131,9 @@ func (p *xdrProc_Executorsched_finish_block) GetArg() XdrType {
 }
 func (p *xdrProc_Executorsched_finish_block) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(ExecResult)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_ExecResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Executorsched_finish_block{} // XXX
 
@@ -11297,7 +11151,9 @@ func (p *xdrSrvProc_Executorsched_finish_block) SetContext(ctx context.Context) 
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Executorsched_finish_block) Do() {
-	err := p.Srv.Executorsched_finish_block(p.Ctx, *p.Arg)
+	r, err := p.Srv.Executorsched_finish_block(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -11491,13 +11347,13 @@ func (c ExecutorSched1_Client) Executorsched_open_validation_block(ctx context.C
 	}
 	return *proc.Res, nil
 }
-func (c ExecutorSched1_Client) Executorsched_finish_block(ctx context.Context, a1 BlockID) error {
+func (c ExecutorSched1_Client) Executorsched_finish_block(ctx context.Context, a1 BlockID) (r ExecResult, _ error) {
 	var proc xdrProc_Executorsched_finish_block
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c ExecutorSched1_Client) Executorsched_shutdown(ctx context.Context, ) error {
 	var proc xdrProc_Executorsched_shutdown
@@ -13982,14 +13838,6 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_MultiplexMessage(v *MultiplexMessage) *MultiplexMessage { return v}
-type XdrType_BlockHash struct {
-	XdrType_SHA256Hash
-}
-func XDR_BlockHash(v *BlockHash) XdrType_BlockHash {
-	return XdrType_BlockHash{XDR_SHA256Hash(v)}
-}
-func (XdrType_BlockHash) XdrTypeName() string { return "BlockHash" }
-func (v XdrType_BlockHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrVec_unbounded_SignedTransactionHash []SignedTransactionHash
 func (_XdrVec_unbounded_SignedTransactionHash) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -14709,14 +14557,6 @@ func (v *RetrocausalQueueDelta) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sinsert", name), XDR_RetrocausalQueueInsertDelta(&v.Insert))
 }
 func XDR_RetrocausalQueueDelta(v *RetrocausalQueueDelta) *RetrocausalQueueDelta { return v }
-type XdrType_BlockID struct {
-	XdrType_uint64
-}
-func XDR_BlockID(v *BlockID) XdrType_BlockID {
-	return XdrType_BlockID{XDR_uint64(v)}
-}
-func (XdrType_BlockID) XdrTypeName() string { return "BlockID" }
-func (v XdrType_BlockID) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type XdrType_TransactionID struct {
 	XdrType_uint64
 }
@@ -14728,7 +14568,6 @@ func (v XdrType_TransactionID) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 var _XdrNames_RPCError = map[int32]string{
 	int32(KRPCNone): "kRPCNone",
 	int32(KRPCNotFound): "kRPCNotFound",
-	int32(KRPCBadExecutorState): "kRPCBadExecutorState",
 	int32(KRPCBadBlockID): "kRPCBadBlockID",
 	int32(KRPCStorageWriteFailed): "kRPCStorageWriteFailed",
 	int32(KRPCTransactionFailed): "kRPCTransactionFailed",
@@ -14738,7 +14577,6 @@ var _XdrNames_RPCError = map[int32]string{
 var _XdrValues_RPCError = map[string]int32{
 	"kRPCNone": int32(KRPCNone),
 	"kRPCNotFound": int32(KRPCNotFound),
-	"kRPCBadExecutorState": int32(KRPCBadExecutorState),
 	"kRPCBadBlockID": int32(KRPCBadBlockID),
 	"kRPCStorageWriteFailed": int32(KRPCStorageWriteFailed),
 	"kRPCTransactionFailed": int32(KRPCTransactionFailed),
@@ -16535,10 +16373,12 @@ func XDR_SchedulerValidationResult(v *SchedulerValidationResult) *SchedulerValid
 var _XdrNames_SchedulerCommitOutcome = map[int32]string{
 	int32(SchedulerCommitOK): "SchedulerCommitOK",
 	int32(SchedulerCommitBlockNotFound): "SchedulerCommitBlockNotFound",
+	int32(SchedulerCommitRace): "SchedulerCommitRace",
 }
 var _XdrValues_SchedulerCommitOutcome = map[string]int32{
 	"SchedulerCommitOK": int32(SchedulerCommitOK),
 	"SchedulerCommitBlockNotFound": int32(SchedulerCommitBlockNotFound),
+	"SchedulerCommitRace": int32(SchedulerCommitRace),
 }
 func (SchedulerCommitOutcome) XdrEnumNames() map[int32]string {
 	return _XdrNames_SchedulerCommitOutcome
@@ -16940,7 +16780,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_commit_block{} // XXX
 
 type xdrProc_Schedcoord_get_tip struct {
 	Arg *XdrVoid
-	Res *DbTipResult
+	Res *DbTip
 }
 func (xdrProc_Schedcoord_get_tip) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedcoord_get_tip) Vers() uint32 { return 1 }
@@ -16956,9 +16796,9 @@ func (p *xdrProc_Schedcoord_get_tip) GetArg() XdrType {
 }
 func (p *xdrProc_Schedcoord_get_tip) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(DbTipResult)
+		p.Res = new(DbTip)
 	}
-	return XDR_DbTipResult(p.Res)
+	return XDR_DbTip(p.Res)
 }
 var _ XdrProc = &xdrProc_Schedcoord_get_tip{} // XXX
 
@@ -17210,7 +17050,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_commit_block(ctx context.Context,
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
+func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbTip, _ error) {
 	var proc xdrProc_Schedcoord_get_tip
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
@@ -22868,6 +22708,36 @@ func XDR_BitMap(v *BitMap) XdrType_BitMap {
 }
 func (XdrType_BitMap) XdrTypeName() string { return "BitMap" }
 func (v XdrType_BitMap) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+type XdrType_BlockHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_BlockHash(v *BlockHash) XdrType_BlockHash {
+	return XdrType_BlockHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_BlockHash) XdrTypeName() string { return "BlockHash" }
+func (v XdrType_BlockHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_BlockID struct {
+	XdrType_uint64
+}
+func XDR_BlockID(v *BlockID) XdrType_BlockID {
+	return XdrType_BlockID{XDR_uint64(v)}
+}
+func (XdrType_BlockID) XdrTypeName() string { return "BlockID" }
+func (v XdrType_BlockID) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+type XdrType_DbTip = *DbTip
+func (v *DbTip) XdrPointer() interface{} { return v }
+func (DbTip) XdrTypeName() string { return "DbTip" }
+func (v DbTip) XdrValue() interface{} { return v }
+func (v *DbTip) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DbTip) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
+	x.Marshal(x.Sprintf("%shash", name), XDR_BlockHash(&v.Hash))
+	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
+}
+func XDR_DbTip(v *DbTip) *DbTip { return v }
 type XdrType_ServerAddress struct {
 	XdrString
 }
