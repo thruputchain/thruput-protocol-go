@@ -20,7 +20,7 @@ EOF
 SCRIPT_DIR=$(dirname $(readlink -f "$0"))
 cd ${SCRIPT_DIR}
 
-proto_commit=$(git submodule status --cached -- ./protocol | awk '{print $1}' | cut -c2-)
+proto_commit=$(git submodule status --cached -- ./protocol | awk '{print $1}')
 quoted=$(printf '"%s"\n' "$proto_commit")
 
 cat > hogp.go <<EOF
