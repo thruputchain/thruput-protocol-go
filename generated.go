@@ -66,7 +66,8 @@ type AddressMetadata struct {
 type AuthCard struct {
 	Protocol Protocol
 	Upid UPID
-	Address ServerAddress
+	Address_for_db ServerAddress
+	Address_for_mempool ServerAddress
 }
 
 type AuthClaimType int32
@@ -115,7 +116,7 @@ type AuthClaimData = []AuthClaim // bound KMaxAuthClaims
 type AuthErrorCode int32
 const (
 	KAuthSuccess AuthErrorCode = 0
-	KAuthBatchFailed AuthErrorCode = 1
+	KAuthFailed AuthErrorCode = 1
 	// The query is for a block height that is not the most recent committed block height.
 	// This can happen if a query is made for an old block height,
 	// or if (concurrent with the query) a block commits and updates to the auth data begin to stream in.
@@ -129,7 +130,6 @@ const (
 type AuthErrorCodeBatch = []AuthErrorCode
 
 type AuthMempool1 interface {
-	Authmempool_verify_transaction(context.Context, BlockHeight, SignedTransaction) (AuthErrorCode, error)
 	Authmempool_verify_transactions(context.Context, BlockHeight, SignedTransactionBatch) (AuthErrorCodeBatch, error)
 	Authmempool_verify_batch(context.Context, BlockHeight, SignedTransactionBatch) (AuthErrorCode, error)
 }
@@ -1012,9 +1012,14 @@ type HogNamespace = string
 
 type HogNamespaces = []HogNamespace
 
+type HogAsk struct {
+	Fixed HogHosts
+	Variable int64
+}
+
 type HogLock1 interface {
 	Hoglock_null(context.Context, ) error
-	Hoglock_lock(context.Context, HogXID, HogHosts) error
+	Hoglock_lock(context.Context, HogXID, HogAsk) (HogHosts, error)
 	Hoglock_renew(context.Context, HogXID) error
 	Hoglock_check(context.Context, HogXID) (bool, error)
 	Hoglock_signal(context.Context, HogXID, HogNamespaces) error
@@ -2584,7 +2589,8 @@ func (v *AuthCard) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sprotocol", name), XDR_Protocol(&v.Protocol))
 	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
-	x.Marshal(x.Sprintf("%saddress", name), XDR_ServerAddress(&v.Address))
+	x.Marshal(x.Sprintf("%saddress_for_db", name), XDR_ServerAddress(&v.Address_for_db))
+	x.Marshal(x.Sprintf("%saddress_for_mempool", name), XDR_ServerAddress(&v.Address_for_mempool))
 }
 func XDR_AuthCard(v *AuthCard) *AuthCard { return v }
 var _XdrNames_AuthClaimType = map[int32]string{
@@ -2881,13 +2887,13 @@ func (XdrType_AuthClaimData) XdrTypeName() string { return "AuthClaimData" }
 func (v XdrType_AuthClaimData) XdrUnwrap() XdrType { return v._XdrVec_10_AuthClaim }
 var _XdrNames_AuthErrorCode = map[int32]string{
 	int32(KAuthSuccess): "kAuthSuccess",
-	int32(KAuthBatchFailed): "kAuthBatchFailed",
+	int32(KAuthFailed): "kAuthFailed",
 	int32(KAuthStaleBlockHeight): "kAuthStaleBlockHeight",
 	int32(KAuthInternal): "kAuthInternal",
 }
 var _XdrValues_AuthErrorCode = map[string]int32{
 	"kAuthSuccess": int32(KAuthSuccess),
-	"kAuthBatchFailed": int32(KAuthBatchFailed),
+	"kAuthFailed": int32(KAuthFailed),
 	"kAuthStaleBlockHeight": int32(KAuthStaleBlockHeight),
 	"kAuthInternal": int32(KAuthInternal),
 }
@@ -2988,73 +2994,6 @@ func XDR_AuthErrorCodeBatch(v *AuthErrorCodeBatch) XdrType_AuthErrorCodeBatch {
 }
 func (XdrType_AuthErrorCodeBatch) XdrTypeName() string { return "AuthErrorCodeBatch" }
 func (v XdrType_AuthErrorCodeBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_AuthErrorCode }
-
-type xdrProcArg_Authmempool_verify_transaction struct {
-	a1 *BlockHeight
-	a2 *SignedTransaction
-}
-func (v *xdrProcArg_Authmempool_verify_transaction) XdrPointer() interface{} { return v }
-func (xdrProcArg_Authmempool_verify_transaction) XdrTypeName() string { return "xdrProcArg_Authmempool_verify_transaction" }
-func (v xdrProcArg_Authmempool_verify_transaction) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Authmempool_verify_transaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Authmempool_verify_transaction) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockHeight) }
-	XDR_BlockHeight(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(SignedTransaction) }
-	XDR_SignedTransaction(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Authmempool_verify_transaction(v *xdrProcArg_Authmempool_verify_transaction) *xdrProcArg_Authmempool_verify_transaction { return v }
-var _ XdrType = &xdrProcArg_Authmempool_verify_transaction{} // XXX
-
-type xdrProc_Authmempool_verify_transaction struct {
-	Arg *xdrProcArg_Authmempool_verify_transaction
-	Res *AuthErrorCode
-}
-func (xdrProc_Authmempool_verify_transaction) Prog() uint32 { return 2326297255 }
-func (xdrProc_Authmempool_verify_transaction) Vers() uint32 { return 1 }
-func (xdrProc_Authmempool_verify_transaction) Proc() uint32 { return 1 }
-func (xdrProc_Authmempool_verify_transaction) ProgName() string { return "AuthMempool" }
-func (xdrProc_Authmempool_verify_transaction) VersName() string { return "AuthMempool1" }
-func (xdrProc_Authmempool_verify_transaction) ProcName() string { return "authmempool_verify_transaction" }
-func (p *xdrProc_Authmempool_verify_transaction) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Authmempool_verify_transaction)
-	}
-	return XDR_xdrProcArg_Authmempool_verify_transaction(p.Arg)
-}
-func (p *xdrProc_Authmempool_verify_transaction) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(AuthErrorCode)
-	}
-	return XDR_AuthErrorCode(p.Res)
-}
-var _ XdrProc = &xdrProc_Authmempool_verify_transaction{} // XXX
-
-type xdrSrvProc_Authmempool_verify_transaction struct {
-	xdrProc_Authmempool_verify_transaction
-	Srv AuthMempool1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Authmempool_verify_transaction) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) AuthMempool1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Authmempool_verify_transaction) Do() {
-	r, err := p.Srv.Authmempool_verify_transaction(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Authmempool_verify_transaction{} // XXX
 
 type xdrProcArg_Authmempool_verify_transactions struct {
 	a1 *BlockHeight
@@ -3193,8 +3132,6 @@ var _ XdrSrvProc = &xdrSrvProc_Authmempool_verify_batch{} // XXX
 func init() {
 	XdrCatalog[2326297255<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
-		case 1:
-			return &xdrProc_Authmempool_verify_transaction{}
 		case 2:
 			return &xdrProc_Authmempool_verify_transactions{}
 		case 3:
@@ -3213,8 +3150,6 @@ func (AuthMempool1_Server) ProgName() string { return "AuthMempool" }
 func (AuthMempool1_Server) VersName() string { return "AuthMempool1" }
 func (s AuthMempool1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
-	case 1:  // authmempool_verify_transaction
-		return &xdrSrvProc_Authmempool_verify_transaction{ Srv: s.Srv }
 	case 2:  // authmempool_verify_transactions
 		return &xdrSrvProc_Authmempool_verify_transactions{ Srv: s.Srv }
 	case 3:  // authmempool_verify_batch
@@ -3233,16 +3168,6 @@ var _ AuthMempool1 = AuthMempool1_Client{} // XXX
 func (c AuthMempool1_Client) WithContext(ctx context.Context) AuthMempool1 {
 	c.Ctx = ctx
 	return c
-}
-func (c AuthMempool1_Client) Authmempool_verify_transaction(ctx context.Context, a1 BlockHeight, a2 SignedTransaction) (r AuthErrorCode, _ error) {
-	var proc xdrProc_Authmempool_verify_transaction
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
 }
 func (c AuthMempool1_Client) Authmempool_verify_transactions(ctx context.Context, a1 BlockHeight, a2 SignedTransactionBatch) (r AuthErrorCodeBatch, _ error) {
 	var proc xdrProc_Authmempool_verify_transactions
@@ -12684,6 +12609,19 @@ func XDR_HogNamespaces(v *HogNamespaces) XdrType_HogNamespaces {
 }
 func (XdrType_HogNamespaces) XdrTypeName() string { return "HogNamespaces" }
 func (v XdrType_HogNamespaces) XdrUnwrap() XdrType { return v._XdrVec_unbounded_HogNamespace }
+type XdrType_HogAsk = *HogAsk
+func (v *HogAsk) XdrPointer() interface{} { return v }
+func (HogAsk) XdrTypeName() string { return "HogAsk" }
+func (v HogAsk) XdrValue() interface{} { return v }
+func (v *HogAsk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *HogAsk) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sfixed", name), XDR_HogHosts(&v.Fixed))
+	x.Marshal(x.Sprintf("%svariable", name), XDR_int64(&v.Variable))
+}
+func XDR_HogAsk(v *HogAsk) *HogAsk { return v }
 
 type xdrProc_Hoglock_null struct {
 	Arg *XdrVoid
@@ -12732,7 +12670,7 @@ var _ XdrSrvProc = &xdrSrvProc_Hoglock_null{} // XXX
 
 type xdrProcArg_Hoglock_lock struct {
 	a1 *HogXID
-	a2 *HogHosts
+	a2 *HogAsk
 }
 func (v *xdrProcArg_Hoglock_lock) XdrPointer() interface{} { return v }
 func (xdrProcArg_Hoglock_lock) XdrTypeName() string { return "xdrProcArg_Hoglock_lock" }
@@ -12744,15 +12682,15 @@ func (v *xdrProcArg_Hoglock_lock) XdrRecurse(x XDR, name string) {
 	}
 	if v.a1 == nil { v.a1 = new(HogXID) }
 	XDR_HogXID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(HogHosts) }
-	XDR_HogHosts(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(HogAsk) }
+	XDR_HogAsk(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Hoglock_lock(v *xdrProcArg_Hoglock_lock) *xdrProcArg_Hoglock_lock { return v }
 var _ XdrType = &xdrProcArg_Hoglock_lock{} // XXX
 
 type xdrProc_Hoglock_lock struct {
 	Arg *xdrProcArg_Hoglock_lock
-	Res *XdrVoid
+	Res *HogHosts
 }
 func (xdrProc_Hoglock_lock) Prog() uint32 { return 571552835 }
 func (xdrProc_Hoglock_lock) Vers() uint32 { return 1 }
@@ -12768,9 +12706,9 @@ func (p *xdrProc_Hoglock_lock) GetArg() XdrType {
 }
 func (p *xdrProc_Hoglock_lock) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(HogHosts)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_HogHosts(p.Res)
 }
 var _ XdrProc = &xdrProc_Hoglock_lock{} // XXX
 
@@ -12788,7 +12726,9 @@ func (p *xdrSrvProc_Hoglock_lock) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Hoglock_lock) Do() {
-	err := p.Srv.Hoglock_lock(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Hoglock_lock(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -13080,15 +13020,15 @@ func (c HogLock1_Client) Hoglock_null(ctx context.Context, ) error {
 	}
 	return nil
 }
-func (c HogLock1_Client) Hoglock_lock(ctx context.Context, a1 HogXID, a2 HogHosts) error {
+func (c HogLock1_Client) Hoglock_lock(ctx context.Context, a1 HogXID, a2 HogAsk) (r HogHosts, _ error) {
 	var proc xdrProc_Hoglock_lock
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c HogLock1_Client) Hoglock_renew(ctx context.Context, a1 HogXID) error {
 	var proc xdrProc_Hoglock_renew
