@@ -57,6 +57,11 @@ type DeployedContractHash struct {
 	// update) storage costs without (re)loading the entire contract from
 	// storage
 	Contract_size uint32
+	// This field is used as an annotation hint in the executor, to determine which 
+	// type of runtime to instantiate.
+	// Again, is redundant with the stored contract, but allows us to avoid loading the
+	// whole contract from storage.
+	Contract_type ContractType
 }
 
 type AddressMetadata struct {
@@ -577,7 +582,7 @@ type DbSched1 interface {
 	Dbsched_commit_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
-	Dbsched_load_genesis_block(context.Context, GenesisBlock) (DbSchedResult, error)
+	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
 }
 
 type Debug1 interface {
@@ -968,6 +973,28 @@ const (
 	KHostAbortTransaction HostFnErrorCode = 6
 )
 
+// General-purpose system error codes returned from within various executor operations.
+// These can be mapped into either InvokeErrorCode or HostFnErrorCode, depending on the context in which the
+// error occurs.
+type SystemErrorCode int32
+const (
+	// Unrecoverable error (e.g. out of memory, or critical logic error).
+	// Only recourse is to abort entire transaction and possibly crash binary.
+	// Signals serious error, which we should investigate.
+	// This converts to InvokeErrorCode::kInvokeUnrecoverable or HostFnErrorCode::kHostUnrecoverable.
+	KSystemUnrecoverable SystemErrorCode = 1
+	// Nondeterministic error that occurs during normal course of operation.
+	// E.g. a transaction is being executed concurrently with the whole block
+	// getting cancelled.
+	// Only recourse is to abort the entire transaction.
+	// This converts to InvokeErrorCode::kInvokeAbortTransaction or HostFnErrorCode::kHostAbortTransaction.
+	KSystemAbortTransaction SystemErrorCode = 2
+	// Failure during validation of a transaction.  Signals that the whole
+	// block must be aborted.
+	// This converts to InvokeErrorCode::kInvokeValidationFailure or HostFnErrorCode::kHostValidationFailure.
+	KSystemValidationFailure SystemErrorCode = 3
+)
+
 type PresetDeploymentConfig struct {
 	Initial_nonce SHA256Hash
 	Contract_hash SHA256Hash
@@ -982,7 +1009,7 @@ type InitialConfigurationEntry struct {
 
 type InitialConfigurationList = []InitialConfigurationEntry
 
-type GenesisBlock struct {
+type GenesisConfiguration struct {
 	Initial_config InitialConfigurationList
 	Storage_cost_model StorageCostModelXdr
 }
@@ -1048,7 +1075,7 @@ type InitializationBlock = []SignedTransaction
 type LoadgenContextID = uint64
 
 type LoadgenSuccessResult struct {
-	Genesis_block GenesisBlock
+	Genesis_configuration GenesisConfiguration
 	Initialization_txs []InitializationBlock
 	Context_id LoadgenContextID
 }
@@ -1290,7 +1317,7 @@ type ExpectedContract struct {
 type ExpectedDeployment struct {
 	// The union discriminant Error selects among the following arms:
 	//   KRPCNone:
-	//      Deployed_hash() *SHA256Hash
+	//      Deployed_hash() *DeployedContractHash
 	//   default:
 	//      void
 	Error RPCError
@@ -1563,7 +1590,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID) (SchedulerCommitOutcome, error)
 	Schedcoord_get_tip(context.Context, ) (DbTip, error)
-	Schedcoord_load_genesis_block(context.Context, GenesisBlock) (DbSchedResult, error)
+	Schedcoord_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
 	Schedcoord_lookup_transactions(context.Context, SignedTransactionHashBatch) (OptSignedTransactionBatch, error)
 }
 
@@ -2564,6 +2591,7 @@ func (v *DeployedContractHash) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%shash", name), XDR_SHA256Hash(&v.Hash))
 	x.Marshal(x.Sprintf("%scontract_size", name), XDR_uint32(&v.Contract_size))
+	x.Marshal(x.Sprintf("%scontract_type", name), XDR_ContractType(&v.Contract_type))
 }
 func XDR_DeployedContractHash(v *DeployedContractHash) *DeployedContractHash { return v }
 type XdrType_AddressMetadata = *AddressMetadata
@@ -8077,36 +8105,36 @@ func (p *xdrSrvProc_Dbsched_abandon_snapshot) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbsched_abandon_snapshot{} // XXX
 
-type xdrProc_Dbsched_load_genesis_block struct {
-	Arg *GenesisBlock
+type xdrProc_Dbsched_load_genesis_configuration struct {
+	Arg *GenesisConfiguration
 	Res *DbSchedResult
 }
-func (xdrProc_Dbsched_load_genesis_block) Prog() uint32 { return 2290646759 }
-func (xdrProc_Dbsched_load_genesis_block) Vers() uint32 { return 1 }
-func (xdrProc_Dbsched_load_genesis_block) Proc() uint32 { return 9 }
-func (xdrProc_Dbsched_load_genesis_block) ProgName() string { return "DbSched" }
-func (xdrProc_Dbsched_load_genesis_block) VersName() string { return "DbSched1" }
-func (xdrProc_Dbsched_load_genesis_block) ProcName() string { return "dbsched_load_genesis_block" }
-func (p *xdrProc_Dbsched_load_genesis_block) GetArg() XdrType {
+func (xdrProc_Dbsched_load_genesis_configuration) Prog() uint32 { return 2290646759 }
+func (xdrProc_Dbsched_load_genesis_configuration) Vers() uint32 { return 1 }
+func (xdrProc_Dbsched_load_genesis_configuration) Proc() uint32 { return 9 }
+func (xdrProc_Dbsched_load_genesis_configuration) ProgName() string { return "DbSched" }
+func (xdrProc_Dbsched_load_genesis_configuration) VersName() string { return "DbSched1" }
+func (xdrProc_Dbsched_load_genesis_configuration) ProcName() string { return "dbsched_load_genesis_configuration" }
+func (p *xdrProc_Dbsched_load_genesis_configuration) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(GenesisBlock)
+		p.Arg = new(GenesisConfiguration)
 	}
-	return XDR_GenesisBlock(p.Arg)
+	return XDR_GenesisConfiguration(p.Arg)
 }
-func (p *xdrProc_Dbsched_load_genesis_block) GetRes() XdrType {
+func (p *xdrProc_Dbsched_load_genesis_configuration) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(DbSchedResult)
 	}
 	return XDR_DbSchedResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Dbsched_load_genesis_block{} // XXX
+var _ XdrProc = &xdrProc_Dbsched_load_genesis_configuration{} // XXX
 
-type xdrSrvProc_Dbsched_load_genesis_block struct {
-	xdrProc_Dbsched_load_genesis_block
+type xdrSrvProc_Dbsched_load_genesis_configuration struct {
+	xdrProc_Dbsched_load_genesis_configuration
 	Srv DbSched1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Dbsched_load_genesis_block) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Dbsched_load_genesis_configuration) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) DbSched1
 	}); ok {
@@ -8114,15 +8142,15 @@ func (p *xdrSrvProc_Dbsched_load_genesis_block) SetContext(ctx context.Context) 
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Dbsched_load_genesis_block) Do() {
-	r, err := p.Srv.Dbsched_load_genesis_block(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Dbsched_load_genesis_configuration) Do() {
+	r, err := p.Srv.Dbsched_load_genesis_configuration(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Dbsched_load_genesis_block{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Dbsched_load_genesis_configuration{} // XXX
 
 func init() {
 	XdrCatalog[2290646759<<32|1] = func(p uint32) XdrProc {
@@ -8144,7 +8172,7 @@ func init() {
 		case 8:
 			return &xdrProc_Dbsched_abandon_snapshot{}
 		case 9:
-			return &xdrProc_Dbsched_load_genesis_block{}
+			return &xdrProc_Dbsched_load_genesis_configuration{}
 		}
 		return nil
 	}
@@ -8175,8 +8203,8 @@ func (s DbSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbsched_close_snapshot{ Srv: s.Srv }
 	case 8:  // dbsched_abandon_snapshot
 		return &xdrSrvProc_Dbsched_abandon_snapshot{ Srv: s.Srv }
-	case 9:  // dbsched_load_genesis_block
-		return &xdrSrvProc_Dbsched_load_genesis_block{ Srv: s.Srv }
+	case 9:  // dbsched_load_genesis_configuration
+		return &xdrSrvProc_Dbsched_load_genesis_configuration{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -8260,8 +8288,8 @@ func (c DbSched1_Client) Dbsched_abandon_snapshot(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_load_genesis_block(ctx context.Context, a1 GenesisBlock) (r DbSchedResult, _ error) {
-	var proc xdrProc_Dbsched_load_genesis_block
+func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration) (r DbSchedResult, _ error) {
+	var proc xdrProc_Dbsched_load_genesis_configuration
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
@@ -12311,6 +12339,57 @@ func (v HostFnErrorCode) XdrValue() interface{} { return v }
 func (v *HostFnErrorCode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_HostFnErrorCode = *HostFnErrorCode
 func XDR_HostFnErrorCode(v *HostFnErrorCode) *HostFnErrorCode { return v }
+var _XdrNames_SystemErrorCode = map[int32]string{
+	int32(KSystemUnrecoverable): "kSystemUnrecoverable",
+	int32(KSystemAbortTransaction): "kSystemAbortTransaction",
+	int32(KSystemValidationFailure): "kSystemValidationFailure",
+}
+var _XdrValues_SystemErrorCode = map[string]int32{
+	"kSystemUnrecoverable": int32(KSystemUnrecoverable),
+	"kSystemAbortTransaction": int32(KSystemAbortTransaction),
+	"kSystemValidationFailure": int32(KSystemValidationFailure),
+}
+func (SystemErrorCode) XdrEnumNames() map[int32]string {
+	return _XdrNames_SystemErrorCode
+}
+func (v SystemErrorCode) String() string {
+	if s, ok := _XdrNames_SystemErrorCode[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SystemErrorCode#%d", v)
+}
+func (v *SystemErrorCode) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SystemErrorCode[stok]; ok {
+			*v = SystemErrorCode(val)
+			return nil
+		} else if stok == "SystemErrorCode" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SystemErrorCode.", stok))
+	}
+}
+func (v SystemErrorCode) GetU32() uint32 { return uint32(v) }
+func (v *SystemErrorCode) SetU32(n uint32) { *v = SystemErrorCode(n) }
+func (v *SystemErrorCode) XdrPointer() interface{} { return v }
+func (SystemErrorCode) XdrTypeName() string { return "SystemErrorCode" }
+func (v SystemErrorCode) XdrValue() interface{} { return v }
+func (v *SystemErrorCode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SystemErrorCode = *SystemErrorCode
+func XDR_SystemErrorCode(v *SystemErrorCode) *SystemErrorCode { return v }
+func (v *SystemErrorCode) XdrInitialize() {
+	switch SystemErrorCode(0) {
+	case KSystemUnrecoverable, KSystemAbortTransaction, KSystemValidationFailure:
+	default:
+		if *v == SystemErrorCode(0) { *v = KSystemUnrecoverable }
+	}
+}
 type XdrType_PresetDeploymentConfig = *PresetDeploymentConfig
 func (v *PresetDeploymentConfig) XdrPointer() interface{} { return v }
 func (PresetDeploymentConfig) XdrTypeName() string { return "PresetDeploymentConfig" }
@@ -12402,19 +12481,19 @@ func XDR_InitialConfigurationList(v *InitialConfigurationList) XdrType_InitialCo
 }
 func (XdrType_InitialConfigurationList) XdrTypeName() string { return "InitialConfigurationList" }
 func (v XdrType_InitialConfigurationList) XdrUnwrap() XdrType { return v._XdrVec_unbounded_InitialConfigurationEntry }
-type XdrType_GenesisBlock = *GenesisBlock
-func (v *GenesisBlock) XdrPointer() interface{} { return v }
-func (GenesisBlock) XdrTypeName() string { return "GenesisBlock" }
-func (v GenesisBlock) XdrValue() interface{} { return v }
-func (v *GenesisBlock) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *GenesisBlock) XdrRecurse(x XDR, name string) {
+type XdrType_GenesisConfiguration = *GenesisConfiguration
+func (v *GenesisConfiguration) XdrPointer() interface{} { return v }
+func (GenesisConfiguration) XdrTypeName() string { return "GenesisConfiguration" }
+func (v GenesisConfiguration) XdrValue() interface{} { return v }
+func (v *GenesisConfiguration) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *GenesisConfiguration) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sinitial_config", name), XDR_InitialConfigurationList(&v.Initial_config))
 	x.Marshal(x.Sprintf("%sstorage_cost_model", name), XDR_StorageCostModelXdr(&v.Storage_cost_model))
 }
-func XDR_GenesisBlock(v *GenesisBlock) *GenesisBlock { return v }
+func XDR_GenesisConfiguration(v *GenesisConfiguration) *GenesisConfiguration { return v }
 var _XdrNames_GenesisContractAddresses = map[int32]string{
 	int32(KAddressNull): "kAddressNull",
 	int32(KAddressPrecompiledHogToken): "kAddressPrecompiledHogToken",
@@ -13264,7 +13343,7 @@ func (v *LoadgenSuccessResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sgenesis_block", name), XDR_GenesisBlock(&v.Genesis_block))
+	x.Marshal(x.Sprintf("%sgenesis_configuration", name), XDR_GenesisConfiguration(&v.Genesis_configuration))
 	x.Marshal(x.Sprintf("%sinitialization_txs", name), (*_XdrVec_unbounded_InitializationBlock)(&v.Initialization_txs))
 	x.Marshal(x.Sprintf("%scontext_id", name), XDR_LoadgenContextID(&v.Context_id))
 }
@@ -14734,13 +14813,13 @@ func XDR_ExpectedContract(v *ExpectedContract) *ExpectedContract { return v}
 func (_ ExpectedDeployment) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *ExpectedDeployment) Deployed_hash() *SHA256Hash {
+func (u *ExpectedDeployment) Deployed_hash() *DeployedContractHash {
 	switch u.Error {
 	case KRPCNone:
-		if v, ok := u._u.(*SHA256Hash); ok {
+		if v, ok := u._u.(*DeployedContractHash); ok {
 			return v
 		} else {
-			var zero SHA256Hash
+			var zero DeployedContractHash
 			u._u = &zero
 			return &zero
 		}
@@ -14761,7 +14840,7 @@ func (u *ExpectedDeployment) XdrUnionTagName() string {
 func (u *ExpectedDeployment) XdrUnionBody() XdrType {
 	switch u.Error {
 	case KRPCNone:
-		return XDR_SHA256Hash(u.Deployed_hash())
+		return XDR_DeployedContractHash(u.Deployed_hash())
 	default:
 		return nil
 	}
@@ -14786,7 +14865,7 @@ func (u *ExpectedDeployment) XdrRecurse(x XDR, name string) {
 	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
 	switch u.Error {
 	case KRPCNone:
-		x.Marshal(x.Sprintf("%sdeployed_hash", name), XDR_SHA256Hash(u.Deployed_hash()))
+		x.Marshal(x.Sprintf("%sdeployed_hash", name), XDR_DeployedContractHash(u.Deployed_hash()))
 		return
 	default:
 		return
@@ -16765,36 +16844,36 @@ func (p *xdrSrvProc_Schedcoord_get_tip) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedcoord_get_tip{} // XXX
 
-type xdrProc_Schedcoord_load_genesis_block struct {
-	Arg *GenesisBlock
+type xdrProc_Schedcoord_load_genesis_configuration struct {
+	Arg *GenesisConfiguration
 	Res *DbSchedResult
 }
-func (xdrProc_Schedcoord_load_genesis_block) Prog() uint32 { return 1986466065 }
-func (xdrProc_Schedcoord_load_genesis_block) Vers() uint32 { return 1 }
-func (xdrProc_Schedcoord_load_genesis_block) Proc() uint32 { return 8 }
-func (xdrProc_Schedcoord_load_genesis_block) ProgName() string { return "SchedulerCoord" }
-func (xdrProc_Schedcoord_load_genesis_block) VersName() string { return "SchedulerCoord1" }
-func (xdrProc_Schedcoord_load_genesis_block) ProcName() string { return "schedcoord_load_genesis_block" }
-func (p *xdrProc_Schedcoord_load_genesis_block) GetArg() XdrType {
+func (xdrProc_Schedcoord_load_genesis_configuration) Prog() uint32 { return 1986466065 }
+func (xdrProc_Schedcoord_load_genesis_configuration) Vers() uint32 { return 1 }
+func (xdrProc_Schedcoord_load_genesis_configuration) Proc() uint32 { return 8 }
+func (xdrProc_Schedcoord_load_genesis_configuration) ProgName() string { return "SchedulerCoord" }
+func (xdrProc_Schedcoord_load_genesis_configuration) VersName() string { return "SchedulerCoord1" }
+func (xdrProc_Schedcoord_load_genesis_configuration) ProcName() string { return "schedcoord_load_genesis_configuration" }
+func (p *xdrProc_Schedcoord_load_genesis_configuration) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(GenesisBlock)
+		p.Arg = new(GenesisConfiguration)
 	}
-	return XDR_GenesisBlock(p.Arg)
+	return XDR_GenesisConfiguration(p.Arg)
 }
-func (p *xdrProc_Schedcoord_load_genesis_block) GetRes() XdrType {
+func (p *xdrProc_Schedcoord_load_genesis_configuration) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(DbSchedResult)
 	}
 	return XDR_DbSchedResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Schedcoord_load_genesis_block{} // XXX
+var _ XdrProc = &xdrProc_Schedcoord_load_genesis_configuration{} // XXX
 
-type xdrSrvProc_Schedcoord_load_genesis_block struct {
-	xdrProc_Schedcoord_load_genesis_block
+type xdrSrvProc_Schedcoord_load_genesis_configuration struct {
+	xdrProc_Schedcoord_load_genesis_configuration
 	Srv SchedulerCoord1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Schedcoord_load_genesis_block) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Schedcoord_load_genesis_configuration) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) SchedulerCoord1
 	}); ok {
@@ -16802,15 +16881,15 @@ func (p *xdrSrvProc_Schedcoord_load_genesis_block) SetContext(ctx context.Contex
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Schedcoord_load_genesis_block) Do() {
-	r, err := p.Srv.Schedcoord_load_genesis_block(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Schedcoord_load_genesis_configuration) Do() {
+	r, err := p.Srv.Schedcoord_load_genesis_configuration(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Schedcoord_load_genesis_block{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Schedcoord_load_genesis_configuration{} // XXX
 
 type xdrProc_Schedcoord_lookup_transactions struct {
 	Arg *SignedTransactionHashBatch
@@ -16879,7 +16958,7 @@ func init() {
 		case 7:
 			return &xdrProc_Schedcoord_get_tip{}
 		case 8:
-			return &xdrProc_Schedcoord_load_genesis_block{}
+			return &xdrProc_Schedcoord_load_genesis_configuration{}
 		case 100:
 			return &xdrProc_Schedcoord_lookup_transactions{}
 		}
@@ -16912,8 +16991,8 @@ func (s SchedulerCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedulercoord_commit_block{ Srv: s.Srv }
 	case 7:  // schedcoord_get_tip
 		return &xdrSrvProc_Schedcoord_get_tip{ Srv: s.Srv }
-	case 8:  // schedcoord_load_genesis_block
-		return &xdrSrvProc_Schedcoord_load_genesis_block{ Srv: s.Srv }
+	case 8:  // schedcoord_load_genesis_configuration
+		return &xdrSrvProc_Schedcoord_load_genesis_configuration{ Srv: s.Srv }
 	case 100:  // schedcoord_lookup_transactions
 		return &xdrSrvProc_Schedcoord_lookup_transactions{ Srv: s.Srv }
 	default:
@@ -16997,8 +17076,8 @@ func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbT
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedcoord_load_genesis_block(ctx context.Context, a1 GenesisBlock) (r DbSchedResult, _ error) {
-	var proc xdrProc_Schedcoord_load_genesis_block
+func (c SchedulerCoord1_Client) Schedcoord_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration) (r DbSchedResult, _ error) {
+	var proc xdrProc_Schedcoord_load_genesis_configuration
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
