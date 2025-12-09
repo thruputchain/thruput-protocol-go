@@ -1044,6 +1044,13 @@ type HogAsk struct {
 	Variable int64
 }
 
+type HogHeld struct {
+	Id HogXID
+	Hosts HogHosts
+}
+
+type HogHelds = []HogHeld
+
 type HogLock1 interface {
 	Hoglock_null(context.Context, ) error
 	Hoglock_lock(context.Context, HogXID, HogAsk) (HogHosts, error)
@@ -1051,6 +1058,7 @@ type HogLock1 interface {
 	Hoglock_check(context.Context, HogXID) (bool, error)
 	Hoglock_signal(context.Context, HogXID, HogNamespaces) error
 	Hoglock_wait(context.Context, HogXID, HogNamespaces) error
+	Hoglock_list(context.Context, ) (HogHelds, error)
 }
 
 type ExperimentType int32
@@ -12701,6 +12709,82 @@ func (v *HogAsk) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%svariable", name), XDR_int64(&v.Variable))
 }
 func XDR_HogAsk(v *HogAsk) *HogAsk { return v }
+type XdrType_HogHeld = *HogHeld
+func (v *HogHeld) XdrPointer() interface{} { return v }
+func (HogHeld) XdrTypeName() string { return "HogHeld" }
+func (v HogHeld) XdrValue() interface{} { return v }
+func (v *HogHeld) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *HogHeld) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sid", name), XDR_HogXID(&v.Id))
+	x.Marshal(x.Sprintf("%shosts", name), XDR_HogHosts(&v.Hosts))
+}
+func XDR_HogHeld(v *HogHeld) *HogHeld { return v }
+type _XdrVec_unbounded_HogHeld []HogHeld
+func (_XdrVec_unbounded_HogHeld) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_HogHeld) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_HogHeld length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_HogHeld length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_HogHeld) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_HogHeld) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]HogHeld, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_HogHeld) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_HogHeld(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_HogHeld) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_HogHeld) XdrTypeName() string { return "HogHeld<>" }
+func (v *_XdrVec_unbounded_HogHeld) XdrPointer() interface{} { return (*[]HogHeld)(v) }
+func (v _XdrVec_unbounded_HogHeld) XdrValue() interface{} { return ([]HogHeld)(v) }
+func (v *_XdrVec_unbounded_HogHeld) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_HogHelds struct {
+	*_XdrVec_unbounded_HogHeld
+}
+func XDR_HogHelds(v *HogHelds) XdrType_HogHelds {
+	return XdrType_HogHelds{(*_XdrVec_unbounded_HogHeld)(v)}
+}
+func (XdrType_HogHelds) XdrTypeName() string { return "HogHelds" }
+func (v XdrType_HogHelds) XdrUnwrap() XdrType { return v._XdrVec_unbounded_HogHeld }
 
 type xdrProc_Hoglock_null struct {
 	Arg *XdrVoid
@@ -13036,6 +13120,53 @@ func (p *xdrSrvProc_Hoglock_wait) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Hoglock_wait{} // XXX
 
+type xdrProc_Hoglock_list struct {
+	Arg *XdrVoid
+	Res *HogHelds
+}
+func (xdrProc_Hoglock_list) Prog() uint32 { return 571552835 }
+func (xdrProc_Hoglock_list) Vers() uint32 { return 1 }
+func (xdrProc_Hoglock_list) Proc() uint32 { return 6 }
+func (xdrProc_Hoglock_list) ProgName() string { return "HogLock" }
+func (xdrProc_Hoglock_list) VersName() string { return "HogLock1" }
+func (xdrProc_Hoglock_list) ProcName() string { return "hoglock_list" }
+func (p *xdrProc_Hoglock_list) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Arg)
+}
+func (p *xdrProc_Hoglock_list) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(HogHelds)
+	}
+	return XDR_HogHelds(p.Res)
+}
+var _ XdrProc = &xdrProc_Hoglock_list{} // XXX
+
+type xdrSrvProc_Hoglock_list struct {
+	xdrProc_Hoglock_list
+	Srv HogLock1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Hoglock_list) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) HogLock1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Hoglock_list) Do() {
+	r, err := p.Srv.Hoglock_list(p.Ctx, )
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Hoglock_list{} // XXX
+
 func init() {
 	XdrCatalog[571552835<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -13051,6 +13182,8 @@ func init() {
 			return &xdrProc_Hoglock_signal{}
 		case 5:
 			return &xdrProc_Hoglock_wait{}
+		case 6:
+			return &xdrProc_Hoglock_list{}
 		}
 		return nil
 	}
@@ -13077,6 +13210,8 @@ func (s HogLock1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Hoglock_signal{ Srv: s.Srv }
 	case 5:  // hoglock_wait
 		return &xdrSrvProc_Hoglock_wait{ Srv: s.Srv }
+	case 6:  // hoglock_list
+		return &xdrSrvProc_Hoglock_list{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -13144,6 +13279,13 @@ func (c HogLock1_Client) Hoglock_wait(ctx context.Context, a1 HogXID, a2 HogName
 		return err
 	}
 	return nil
+}
+func (c HogLock1_Client) Hoglock_list(ctx context.Context, ) (r HogHelds, _ error) {
+	var proc xdrProc_Hoglock_list
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
 }
 var _XdrNames_ExperimentType = map[int32]string{
 	int32(KExperimentTypeERC20Payments): "kExperimentTypeERC20Payments",
