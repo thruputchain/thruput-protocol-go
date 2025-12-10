@@ -1045,8 +1045,10 @@ type HogAsk struct {
 }
 
 type HogHeld struct {
-	Id HogXID
-	Hosts HogHosts
+	Host HogHost
+	Xid HogXID
+	Demand int64
+	Age_msec int64
 }
 
 type HogHelds = []HogHeld
@@ -12718,8 +12720,10 @@ func (v *HogHeld) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sid", name), XDR_HogXID(&v.Id))
-	x.Marshal(x.Sprintf("%shosts", name), XDR_HogHosts(&v.Hosts))
+	x.Marshal(x.Sprintf("%shost", name), XDR_HogHost(&v.Host))
+	x.Marshal(x.Sprintf("%sxid", name), XDR_HogXID(&v.Xid))
+	x.Marshal(x.Sprintf("%sdemand", name), XDR_int64(&v.Demand))
+	x.Marshal(x.Sprintf("%sage_msec", name), XDR_int64(&v.Age_msec))
 }
 func XDR_HogHeld(v *HogHeld) *HogHeld { return v }
 type _XdrVec_unbounded_HogHeld []HogHeld
