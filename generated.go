@@ -1048,7 +1048,7 @@ type HogHeld struct {
 	Host HogHost
 	Xid HogXID
 	Demand int64
-	Acquired int64
+	Acquired *int64
 }
 
 type HogHelds = []HogHeld
@@ -12741,6 +12741,77 @@ func (v *HogAsk) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%svariable", name), XDR_int64(&v.Variable))
 }
 func XDR_HogAsk(v *HogAsk) *HogAsk { return v }
+type _XdrPtr_int64 struct {
+	p **int64
+}
+type _ptrflag_int64 _XdrPtr_int64
+func (v _ptrflag_int64) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_int64) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("int64 flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_int64) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_int64) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(int64)
+		}
+	default:
+		XdrPanic("*int64 present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_int64) XdrTypeName() string { return "int64?" }
+func (v _ptrflag_int64) XdrPointer() interface{} { return nil }
+func (v _ptrflag_int64) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_int64) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_int64) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_int64) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_int64) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(int64)
+	}
+}
+func (v _XdrPtr_int64) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_int64(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_int64) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_int64) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_int64(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_int64) XdrTypeName() string { return "int64*" }
+func (v _XdrPtr_int64) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_int64) XdrValue() interface{} { return *v.p }
 type XdrType_HogHeld = *HogHeld
 func (v *HogHeld) XdrPointer() interface{} { return v }
 func (HogHeld) XdrTypeName() string { return "HogHeld" }
@@ -12753,7 +12824,7 @@ func (v *HogHeld) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%shost", name), XDR_HogHost(&v.Host))
 	x.Marshal(x.Sprintf("%sxid", name), XDR_HogXID(&v.Xid))
 	x.Marshal(x.Sprintf("%sdemand", name), XDR_int64(&v.Demand))
-	x.Marshal(x.Sprintf("%sacquired", name), XDR_int64(&v.Acquired))
+	x.Marshal(x.Sprintf("%sacquired", name), _XdrPtr_int64{&v.Acquired})
 }
 func XDR_HogHeld(v *HogHeld) *HogHeld { return v }
 type _XdrVec_unbounded_HogHeld []HogHeld
