@@ -1,7 +1,7 @@
 package proto
 
 func ProtocolGitCommit() string {
-	return "+4c84720a61100cefe346ac0007d441d60ef40bea"
+	return "a4d690d41a8146147854d545d1d3c8ed993938b6"
 }
 
 func HogProtocol() string {
