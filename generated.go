@@ -19,21 +19,17 @@ type PublicKeyConfig struct {
 	Max_weight Weight
 }
 
-// If we use the bitmap approach below, should be less than the width of
-// the bitmap.
-// This constant is intended to match the MAX_SIGNERS constant in the Stellar protocol,
-// which is 20.  We add 1 to account for the primary key on a Stellar account.
-const MAX_SIGNERS = 21
-
-// Could be 1; Slightly useful to have multiple for sponsored gas,
-// i.e. separating sponsor ops vs contract owner management
-const MAX_GAS_CONFIGS = 5
-
 type GasPermissionConfig struct {
 	Limit GasAmount
 	Accepted_keys BitMap
 	Required_weight Weight
 }
+
+const KDefaultNewAddressRequiredWeight = 1
+
+const KDefaultNewAddressAcceptedKeys = 0xFFFFFFFF
+
+const KDefaultNewAddressKeyID = 0
 
 type NonceConfig struct {
 	Accepted_keys BitMap
@@ -44,8 +40,8 @@ type NonceConfig struct {
 type PublicKeyConfigOpt = *PublicKeyConfig
 
 type AccountAuthData struct {
-	Public_keys [MAX_SIGNERS]PublicKeyConfigOpt
-	Gas_permissions []GasPermissionConfig // bound MAX_GAS_CONFIGS
+	Public_keys [KMaxSigners]PublicKeyConfigOpt
+	Gas_permissions []GasPermissionConfig // bound KMaxGasConfigs
 	Nonce_config NonceConfig
 	// TODO(geoff): this can be removed once hogdb has a way to track this directly
 	// on each db item.
@@ -1290,6 +1286,7 @@ type HogConfig struct {
 type ExperimentType int32
 const (
 	KExperimentTypeERC20Payments ExperimentType = 0
+	KExperimentTypeERC20BasicAuthPayments ExperimentType = 1
 )
 
 type ERC20PaymentsConfig struct {
@@ -1298,7 +1295,7 @@ type ERC20PaymentsConfig struct {
 
 type ExperimentConfig struct {
 	// The union discriminant Experiment_type selects among the following arms:
-	//   KExperimentTypeERC20Payments:
+	//   KExperimentTypeERC20Payments, KExperimentTypeERC20BasicAuthPayments:
 	//      Erc20_payments() *ERC20PaymentsConfig
 	Experiment_type ExperimentType
 	_u interface{}
@@ -1380,6 +1377,11 @@ type Nomination struct {
 	Block_hash BlockHash
 	//XXX: rename to prev_merkle_hash
 	Prev_block_hash BlockHash
+	Transaction_hashes []SignedTransactionHash
+	Transaction_nominations []NominatedTransaction
+}
+
+type NominationTxsOnly struct {
 	Transaction_hashes []SignedTransactionHash
 	Transaction_nominations []NominatedTransaction
 }
@@ -2161,8 +2163,14 @@ type AuthDataChangeSigner struct {
 	Public_key PublicKeyConfigOpt
 }
 
+type GasConfigChange struct {
+	New_gas_permission_configs []GasPermissionConfig // bound KMaxGasConfigs
+}
+
 type AuthDataChangeArgs struct {
 	Auth_data_change_signers []AuthDataChangeSigner
+	New_nonce_config *NonceConfig
+	New_gas_config_change *GasConfigChange
 }
 
 type NonnegativeInt128SetAddArgs struct {
@@ -2582,6 +2590,16 @@ type UPID = [8]byte
 
 // Protocol describes a specific protocol and version.
 type Protocol = string
+
+// If we use the bitmap approach, should be less than the width of
+// the bitmap.
+// This constant is intended to match the MAX_SIGNERS constant in the Stellar protocol,
+// which is 20.  We add 1 to account for the primary key on a Stellar account.
+const KMaxSigners = 21
+
+// Could be 1; Slightly useful to have multiple for sponsored gas,
+// i.e. separating sponsor ops vs contract owner management
+const KMaxGasConfigs = 5
 
 type JWTSecretKey = []byte
 
@@ -15634,9 +15652,11 @@ func (v *HogConfig) XdrRecurse(x XDR, name string) {
 func XDR_HogConfig(v *HogConfig) *HogConfig { return v }
 var _XdrNames_ExperimentType = map[int32]string{
 	int32(KExperimentTypeERC20Payments): "kExperimentTypeERC20Payments",
+	int32(KExperimentTypeERC20BasicAuthPayments): "kExperimentTypeERC20BasicAuthPayments",
 }
 var _XdrValues_ExperimentType = map[string]int32{
 	"kExperimentTypeERC20Payments": int32(KExperimentTypeERC20Payments),
+	"kExperimentTypeERC20BasicAuthPayments": int32(KExperimentTypeERC20BasicAuthPayments),
 }
 func (ExperimentType) XdrEnumNames() map[int32]string {
 	return _XdrNames_ExperimentType
@@ -15686,13 +15706,14 @@ func (v *ERC20PaymentsConfig) XdrRecurse(x XDR, name string) {
 func XDR_ERC20PaymentsConfig(v *ERC20PaymentsConfig) *ERC20PaymentsConfig { return v }
 var _XdrTags_ExperimentConfig = map[int32]bool{
 	XdrToI32(KExperimentTypeERC20Payments): true,
+	XdrToI32(KExperimentTypeERC20BasicAuthPayments): true,
 }
 func (_ ExperimentConfig) XdrValidTags() map[int32]bool {
 	return _XdrTags_ExperimentConfig
 }
 func (u *ExperimentConfig) Erc20_payments() *ERC20PaymentsConfig {
 	switch u.Experiment_type {
-	case KExperimentTypeERC20Payments:
+	case KExperimentTypeERC20Payments, KExperimentTypeERC20BasicAuthPayments:
 		if v, ok := u._u.(*ERC20PaymentsConfig); ok {
 			return v
 		} else {
@@ -15707,7 +15728,7 @@ func (u *ExperimentConfig) Erc20_payments() *ERC20PaymentsConfig {
 }
 func (u ExperimentConfig) XdrValid() bool {
 	switch u.Experiment_type {
-	case KExperimentTypeERC20Payments:
+	case KExperimentTypeERC20Payments, KExperimentTypeERC20BasicAuthPayments:
 		return true
 	}
 	return false
@@ -15720,14 +15741,14 @@ func (u *ExperimentConfig) XdrUnionTagName() string {
 }
 func (u *ExperimentConfig) XdrUnionBody() XdrType {
 	switch u.Experiment_type {
-	case KExperimentTypeERC20Payments:
+	case KExperimentTypeERC20Payments, KExperimentTypeERC20BasicAuthPayments:
 		return XDR_ERC20PaymentsConfig(u.Erc20_payments())
 	}
 	return nil
 }
 func (u *ExperimentConfig) XdrUnionBodyName() string {
 	switch u.Experiment_type {
-	case KExperimentTypeERC20Payments:
+	case KExperimentTypeERC20Payments, KExperimentTypeERC20BasicAuthPayments:
 		return "Erc20_payments"
 	}
 	return ""
@@ -15743,7 +15764,7 @@ func (u *ExperimentConfig) XdrRecurse(x XDR, name string) {
 	}
 	XDR_ExperimentType(&u.Experiment_type).XdrMarshal(x, x.Sprintf("%sexperiment_type", name))
 	switch u.Experiment_type {
-	case KExperimentTypeERC20Payments:
+	case KExperimentTypeERC20Payments, KExperimentTypeERC20BasicAuthPayments:
 		x.Marshal(x.Sprintf("%serc20_payments", name), XDR_ERC20PaymentsConfig(u.Erc20_payments()))
 		return
 	}
@@ -16471,6 +16492,19 @@ func (v *Nomination) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stransaction_nominations", name), (*_XdrVec_unbounded_NominatedTransaction)(&v.Transaction_nominations))
 }
 func XDR_Nomination(v *Nomination) *Nomination { return v }
+type XdrType_NominationTxsOnly = *NominationTxsOnly
+func (v *NominationTxsOnly) XdrPointer() interface{} { return v }
+func (NominationTxsOnly) XdrTypeName() string { return "NominationTxsOnly" }
+func (v NominationTxsOnly) XdrValue() interface{} { return v }
+func (v *NominationTxsOnly) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NominationTxsOnly) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Transaction_hashes))
+	x.Marshal(x.Sprintf("%stransaction_nominations", name), (*_XdrVec_unbounded_NominatedTransaction)(&v.Transaction_nominations))
+}
+func XDR_NominationTxsOnly(v *NominationTxsOnly) *NominationTxsOnly { return v }
 type XdrType_PrevNominationSummary = *PrevNominationSummary
 func (v *PrevNominationSummary) XdrPointer() interface{} { return v }
 func (PrevNominationSummary) XdrTypeName() string { return "PrevNominationSummary" }
@@ -23031,6 +23065,18 @@ func (v *AuthDataChangeSigner) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spublic_key", name), XDR_PublicKeyConfigOpt(&v.Public_key))
 }
 func XDR_AuthDataChangeSigner(v *AuthDataChangeSigner) *AuthDataChangeSigner { return v }
+type XdrType_GasConfigChange = *GasConfigChange
+func (v *GasConfigChange) XdrPointer() interface{} { return v }
+func (GasConfigChange) XdrTypeName() string { return "GasConfigChange" }
+func (v GasConfigChange) XdrValue() interface{} { return v }
+func (v *GasConfigChange) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *GasConfigChange) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%snew_gas_permission_configs", name), (*_XdrVec_5_GasPermissionConfig)(&v.New_gas_permission_configs))
+}
+func XDR_GasConfigChange(v *GasConfigChange) *GasConfigChange { return v }
 type _XdrVec_unbounded_AuthDataChangeSigner []AuthDataChangeSigner
 func (_XdrVec_unbounded_AuthDataChangeSigner) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -23086,6 +23132,148 @@ func (_XdrVec_unbounded_AuthDataChangeSigner) XdrTypeName() string { return "Aut
 func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrPointer() interface{} { return (*[]AuthDataChangeSigner)(v) }
 func (v _XdrVec_unbounded_AuthDataChangeSigner) XdrValue() interface{} { return ([]AuthDataChangeSigner)(v) }
 func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type _XdrPtr_NonceConfig struct {
+	p **NonceConfig
+}
+type _ptrflag_NonceConfig _XdrPtr_NonceConfig
+func (v _ptrflag_NonceConfig) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_NonceConfig) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("NonceConfig flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_NonceConfig) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_NonceConfig) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(NonceConfig)
+		}
+	default:
+		XdrPanic("*NonceConfig present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_NonceConfig) XdrTypeName() string { return "NonceConfig?" }
+func (v _ptrflag_NonceConfig) XdrPointer() interface{} { return nil }
+func (v _ptrflag_NonceConfig) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_NonceConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_NonceConfig) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_NonceConfig) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_NonceConfig) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(NonceConfig)
+	}
+}
+func (v _XdrPtr_NonceConfig) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_NonceConfig(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_NonceConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_NonceConfig) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_NonceConfig(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_NonceConfig) XdrTypeName() string { return "NonceConfig*" }
+func (v _XdrPtr_NonceConfig) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_NonceConfig) XdrValue() interface{} { return *v.p }
+type _XdrPtr_GasConfigChange struct {
+	p **GasConfigChange
+}
+type _ptrflag_GasConfigChange _XdrPtr_GasConfigChange
+func (v _ptrflag_GasConfigChange) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_GasConfigChange) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("GasConfigChange flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_GasConfigChange) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_GasConfigChange) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(GasConfigChange)
+		}
+	default:
+		XdrPanic("*GasConfigChange present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_GasConfigChange) XdrTypeName() string { return "GasConfigChange?" }
+func (v _ptrflag_GasConfigChange) XdrPointer() interface{} { return nil }
+func (v _ptrflag_GasConfigChange) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_GasConfigChange) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_GasConfigChange) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_GasConfigChange) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_GasConfigChange) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(GasConfigChange)
+	}
+}
+func (v _XdrPtr_GasConfigChange) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_GasConfigChange(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_GasConfigChange) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_GasConfigChange) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_GasConfigChange(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_GasConfigChange) XdrTypeName() string { return "GasConfigChange*" }
+func (v _XdrPtr_GasConfigChange) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_GasConfigChange) XdrValue() interface{} { return *v.p }
 type XdrType_AuthDataChangeArgs = *AuthDataChangeArgs
 func (v *AuthDataChangeArgs) XdrPointer() interface{} { return v }
 func (AuthDataChangeArgs) XdrTypeName() string { return "AuthDataChangeArgs" }
@@ -23096,6 +23284,8 @@ func (v *AuthDataChangeArgs) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sauth_data_change_signers", name), (*_XdrVec_unbounded_AuthDataChangeSigner)(&v.Auth_data_change_signers))
+	x.Marshal(x.Sprintf("%snew_nonce_config", name), _XdrPtr_NonceConfig{&v.New_nonce_config})
+	x.Marshal(x.Sprintf("%snew_gas_config_change", name), _XdrPtr_GasConfigChange{&v.New_gas_config_change})
 }
 func XDR_AuthDataChangeArgs(v *AuthDataChangeArgs) *AuthDataChangeArgs { return v }
 type XdrType_NonnegativeInt128SetAddArgs = *NonnegativeInt128SetAddArgs
