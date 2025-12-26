@@ -1914,6 +1914,9 @@ type SCP_Control1 interface {
 	Scp_control_stop_nomination(context.Context, SCPSlotIndex) error
 	Scp_control_update_local_quorum_set(context.Context, SCPQuorumSet) error
 	Scp_control_received_envelope(context.Context, SCPEnvelope) error
+	Scp_control_set_qset(context.Context, SCPQuorumSet) (SCPOptQuorumSet, error)
+	Scp_control_get_qset(context.Context, SCPHash) (SCPOptQuorumSet, error)
+	Scp_control_remove_qset(context.Context, SCPHash) (SCPOptQuorumSet, error)
 }
 
 type SCPValidationLevel int32
@@ -20445,6 +20448,147 @@ func (p *xdrSrvProc_Scp_control_received_envelope) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Scp_control_received_envelope{} // XXX
 
+type xdrProc_Scp_control_set_qset struct {
+	Arg *SCPQuorumSet
+	Res *SCPOptQuorumSet
+}
+func (xdrProc_Scp_control_set_qset) Prog() uint32 { return 2594779139 }
+func (xdrProc_Scp_control_set_qset) Vers() uint32 { return 1 }
+func (xdrProc_Scp_control_set_qset) Proc() uint32 { return 300 }
+func (xdrProc_Scp_control_set_qset) ProgName() string { return "SCP_Control" }
+func (xdrProc_Scp_control_set_qset) VersName() string { return "SCP_Control1" }
+func (xdrProc_Scp_control_set_qset) ProcName() string { return "scp_control_set_qset" }
+func (p *xdrProc_Scp_control_set_qset) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SCPQuorumSet)
+	}
+	return XDR_SCPQuorumSet(p.Arg)
+}
+func (p *xdrProc_Scp_control_set_qset) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(SCPOptQuorumSet)
+	}
+	return XDR_SCPOptQuorumSet(p.Res)
+}
+var _ XdrProc = &xdrProc_Scp_control_set_qset{} // XXX
+
+type xdrSrvProc_Scp_control_set_qset struct {
+	xdrProc_Scp_control_set_qset
+	Srv SCP_Control1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Scp_control_set_qset) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SCP_Control1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Scp_control_set_qset) Do() {
+	r, err := p.Srv.Scp_control_set_qset(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Scp_control_set_qset{} // XXX
+
+type xdrProc_Scp_control_get_qset struct {
+	Arg *SCPHash
+	Res *SCPOptQuorumSet
+}
+func (xdrProc_Scp_control_get_qset) Prog() uint32 { return 2594779139 }
+func (xdrProc_Scp_control_get_qset) Vers() uint32 { return 1 }
+func (xdrProc_Scp_control_get_qset) Proc() uint32 { return 301 }
+func (xdrProc_Scp_control_get_qset) ProgName() string { return "SCP_Control" }
+func (xdrProc_Scp_control_get_qset) VersName() string { return "SCP_Control1" }
+func (xdrProc_Scp_control_get_qset) ProcName() string { return "scp_control_get_qset" }
+func (p *xdrProc_Scp_control_get_qset) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SCPHash)
+	}
+	return XDR_SCPHash(p.Arg)
+}
+func (p *xdrProc_Scp_control_get_qset) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(SCPOptQuorumSet)
+	}
+	return XDR_SCPOptQuorumSet(p.Res)
+}
+var _ XdrProc = &xdrProc_Scp_control_get_qset{} // XXX
+
+type xdrSrvProc_Scp_control_get_qset struct {
+	xdrProc_Scp_control_get_qset
+	Srv SCP_Control1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Scp_control_get_qset) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SCP_Control1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Scp_control_get_qset) Do() {
+	r, err := p.Srv.Scp_control_get_qset(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Scp_control_get_qset{} // XXX
+
+type xdrProc_Scp_control_remove_qset struct {
+	Arg *SCPHash
+	Res *SCPOptQuorumSet
+}
+func (xdrProc_Scp_control_remove_qset) Prog() uint32 { return 2594779139 }
+func (xdrProc_Scp_control_remove_qset) Vers() uint32 { return 1 }
+func (xdrProc_Scp_control_remove_qset) Proc() uint32 { return 302 }
+func (xdrProc_Scp_control_remove_qset) ProgName() string { return "SCP_Control" }
+func (xdrProc_Scp_control_remove_qset) VersName() string { return "SCP_Control1" }
+func (xdrProc_Scp_control_remove_qset) ProcName() string { return "scp_control_remove_qset" }
+func (p *xdrProc_Scp_control_remove_qset) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SCPHash)
+	}
+	return XDR_SCPHash(p.Arg)
+}
+func (p *xdrProc_Scp_control_remove_qset) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(SCPOptQuorumSet)
+	}
+	return XDR_SCPOptQuorumSet(p.Res)
+}
+var _ XdrProc = &xdrProc_Scp_control_remove_qset{} // XXX
+
+type xdrSrvProc_Scp_control_remove_qset struct {
+	xdrProc_Scp_control_remove_qset
+	Srv SCP_Control1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Scp_control_remove_qset) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SCP_Control1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Scp_control_remove_qset) Do() {
+	r, err := p.Srv.Scp_control_remove_qset(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Scp_control_remove_qset{} // XXX
+
 func init() {
 	XdrCatalog[2594779139<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -20458,6 +20602,12 @@ func init() {
 			return &xdrProc_Scp_control_update_local_quorum_set{}
 		case 200:
 			return &xdrProc_Scp_control_received_envelope{}
+		case 300:
+			return &xdrProc_Scp_control_set_qset{}
+		case 301:
+			return &xdrProc_Scp_control_get_qset{}
+		case 302:
+			return &xdrProc_Scp_control_remove_qset{}
 		}
 		return nil
 	}
@@ -20482,6 +20632,12 @@ func (s SCP_Control1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Scp_control_update_local_quorum_set{ Srv: s.Srv }
 	case 200:  // scp_control_received_envelope
 		return &xdrSrvProc_Scp_control_received_envelope{ Srv: s.Srv }
+	case 300:  // scp_control_set_qset
+		return &xdrSrvProc_Scp_control_set_qset{ Srv: s.Srv }
+	case 301:  // scp_control_get_qset
+		return &xdrSrvProc_Scp_control_get_qset{ Srv: s.Srv }
+	case 302:  // scp_control_remove_qset
+		return &xdrSrvProc_Scp_control_remove_qset{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -20538,6 +20694,30 @@ func (c SCP_Control1_Client) Scp_control_received_envelope(ctx context.Context, 
 		return err
 	}
 	return nil
+}
+func (c SCP_Control1_Client) Scp_control_set_qset(ctx context.Context, a1 SCPQuorumSet) (r SCPOptQuorumSet, _ error) {
+	var proc xdrProc_Scp_control_set_qset
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c SCP_Control1_Client) Scp_control_get_qset(ctx context.Context, a1 SCPHash) (r SCPOptQuorumSet, _ error) {
+	var proc xdrProc_Scp_control_get_qset
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c SCP_Control1_Client) Scp_control_remove_qset(ctx context.Context, a1 SCPHash) (r SCPOptQuorumSet, _ error) {
+	var proc xdrProc_Scp_control_remove_qset
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
 }
 var _XdrNames_SCPValidationLevel = map[int32]string{
 	int32(SCP_INVALID): "SCP_INVALID",
