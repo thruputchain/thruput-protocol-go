@@ -1412,17 +1412,17 @@ type PrevNominationSummary struct {
 	Block_hash BlockHash
 }
 
-type ParallelSignedTransactions struct {
+type ParallelSignedTransactionBatch struct {
 	Index []int32
 	Xdr []byte
 }
 
-type ParallelSignedTransactionHashes struct {
+type ParallelSignedTransactionHashBatch struct {
 	Index []int32
 	Xdr []byte
 }
 
-type ParallelNondeterministicProposalDatas struct {
+type ParallelNondeterministicProposalDataBatch struct {
 	Index []int32
 	Xdr []byte
 }
@@ -16537,45 +16537,45 @@ func (_XdrVec_unbounded_int32) XdrTypeName() string { return "int32<>" }
 func (v *_XdrVec_unbounded_int32) XdrPointer() interface{} { return (*[]int32)(v) }
 func (v _XdrVec_unbounded_int32) XdrValue() interface{} { return ([]int32)(v) }
 func (v *_XdrVec_unbounded_int32) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_ParallelSignedTransactions = *ParallelSignedTransactions
-func (v *ParallelSignedTransactions) XdrPointer() interface{} { return v }
-func (ParallelSignedTransactions) XdrTypeName() string { return "ParallelSignedTransactions" }
-func (v ParallelSignedTransactions) XdrValue() interface{} { return v }
-func (v *ParallelSignedTransactions) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ParallelSignedTransactions) XdrRecurse(x XDR, name string) {
+type XdrType_ParallelSignedTransactionBatch = *ParallelSignedTransactionBatch
+func (v *ParallelSignedTransactionBatch) XdrPointer() interface{} { return v }
+func (ParallelSignedTransactionBatch) XdrTypeName() string { return "ParallelSignedTransactionBatch" }
+func (v ParallelSignedTransactionBatch) XdrValue() interface{} { return v }
+func (v *ParallelSignedTransactionBatch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ParallelSignedTransactionBatch) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sindex", name), (*_XdrVec_unbounded_int32)(&v.Index))
 	x.Marshal(x.Sprintf("%sxdr", name), XdrVecOpaque{&v.Xdr, 0xffffffff})
 }
-func XDR_ParallelSignedTransactions(v *ParallelSignedTransactions) *ParallelSignedTransactions { return v }
-type XdrType_ParallelSignedTransactionHashes = *ParallelSignedTransactionHashes
-func (v *ParallelSignedTransactionHashes) XdrPointer() interface{} { return v }
-func (ParallelSignedTransactionHashes) XdrTypeName() string { return "ParallelSignedTransactionHashes" }
-func (v ParallelSignedTransactionHashes) XdrValue() interface{} { return v }
-func (v *ParallelSignedTransactionHashes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ParallelSignedTransactionHashes) XdrRecurse(x XDR, name string) {
+func XDR_ParallelSignedTransactionBatch(v *ParallelSignedTransactionBatch) *ParallelSignedTransactionBatch { return v }
+type XdrType_ParallelSignedTransactionHashBatch = *ParallelSignedTransactionHashBatch
+func (v *ParallelSignedTransactionHashBatch) XdrPointer() interface{} { return v }
+func (ParallelSignedTransactionHashBatch) XdrTypeName() string { return "ParallelSignedTransactionHashBatch" }
+func (v ParallelSignedTransactionHashBatch) XdrValue() interface{} { return v }
+func (v *ParallelSignedTransactionHashBatch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ParallelSignedTransactionHashBatch) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sindex", name), (*_XdrVec_unbounded_int32)(&v.Index))
 	x.Marshal(x.Sprintf("%sxdr", name), XdrVecOpaque{&v.Xdr, 0xffffffff})
 }
-func XDR_ParallelSignedTransactionHashes(v *ParallelSignedTransactionHashes) *ParallelSignedTransactionHashes { return v }
-type XdrType_ParallelNondeterministicProposalDatas = *ParallelNondeterministicProposalDatas
-func (v *ParallelNondeterministicProposalDatas) XdrPointer() interface{} { return v }
-func (ParallelNondeterministicProposalDatas) XdrTypeName() string { return "ParallelNondeterministicProposalDatas" }
-func (v ParallelNondeterministicProposalDatas) XdrValue() interface{} { return v }
-func (v *ParallelNondeterministicProposalDatas) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ParallelNondeterministicProposalDatas) XdrRecurse(x XDR, name string) {
+func XDR_ParallelSignedTransactionHashBatch(v *ParallelSignedTransactionHashBatch) *ParallelSignedTransactionHashBatch { return v }
+type XdrType_ParallelNondeterministicProposalDataBatch = *ParallelNondeterministicProposalDataBatch
+func (v *ParallelNondeterministicProposalDataBatch) XdrPointer() interface{} { return v }
+func (ParallelNondeterministicProposalDataBatch) XdrTypeName() string { return "ParallelNondeterministicProposalDataBatch" }
+func (v ParallelNondeterministicProposalDataBatch) XdrValue() interface{} { return v }
+func (v *ParallelNondeterministicProposalDataBatch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ParallelNondeterministicProposalDataBatch) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sindex", name), (*_XdrVec_unbounded_int32)(&v.Index))
 	x.Marshal(x.Sprintf("%sxdr", name), XdrVecOpaque{&v.Xdr, 0xffffffff})
 }
-func XDR_ParallelNondeterministicProposalDatas(v *ParallelNondeterministicProposalDatas) *ParallelNondeterministicProposalDatas { return v }
+func XDR_ParallelNondeterministicProposalDataBatch(v *ParallelNondeterministicProposalDataBatch) *ParallelNondeterministicProposalDataBatch { return v }
 var _XdrNames_HogexecPrecompiledNativeContracts = map[int32]string{
 	int32(KNativeContractHogToken): "kNativeContractHogToken",
 }
