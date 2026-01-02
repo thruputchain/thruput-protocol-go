@@ -1855,7 +1855,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_null(context.Context, ) error
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
 	Schedulercoord_submit_unvetted(context.Context, SignedTransactionBatch) error
-	Schedulercoord_submit_vetted(context.Context, ValidatorID, SignedTransactionBatch) error
+	Schedulercoord_submit_vetted(context.Context, ValidatorID, ParallelSignedTransactionBatch) error
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID) (SchedulerCommitOutcome, error)
@@ -19149,7 +19149,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_unvetted{} // XXX
 
 type xdrProcArg_Schedulercoord_submit_vetted struct {
 	a1 *ValidatorID
-	a2 *SignedTransactionBatch
+	a2 *ParallelSignedTransactionBatch
 }
 func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrPointer() interface{} { return v }
 func (xdrProcArg_Schedulercoord_submit_vetted) XdrTypeName() string { return "xdrProcArg_Schedulercoord_submit_vetted" }
@@ -19161,8 +19161,8 @@ func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrRecurse(x XDR, name string)
 	}
 	if v.a1 == nil { v.a1 = new(ValidatorID) }
 	XDR_ValidatorID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(SignedTransactionBatch) }
-	XDR_SignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(ParallelSignedTransactionBatch) }
+	XDR_ParallelSignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Schedulercoord_submit_vetted(v *xdrProcArg_Schedulercoord_submit_vetted) *xdrProcArg_Schedulercoord_submit_vetted { return v }
 var _ XdrType = &xdrProcArg_Schedulercoord_submit_vetted{} // XXX
@@ -19609,7 +19609,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Conte
 	}
 	return nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context, a1 ValidatorID, a2 SignedTransactionBatch) error {
+func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context, a1 ValidatorID, a2 ParallelSignedTransactionBatch) error {
 	var proc xdrProc_Schedulercoord_submit_vetted
 	proc.GetArg()
 	proc.Arg.a1 = &a1
