@@ -182,7 +182,7 @@ type MempoolAuth1 interface {
 }
 
 type SubmittedTransactions struct {
-	Transactions []SignedTransaction
+	Transactions ParallelSignedTransactionBatch
 }
 
 // This struct is serialized and hashed to form the block hash.
@@ -4365,6 +4365,31 @@ func (c MempoolAuth1_Client) Mempoolauth_intro_auth(ctx context.Context, a1 Auth
 	}
 	return *proc.Res, nil
 }
+type XdrType_SubmittedTransactions = *SubmittedTransactions
+func (v *SubmittedTransactions) XdrPointer() interface{} { return v }
+func (SubmittedTransactions) XdrTypeName() string { return "SubmittedTransactions" }
+func (v SubmittedTransactions) XdrValue() interface{} { return v }
+func (v *SubmittedTransactions) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SubmittedTransactions) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stransactions", name), XDR_ParallelSignedTransactionBatch(&v.Transactions))
+}
+func XDR_SubmittedTransactions(v *SubmittedTransactions) *SubmittedTransactions { return v }
+type XdrType_BlockHashPreimage = *BlockHashPreimage
+func (v *BlockHashPreimage) XdrPointer() interface{} { return v }
+func (BlockHashPreimage) XdrTypeName() string { return "BlockHashPreimage" }
+func (v BlockHashPreimage) XdrValue() interface{} { return v }
+func (v *BlockHashPreimage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BlockHashPreimage) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stxs_merkle_trie_root_hash", name), XDR_SHA256Hash(&v.Txs_merkle_trie_root_hash))
+	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
+}
+func XDR_BlockHashPreimage(v *BlockHashPreimage) *BlockHashPreimage { return v }
 type _XdrVec_unbounded_SignedTransaction []SignedTransaction
 func (_XdrVec_unbounded_SignedTransaction) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -4420,31 +4445,6 @@ func (_XdrVec_unbounded_SignedTransaction) XdrTypeName() string { return "Signed
 func (v *_XdrVec_unbounded_SignedTransaction) XdrPointer() interface{} { return (*[]SignedTransaction)(v) }
 func (v _XdrVec_unbounded_SignedTransaction) XdrValue() interface{} { return ([]SignedTransaction)(v) }
 func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_SubmittedTransactions = *SubmittedTransactions
-func (v *SubmittedTransactions) XdrPointer() interface{} { return v }
-func (SubmittedTransactions) XdrTypeName() string { return "SubmittedTransactions" }
-func (v SubmittedTransactions) XdrValue() interface{} { return v }
-func (v *SubmittedTransactions) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *SubmittedTransactions) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Transactions))
-}
-func XDR_SubmittedTransactions(v *SubmittedTransactions) *SubmittedTransactions { return v }
-type XdrType_BlockHashPreimage = *BlockHashPreimage
-func (v *BlockHashPreimage) XdrPointer() interface{} { return v }
-func (BlockHashPreimage) XdrTypeName() string { return "BlockHashPreimage" }
-func (v BlockHashPreimage) XdrValue() interface{} { return v }
-func (v *BlockHashPreimage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *BlockHashPreimage) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%stxs_merkle_trie_root_hash", name), XDR_SHA256Hash(&v.Txs_merkle_trie_root_hash))
-	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
-}
-func XDR_BlockHashPreimage(v *BlockHashPreimage) *BlockHashPreimage { return v }
 type XdrType_CatchupBlock = *CatchupBlock
 func (v *CatchupBlock) XdrPointer() interface{} { return v }
 func (CatchupBlock) XdrTypeName() string { return "CatchupBlock" }
