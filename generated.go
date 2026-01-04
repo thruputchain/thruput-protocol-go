@@ -193,7 +193,7 @@ type BlockHashPreimage struct {
 
 type CatchupBlock struct {
 	Consensus_value ConsensusValue
-	Signed_transactions []ParallelSignedTransactionBatch
+	Signed_transactions ParallelSignedTransactionBatch
 }
 
 type CatchupSpan struct {
@@ -4378,61 +4378,6 @@ func (v *BlockHashPreimage) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
 }
 func XDR_BlockHashPreimage(v *BlockHashPreimage) *BlockHashPreimage { return v }
-type _XdrVec_unbounded_ParallelSignedTransactionBatch []ParallelSignedTransactionBatch
-func (_XdrVec_unbounded_ParallelSignedTransactionBatch) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_ParallelSignedTransactionBatch) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_ParallelSignedTransactionBatch length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_ParallelSignedTransactionBatch length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_ParallelSignedTransactionBatch) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_ParallelSignedTransactionBatch) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]ParallelSignedTransactionBatch, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_ParallelSignedTransactionBatch) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_ParallelSignedTransactionBatch(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_ParallelSignedTransactionBatch) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_ParallelSignedTransactionBatch) XdrTypeName() string { return "ParallelSignedTransactionBatch<>" }
-func (v *_XdrVec_unbounded_ParallelSignedTransactionBatch) XdrPointer() interface{} { return (*[]ParallelSignedTransactionBatch)(v) }
-func (v _XdrVec_unbounded_ParallelSignedTransactionBatch) XdrValue() interface{} { return ([]ParallelSignedTransactionBatch)(v) }
-func (v *_XdrVec_unbounded_ParallelSignedTransactionBatch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_CatchupBlock = *CatchupBlock
 func (v *CatchupBlock) XdrPointer() interface{} { return v }
 func (CatchupBlock) XdrTypeName() string { return "CatchupBlock" }
@@ -4443,7 +4388,7 @@ func (v *CatchupBlock) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sconsensus_value", name), XDR_ConsensusValue(&v.Consensus_value))
-	x.Marshal(x.Sprintf("%ssigned_transactions", name), (*_XdrVec_unbounded_ParallelSignedTransactionBatch)(&v.Signed_transactions))
+	x.Marshal(x.Sprintf("%ssigned_transactions", name), XDR_ParallelSignedTransactionBatch(&v.Signed_transactions))
 }
 func XDR_CatchupBlock(v *CatchupBlock) *CatchupBlock { return v }
 type XdrType_CatchupSpan = *CatchupSpan
