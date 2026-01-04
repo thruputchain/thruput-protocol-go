@@ -1399,8 +1399,8 @@ type Nomination struct {
 	Block_hash BlockHash
 	//XXX: rename to prev_merkle_hash
 	Prev_block_hash BlockHash
-	Transactions_hash []ParallelSignedTransactionHashBatch
-	Transactions_nondeterministic_data []ParallelNondeterministicProposalDataBatch
+	Transactions_hash ParallelSignedTransactionHashBatch
+	Transactions_nondeterministic_data ParallelNondeterministicProposalDataBatch
 }
 
 type PrevNominationSummary struct {
@@ -16315,116 +16315,6 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_MultiplexMessage(v *MultiplexMessage) *MultiplexMessage { return v}
-type _XdrVec_unbounded_ParallelSignedTransactionHashBatch []ParallelSignedTransactionHashBatch
-func (_XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_ParallelSignedTransactionHashBatch length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_ParallelSignedTransactionHashBatch length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_ParallelSignedTransactionHashBatch) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_ParallelSignedTransactionHashBatch) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]ParallelSignedTransactionHashBatch, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_ParallelSignedTransactionHashBatch(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrTypeName() string { return "ParallelSignedTransactionHashBatch<>" }
-func (v *_XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrPointer() interface{} { return (*[]ParallelSignedTransactionHashBatch)(v) }
-func (v _XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrValue() interface{} { return ([]ParallelSignedTransactionHashBatch)(v) }
-func (v *_XdrVec_unbounded_ParallelSignedTransactionHashBatch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type _XdrVec_unbounded_ParallelNondeterministicProposalDataBatch []ParallelNondeterministicProposalDataBatch
-func (_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]ParallelNondeterministicProposalDataBatch, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_ParallelNondeterministicProposalDataBatch(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrTypeName() string { return "ParallelNondeterministicProposalDataBatch<>" }
-func (v *_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrPointer() interface{} { return (*[]ParallelNondeterministicProposalDataBatch)(v) }
-func (v _XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrValue() interface{} { return ([]ParallelNondeterministicProposalDataBatch)(v) }
-func (v *_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_Nomination = *Nomination
 func (v *Nomination) XdrPointer() interface{} { return v }
 func (Nomination) XdrTypeName() string { return "Nomination" }
@@ -16438,8 +16328,8 @@ func (v *Nomination) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
-	x.Marshal(x.Sprintf("%stransactions_hash", name), (*_XdrVec_unbounded_ParallelSignedTransactionHashBatch)(&v.Transactions_hash))
-	x.Marshal(x.Sprintf("%stransactions_nondeterministic_data", name), (*_XdrVec_unbounded_ParallelNondeterministicProposalDataBatch)(&v.Transactions_nondeterministic_data))
+	x.Marshal(x.Sprintf("%stransactions_hash", name), XDR_ParallelSignedTransactionHashBatch(&v.Transactions_hash))
+	x.Marshal(x.Sprintf("%stransactions_nondeterministic_data", name), XDR_ParallelNondeterministicProposalDataBatch(&v.Transactions_nondeterministic_data))
 }
 func XDR_Nomination(v *Nomination) *Nomination { return v }
 type XdrType_PrevNominationSummary = *PrevNominationSummary
