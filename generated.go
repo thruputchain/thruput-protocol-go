@@ -1874,7 +1874,7 @@ const (
 type SchedulerCoord1 interface {
 	Schedulercoord_null(context.Context, ) error
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
-	Schedulercoord_submit_unvetted(context.Context, SignedTransactionBatch) error
+	Schedulercoord_submit_unvetted(context.Context, ParallelSignedTransactionBatch) error
 	Schedulercoord_submit_vetted(context.Context, ValidatorID, ParallelSignedTransactionBatch) error
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
@@ -19155,7 +19155,7 @@ func (p *xdrSrvProc_Schedulercoord_intro_coord) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_intro_coord{} // XXX
 
 type xdrProc_Schedulercoord_submit_unvetted struct {
-	Arg *SignedTransactionBatch
+	Arg *ParallelSignedTransactionBatch
 	Res *XdrVoid
 }
 func (xdrProc_Schedulercoord_submit_unvetted) Prog() uint32 { return 1986466065 }
@@ -19166,9 +19166,9 @@ func (xdrProc_Schedulercoord_submit_unvetted) VersName() string { return "Schedu
 func (xdrProc_Schedulercoord_submit_unvetted) ProcName() string { return "schedulercoord_submit_unvetted" }
 func (p *xdrProc_Schedulercoord_submit_unvetted) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(SignedTransactionBatch)
+		p.Arg = new(ParallelSignedTransactionBatch)
 	}
-	return XDR_SignedTransactionBatch(p.Arg)
+	return XDR_ParallelSignedTransactionBatch(p.Arg)
 }
 func (p *xdrProc_Schedulercoord_submit_unvetted) GetRes() XdrType {
 	if p.Res == nil {
@@ -19653,7 +19653,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_intro_coord(ctx context.Context, 
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Context, a1 SignedTransactionBatch) error {
+func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Context, a1 ParallelSignedTransactionBatch) error {
 	var proc xdrProc_Schedulercoord_submit_unvetted
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
