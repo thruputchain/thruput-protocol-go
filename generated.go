@@ -503,7 +503,7 @@ type SchedulerNomination struct {
 
 type CoordScheduler1 interface {
 	Coordscheduler_null(context.Context, ) error
-	Coordscheduler_notify_vetted(context.Context, SignedTransactionBatch) error
+	Coordscheduler_notify_vetted(context.Context, ParallelSignedTransactionBatch) error
 }
 
 type DbSchedResult int32
@@ -7353,7 +7353,7 @@ func (p *xdrSrvProc_Coordscheduler_null) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Coordscheduler_null{} // XXX
 
 type xdrProc_Coordscheduler_notify_vetted struct {
-	Arg *SignedTransactionBatch
+	Arg *ParallelSignedTransactionBatch
 	Res *XdrVoid
 }
 func (xdrProc_Coordscheduler_notify_vetted) Prog() uint32 { return 286357095 }
@@ -7364,9 +7364,9 @@ func (xdrProc_Coordscheduler_notify_vetted) VersName() string { return "CoordSch
 func (xdrProc_Coordscheduler_notify_vetted) ProcName() string { return "coordscheduler_notify_vetted" }
 func (p *xdrProc_Coordscheduler_notify_vetted) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(SignedTransactionBatch)
+		p.Arg = new(ParallelSignedTransactionBatch)
 	}
-	return XDR_SignedTransactionBatch(p.Arg)
+	return XDR_ParallelSignedTransactionBatch(p.Arg)
 }
 func (p *xdrProc_Coordscheduler_notify_vetted) GetRes() XdrType {
 	if p.Res == nil {
@@ -7444,7 +7444,7 @@ func (c CoordScheduler1_Client) Coordscheduler_null(ctx context.Context, ) error
 	}
 	return nil
 }
-func (c CoordScheduler1_Client) Coordscheduler_notify_vetted(ctx context.Context, a1 SignedTransactionBatch) error {
+func (c CoordScheduler1_Client) Coordscheduler_notify_vetted(ctx context.Context, a1 ParallelSignedTransactionBatch) error {
 	var proc xdrProc_Coordscheduler_notify_vetted
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
