@@ -501,12 +501,6 @@ type SchedulerNomination struct {
 	Nomination Nomination
 }
 
-type SchedulerNominationChunk struct {
-	Chunk_idx uint32
-	Total_chunks uint32
-	Chunk SchedulerNomination
-}
-
 type CoordScheduler1 interface {
 	Coordscheduler_null(context.Context, ) error
 	Coordscheduler_notify_vetted(context.Context, SignedTransactionBatch) error
@@ -7312,20 +7306,6 @@ func (v *SchedulerNomination) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
 }
 func XDR_SchedulerNomination(v *SchedulerNomination) *SchedulerNomination { return v }
-type XdrType_SchedulerNominationChunk = *SchedulerNominationChunk
-func (v *SchedulerNominationChunk) XdrPointer() interface{} { return v }
-func (SchedulerNominationChunk) XdrTypeName() string { return "SchedulerNominationChunk" }
-func (v SchedulerNominationChunk) XdrValue() interface{} { return v }
-func (v *SchedulerNominationChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *SchedulerNominationChunk) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%schunk_idx", name), XDR_uint32(&v.Chunk_idx))
-	x.Marshal(x.Sprintf("%stotal_chunks", name), XDR_uint32(&v.Total_chunks))
-	x.Marshal(x.Sprintf("%schunk", name), XDR_SchedulerNomination(&v.Chunk))
-}
-func XDR_SchedulerNominationChunk(v *SchedulerNominationChunk) *SchedulerNominationChunk { return v }
 
 type xdrProc_Coordscheduler_null struct {
 	Arg *XdrVoid
