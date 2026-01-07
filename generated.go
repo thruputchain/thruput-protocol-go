@@ -510,7 +510,6 @@ type SchedulerNominationChunk struct {
 type CoordScheduler1 interface {
 	Coordscheduler_null(context.Context, ) error
 	Coordscheduler_notify_vetted(context.Context, SignedTransactionBatch) error
-	Coordscheduler_finish_nomination(context.Context, SchedulerNominationChunk) error
 }
 
 type DbSchedResult int32
@@ -863,6 +862,7 @@ type DatabaseToExecutorInterfaceV1 interface {
 	Get_concurrent_retrocausal_queue_entry(context.Context, BlockID, AddressAndKey, uint32) (ExpectedQueueEntry, error)
 	Get_contract(context.Context, BlockID, SHA256Hash) (ExpectedContract, error)
 	Get_deployment(context.Context, BlockID, ContractAddress) (ExpectedDeployment, error)
+	Get_db_tip(context.Context, BlockID) (ExpectedDBTip, error)
 }
 
 // Error codes returned from a runtime (wasmi) invocation.
@@ -1124,7 +1124,7 @@ type HogxHostQueryResult struct {
 type HogxUnitStartResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   HOGX_OK:
-	//      Unit_state() *UnitState
+	//      void
 	//   HOGX_ERROR:
 	//      Error() *string
 	Outcome HogxOutcome
@@ -1134,7 +1134,7 @@ type HogxUnitStartResult struct {
 type HogxUnitStopResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   HOGX_OK:
-	//      Unit_state() *UnitState
+	//      void
 	//   HOGX_ERROR:
 	//      Error() *string
 	Outcome HogxOutcome
@@ -1292,11 +1292,27 @@ type UnitDefLinked struct {
 	Command UnitCommandLinked
 }
 
+type ProcessStatus int32
+const (
+	PROCESS_RUNNING ProcessStatus = 1
+	PROCESS_EXITED ProcessStatus = 2
+)
+
+type ProcessState struct {
+	// The union discriminant Status selects among the following arms:
+	//   PROCESS_RUNNING:
+	//      Pid() *uint32
+	//   PROCESS_EXITED:
+	//      Exit() *int32
+	Status ProcessStatus
+	_u interface{}
+}
+
 type UnitState struct {
 	Def UnitDef
 	Def_linked UnitDefLinked
 	Started Timestamp
-	Pid *uint32
+	Process_state ProcessState
 }
 
 type HogConfig struct {
@@ -1629,6 +1645,16 @@ type ExpectedQueueEntry struct {
 	_u interface{}
 }
 
+type ExpectedDBTip struct {
+	// The union discriminant Error selects among the following arms:
+	//   KRPCNone:
+	//      Db_tip() *DbTip
+	//   default:
+	//      void
+	Error RPCError
+	_u interface{}
+}
+
 type ContractEventType int32
 const (
 	SYSTEM ContractEventType = 0
@@ -1808,10 +1834,15 @@ const (
 	SchedulerNominationError SchedulerNominationOutcome = 1
 )
 
+type SchedulerNominatedBlock struct {
+	Block_id BlockID
+	Nomination Nomination
+}
+
 type SchedulerNominationResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   SchedulerNominationOK:
-	//      Block_id() *BlockID
+	//      Nominated_block() *SchedulerNominatedBlock
 	//   default:
 	//      void
 	Outcome SchedulerNominationOutcome
@@ -2110,6 +2141,7 @@ type StorageCostModelXdr struct {
 	Contract_deployment_cost_per_byte Int128_xdr
 	Auth_per_key_cost Int128_xdr
 	Replay_cache_cost_per_entry Int128_xdr
+	Balance_cost Int128_xdr
 }
 
 type StorageItemRPCFlags int32
@@ -7385,51 +7417,6 @@ func (p *xdrSrvProc_Coordscheduler_notify_vetted) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Coordscheduler_notify_vetted{} // XXX
 
-type xdrProc_Coordscheduler_finish_nomination struct {
-	Arg *SchedulerNominationChunk
-	Res *XdrVoid
-}
-func (xdrProc_Coordscheduler_finish_nomination) Prog() uint32 { return 286357095 }
-func (xdrProc_Coordscheduler_finish_nomination) Vers() uint32 { return 1 }
-func (xdrProc_Coordscheduler_finish_nomination) Proc() uint32 { return 2 }
-func (xdrProc_Coordscheduler_finish_nomination) ProgName() string { return "CoordScheduler" }
-func (xdrProc_Coordscheduler_finish_nomination) VersName() string { return "CoordScheduler1" }
-func (xdrProc_Coordscheduler_finish_nomination) ProcName() string { return "coordscheduler_finish_nomination" }
-func (p *xdrProc_Coordscheduler_finish_nomination) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(SchedulerNominationChunk)
-	}
-	return XDR_SchedulerNominationChunk(p.Arg)
-}
-func (p *xdrProc_Coordscheduler_finish_nomination) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Res)
-}
-var _ XdrProc = &xdrProc_Coordscheduler_finish_nomination{} // XXX
-
-type xdrSrvProc_Coordscheduler_finish_nomination struct {
-	xdrProc_Coordscheduler_finish_nomination
-	Srv CoordScheduler1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Coordscheduler_finish_nomination) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) CoordScheduler1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Coordscheduler_finish_nomination) Do() {
-	err := p.Srv.Coordscheduler_finish_nomination(p.Ctx, *p.Arg)
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Coordscheduler_finish_nomination{} // XXX
-
 func init() {
 	XdrCatalog[286357095<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -7437,8 +7424,6 @@ func init() {
 			return &xdrProc_Coordscheduler_null{}
 		case 1:
 			return &xdrProc_Coordscheduler_notify_vetted{}
-		case 2:
-			return &xdrProc_Coordscheduler_finish_nomination{}
 		}
 		return nil
 	}
@@ -7457,8 +7442,6 @@ func (s CoordScheduler1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Coordscheduler_null{ Srv: s.Srv }
 	case 1:  // coordscheduler_notify_vetted
 		return &xdrSrvProc_Coordscheduler_notify_vetted{ Srv: s.Srv }
-	case 2:  // coordscheduler_finish_nomination
-		return &xdrSrvProc_Coordscheduler_finish_nomination{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -7483,14 +7466,6 @@ func (c CoordScheduler1_Client) Coordscheduler_null(ctx context.Context, ) error
 }
 func (c CoordScheduler1_Client) Coordscheduler_notify_vetted(ctx context.Context, a1 SignedTransactionBatch) error {
 	var proc xdrProc_Coordscheduler_notify_vetted
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
-	}
-	return nil
-}
-func (c CoordScheduler1_Client) Coordscheduler_finish_nomination(ctx context.Context, a1 SchedulerNominationChunk) error {
-	var proc xdrProc_Coordscheduler_finish_nomination
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
@@ -12312,6 +12287,53 @@ func (p *xdrSrvProc_Get_deployment) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_deployment{} // XXX
 
+type xdrProc_Get_db_tip struct {
+	Arg *BlockID
+	Res *ExpectedDBTip
+}
+func (xdrProc_Get_db_tip) Prog() uint32 { return 44444444 }
+func (xdrProc_Get_db_tip) Vers() uint32 { return 1 }
+func (xdrProc_Get_db_tip) Proc() uint32 { return 300 }
+func (xdrProc_Get_db_tip) ProgName() string { return "DatabaseToExecutorInterface" }
+func (xdrProc_Get_db_tip) VersName() string { return "DatabaseToExecutorInterfaceV1" }
+func (xdrProc_Get_db_tip) ProcName() string { return "get_db_tip" }
+func (p *xdrProc_Get_db_tip) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(BlockID)
+	}
+	return XDR_BlockID(p.Arg)
+}
+func (p *xdrProc_Get_db_tip) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(ExpectedDBTip)
+	}
+	return XDR_ExpectedDBTip(p.Res)
+}
+var _ XdrProc = &xdrProc_Get_db_tip{} // XXX
+
+type xdrSrvProc_Get_db_tip struct {
+	xdrProc_Get_db_tip
+	Srv DatabaseToExecutorInterfaceV1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Get_db_tip) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DatabaseToExecutorInterfaceV1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Get_db_tip) Do() {
+	r, err := p.Srv.Get_db_tip(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Get_db_tip{} // XXX
+
 func init() {
 	XdrCatalog[44444444<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -12333,6 +12355,8 @@ func init() {
 			return &xdrProc_Get_contract{}
 		case 203:
 			return &xdrProc_Get_deployment{}
+		case 300:
+			return &xdrProc_Get_db_tip{}
 		}
 		return nil
 	}
@@ -12365,6 +12389,8 @@ func (s DatabaseToExecutorInterfaceV1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Get_contract{ Srv: s.Srv }
 	case 203:  // get_deployment
 		return &xdrSrvProc_Get_deployment{ Srv: s.Srv }
+	case 300:  // get_db_tip
+		return &xdrSrvProc_Get_db_tip{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -12470,6 +12496,14 @@ func (c DatabaseToExecutorInterfaceV1_Client) Get_deployment(ctx context.Context
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DatabaseToExecutorInterfaceV1_Client) Get_db_tip(ctx context.Context, a1 BlockID) (r ExpectedDBTip, _ error) {
+	var proc xdrProc_Get_db_tip
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -14080,21 +14114,6 @@ var _XdrTags_HogxUnitStartResult = map[int32]bool{
 func (_ HogxUnitStartResult) XdrValidTags() map[int32]bool {
 	return _XdrTags_HogxUnitStartResult
 }
-func (u *HogxUnitStartResult) Unit_state() *UnitState {
-	switch u.Outcome {
-	case HOGX_OK:
-		if v, ok := u._u.(*UnitState); ok {
-			return v
-		} else {
-			var zero UnitState
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("HogxUnitStartResult.Unit_state accessed when Outcome == %v", u.Outcome)
-		return nil
-	}
-}
 func (u *HogxUnitStartResult) Error() *string {
 	switch u.Outcome {
 	case HOGX_ERROR:
@@ -14126,7 +14145,7 @@ func (u *HogxUnitStartResult) XdrUnionTagName() string {
 func (u *HogxUnitStartResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case HOGX_OK:
-		return XDR_UnitState(u.Unit_state())
+		return nil
 	case HOGX_ERROR:
 		return XdrString{u.Error(), 0xffffffff}
 	}
@@ -14135,7 +14154,7 @@ func (u *HogxUnitStartResult) XdrUnionBody() XdrType {
 func (u *HogxUnitStartResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case HOGX_OK:
-		return "Unit_state"
+		return ""
 	case HOGX_ERROR:
 		return "Error"
 	}
@@ -14153,7 +14172,6 @@ func (u *HogxUnitStartResult) XdrRecurse(x XDR, name string) {
 	XDR_HogxOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
 	switch u.Outcome {
 	case HOGX_OK:
-		x.Marshal(x.Sprintf("%sunit_state", name), XDR_UnitState(u.Unit_state()))
 		return
 	case HOGX_ERROR:
 		x.Marshal(x.Sprintf("%serror", name), XdrString{u.Error(), 0xffffffff})
@@ -14168,21 +14186,6 @@ var _XdrTags_HogxUnitStopResult = map[int32]bool{
 }
 func (_ HogxUnitStopResult) XdrValidTags() map[int32]bool {
 	return _XdrTags_HogxUnitStopResult
-}
-func (u *HogxUnitStopResult) Unit_state() *UnitState {
-	switch u.Outcome {
-	case HOGX_OK:
-		if v, ok := u._u.(*UnitState); ok {
-			return v
-		} else {
-			var zero UnitState
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("HogxUnitStopResult.Unit_state accessed when Outcome == %v", u.Outcome)
-		return nil
-	}
 }
 func (u *HogxUnitStopResult) Error() *string {
 	switch u.Outcome {
@@ -14215,7 +14218,7 @@ func (u *HogxUnitStopResult) XdrUnionTagName() string {
 func (u *HogxUnitStopResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case HOGX_OK:
-		return XDR_UnitState(u.Unit_state())
+		return nil
 	case HOGX_ERROR:
 		return XdrString{u.Error(), 0xffffffff}
 	}
@@ -14224,7 +14227,7 @@ func (u *HogxUnitStopResult) XdrUnionBody() XdrType {
 func (u *HogxUnitStopResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case HOGX_OK:
-		return "Unit_state"
+		return ""
 	case HOGX_ERROR:
 		return "Error"
 	}
@@ -14242,7 +14245,6 @@ func (u *HogxUnitStopResult) XdrRecurse(x XDR, name string) {
 	XDR_HogxOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
 	switch u.Outcome {
 	case HOGX_OK:
-		x.Marshal(x.Sprintf("%sunit_state", name), XDR_UnitState(u.Unit_state()))
 		return
 	case HOGX_ERROR:
 		x.Marshal(x.Sprintf("%serror", name), XdrString{u.Error(), 0xffffffff})
@@ -15446,77 +15448,152 @@ func (v *UnitDefLinked) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scommand", name), XDR_UnitCommandLinked(&v.Command))
 }
 func XDR_UnitDefLinked(v *UnitDefLinked) *UnitDefLinked { return v }
-type _XdrPtr_uint32 struct {
-	p **uint32
+var _XdrNames_ProcessStatus = map[int32]string{
+	int32(PROCESS_RUNNING): "PROCESS_RUNNING",
+	int32(PROCESS_EXITED): "PROCESS_EXITED",
 }
-type _ptrflag_uint32 _XdrPtr_uint32
-func (v _ptrflag_uint32) String() string {
-	if *v.p == nil {
-		return "nil"
+var _XdrValues_ProcessStatus = map[string]int32{
+	"PROCESS_RUNNING": int32(PROCESS_RUNNING),
+	"PROCESS_EXITED": int32(PROCESS_EXITED),
+}
+func (ProcessStatus) XdrEnumNames() map[int32]string {
+	return _XdrNames_ProcessStatus
+}
+func (v ProcessStatus) String() string {
+	if s, ok := _XdrNames_ProcessStatus[int32(v)]; ok {
+		return s
 	}
-	return "non-nil"
+	return fmt.Sprintf("ProcessStatus#%d", v)
 }
-func (v _ptrflag_uint32) Scan(ss fmt.ScanState, r rune) error {
-	tok, err := ss.Token(true, func(c rune) bool {
-		return c == '-' || (c >= 'a' && c <= 'z')
-	})
-	if err != nil {
+func (v *ProcessStatus) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
 		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_ProcessStatus[stok]; ok {
+			*v = ProcessStatus(val)
+			return nil
+		} else if stok == "ProcessStatus" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid ProcessStatus.", stok))
 	}
-	switch string(tok) {
-	case "nil":
-		v.SetU32(0)
-	case "non-nil":
-		v.SetU32(1)
+}
+func (v ProcessStatus) GetU32() uint32 { return uint32(v) }
+func (v *ProcessStatus) SetU32(n uint32) { *v = ProcessStatus(n) }
+func (v *ProcessStatus) XdrPointer() interface{} { return v }
+func (ProcessStatus) XdrTypeName() string { return "ProcessStatus" }
+func (v ProcessStatus) XdrValue() interface{} { return v }
+func (v *ProcessStatus) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ProcessStatus = *ProcessStatus
+func XDR_ProcessStatus(v *ProcessStatus) *ProcessStatus { return v }
+func (v *ProcessStatus) XdrInitialize() {
+	switch ProcessStatus(0) {
+	case PROCESS_RUNNING, PROCESS_EXITED:
 	default:
-		return XdrError("uint32 flag should be \"nil\" or \"non-nil\"")
+		if *v == ProcessStatus(0) { *v = PROCESS_RUNNING }
+	}
+}
+var _XdrTags_ProcessState = map[int32]bool{
+	XdrToI32(PROCESS_RUNNING): true,
+	XdrToI32(PROCESS_EXITED): true,
+}
+func (_ ProcessState) XdrValidTags() map[int32]bool {
+	return _XdrTags_ProcessState
+}
+func (u *ProcessState) Pid() *uint32 {
+	switch u.Status {
+	case PROCESS_RUNNING:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ProcessState.Pid accessed when Status == %v", u.Status)
+		return nil
+	}
+}
+func (u *ProcessState) Exit() *int32 {
+	switch u.Status {
+	case PROCESS_EXITED:
+		if v, ok := u._u.(*int32); ok {
+			return v
+		} else {
+			var zero int32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ProcessState.Exit accessed when Status == %v", u.Status)
+		return nil
+	}
+}
+func (u ProcessState) XdrValid() bool {
+	switch u.Status {
+	case PROCESS_RUNNING,PROCESS_EXITED:
+		return true
+	}
+	return false
+}
+func (u *ProcessState) XdrUnionTag() XdrNum32 {
+	return XDR_ProcessStatus(&u.Status)
+}
+func (u *ProcessState) XdrUnionTagName() string {
+	return "Status"
+}
+func (u *ProcessState) XdrUnionBody() XdrType {
+	switch u.Status {
+	case PROCESS_RUNNING:
+		return XDR_uint32(u.Pid())
+	case PROCESS_EXITED:
+		return XDR_int32(u.Exit())
 	}
 	return nil
 }
-func (v _ptrflag_uint32) GetU32() uint32 {
-	if *v.p == nil {
-		return 0
+func (u *ProcessState) XdrUnionBodyName() string {
+	switch u.Status {
+	case PROCESS_RUNNING:
+		return "Pid"
+	case PROCESS_EXITED:
+		return "Exit"
 	}
-	return 1
+	return ""
 }
-func (v _ptrflag_uint32) SetU32(nv uint32) {
-	switch nv {
-	case 0:
-		*v.p = nil
-	case 1:
-		if *v.p == nil {
-			*v.p = new(uint32)
-		}
+type XdrType_ProcessState = *ProcessState
+func (v *ProcessState) XdrPointer() interface{} { return v }
+func (ProcessState) XdrTypeName() string { return "ProcessState" }
+func (v ProcessState) XdrValue() interface{} { return v }
+func (v *ProcessState) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *ProcessState) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_ProcessStatus(&u.Status).XdrMarshal(x, x.Sprintf("%sstatus", name))
+	switch u.Status {
+	case PROCESS_RUNNING:
+		x.Marshal(x.Sprintf("%spid", name), XDR_uint32(u.Pid()))
+		return
+	case PROCESS_EXITED:
+		x.Marshal(x.Sprintf("%sexit", name), XDR_int32(u.Exit()))
+		return
+	}
+	XdrPanic("invalid Status (%v) in ProcessState", u.Status)
+}
+func (v *ProcessState) XdrInitialize() {
+	var zero ProcessStatus
+	switch zero {
+	case PROCESS_RUNNING, PROCESS_EXITED:
 	default:
-		XdrPanic("*uint32 present flag value %d should be 0 or 1", nv)
+		if v.Status == zero { v.Status = PROCESS_RUNNING }
 	}
 }
-func (_ptrflag_uint32) XdrTypeName() string { return "uint32?" }
-func (v _ptrflag_uint32) XdrPointer() interface{} { return nil }
-func (v _ptrflag_uint32) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_uint32) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_uint32) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_uint32) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_uint32) SetPresent(present bool) {
-	if !present {
-		*v.p = nil
-	} else if *v.p == nil {
-		*v.p = new(uint32)
-	}
-}
-func (v _XdrPtr_uint32) XdrMarshalValue(x XDR, name string) {
-	if *v.p != nil {
-		XDR_uint32(*v.p).XdrMarshal(x, name)
-	}
-}
-func (v _XdrPtr_uint32) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_uint32) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_uint32(v))
-	v.XdrMarshalValue(x, name)
-}
-func (_XdrPtr_uint32) XdrTypeName() string { return "uint32*" }
-func (v _XdrPtr_uint32) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_uint32) XdrValue() interface{} { return *v.p }
+func XDR_ProcessState(v *ProcessState) *ProcessState { return v}
 type XdrType_UnitState = *UnitState
 func (v *UnitState) XdrPointer() interface{} { return v }
 func (UnitState) XdrTypeName() string { return "UnitState" }
@@ -15529,7 +15606,7 @@ func (v *UnitState) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sdef", name), XDR_UnitDef(&v.Def))
 	x.Marshal(x.Sprintf("%sdef_linked", name), XDR_UnitDefLinked(&v.Def_linked))
 	x.Marshal(x.Sprintf("%sstarted", name), XDR_Timestamp(&v.Started))
-	x.Marshal(x.Sprintf("%spid", name), _XdrPtr_uint32{&v.Pid})
+	x.Marshal(x.Sprintf("%sprocess_state", name), XDR_ProcessState(&v.Process_state))
 }
 func XDR_UnitState(v *UnitState) *UnitState { return v }
 type XdrType_HogConfig = *HogConfig
@@ -17616,6 +17693,68 @@ func (u *ExpectedQueueEntry) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_ExpectedQueueEntry(v *ExpectedQueueEntry) *ExpectedQueueEntry { return v}
+func (_ ExpectedDBTip) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *ExpectedDBTip) Db_tip() *DbTip {
+	switch u.Error {
+	case KRPCNone:
+		if v, ok := u._u.(*DbTip); ok {
+			return v
+		} else {
+			var zero DbTip
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ExpectedDBTip.Db_tip accessed when Error == %v", u.Error)
+		return nil
+	}
+}
+func (u ExpectedDBTip) XdrValid() bool {
+	return true
+}
+func (u *ExpectedDBTip) XdrUnionTag() XdrNum32 {
+	return XDR_RPCError(&u.Error)
+}
+func (u *ExpectedDBTip) XdrUnionTagName() string {
+	return "Error"
+}
+func (u *ExpectedDBTip) XdrUnionBody() XdrType {
+	switch u.Error {
+	case KRPCNone:
+		return XDR_DbTip(u.Db_tip())
+	default:
+		return nil
+	}
+}
+func (u *ExpectedDBTip) XdrUnionBodyName() string {
+	switch u.Error {
+	case KRPCNone:
+		return "Db_tip"
+	default:
+		return ""
+	}
+}
+type XdrType_ExpectedDBTip = *ExpectedDBTip
+func (v *ExpectedDBTip) XdrPointer() interface{} { return v }
+func (ExpectedDBTip) XdrTypeName() string { return "ExpectedDBTip" }
+func (v ExpectedDBTip) XdrValue() interface{} { return v }
+func (v *ExpectedDBTip) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *ExpectedDBTip) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
+	switch u.Error {
+	case KRPCNone:
+		x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(u.Db_tip()))
+		return
+	default:
+		return
+	}
+}
+func XDR_ExpectedDBTip(v *ExpectedDBTip) *ExpectedDBTip { return v}
 var _XdrNames_ContractEventType = map[int32]string{
 	int32(SYSTEM): "SYSTEM",
 	int32(CONTRACT): "CONTRACT",
@@ -18691,21 +18830,34 @@ func (v SchedulerNominationOutcome) XdrValue() interface{} { return v }
 func (v *SchedulerNominationOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_SchedulerNominationOutcome = *SchedulerNominationOutcome
 func XDR_SchedulerNominationOutcome(v *SchedulerNominationOutcome) *SchedulerNominationOutcome { return v }
+type XdrType_SchedulerNominatedBlock = *SchedulerNominatedBlock
+func (v *SchedulerNominatedBlock) XdrPointer() interface{} { return v }
+func (SchedulerNominatedBlock) XdrTypeName() string { return "SchedulerNominatedBlock" }
+func (v SchedulerNominatedBlock) XdrValue() interface{} { return v }
+func (v *SchedulerNominatedBlock) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SchedulerNominatedBlock) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(&v.Block_id))
+	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
+}
+func XDR_SchedulerNominatedBlock(v *SchedulerNominatedBlock) *SchedulerNominatedBlock { return v }
 func (_ SchedulerNominationResult) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *SchedulerNominationResult) Block_id() *BlockID {
+func (u *SchedulerNominationResult) Nominated_block() *SchedulerNominatedBlock {
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		if v, ok := u._u.(*BlockID); ok {
+		if v, ok := u._u.(*SchedulerNominatedBlock); ok {
 			return v
 		} else {
-			var zero BlockID
+			var zero SchedulerNominatedBlock
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("SchedulerNominationResult.Block_id accessed when Outcome == %v", u.Outcome)
+		XdrPanic("SchedulerNominationResult.Nominated_block accessed when Outcome == %v", u.Outcome)
 		return nil
 	}
 }
@@ -18721,7 +18873,7 @@ func (u *SchedulerNominationResult) XdrUnionTagName() string {
 func (u *SchedulerNominationResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		return XDR_BlockID(u.Block_id())
+		return XDR_SchedulerNominatedBlock(u.Nominated_block())
 	default:
 		return nil
 	}
@@ -18729,7 +18881,7 @@ func (u *SchedulerNominationResult) XdrUnionBody() XdrType {
 func (u *SchedulerNominationResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		return "Block_id"
+		return "Nominated_block"
 	default:
 		return ""
 	}
@@ -18746,7 +18898,7 @@ func (u *SchedulerNominationResult) XdrRecurse(x XDR, name string) {
 	XDR_SchedulerNominationOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(u.Block_id()))
+		x.Marshal(x.Sprintf("%snominated_block", name), XDR_SchedulerNominatedBlock(u.Nominated_block()))
 		return
 	default:
 		return
@@ -22741,6 +22893,7 @@ func (v *StorageCostModelXdr) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scontract_deployment_cost_per_byte", name), XDR_Int128_xdr(&v.Contract_deployment_cost_per_byte))
 	x.Marshal(x.Sprintf("%sauth_per_key_cost", name), XDR_Int128_xdr(&v.Auth_per_key_cost))
 	x.Marshal(x.Sprintf("%sreplay_cache_cost_per_entry", name), XDR_Int128_xdr(&v.Replay_cache_cost_per_entry))
+	x.Marshal(x.Sprintf("%sbalance_cost", name), XDR_Int128_xdr(&v.Balance_cost))
 }
 func XDR_StorageCostModelXdr(v *StorageCostModelXdr) *StorageCostModelXdr { return v }
 var _XdrNames_StorageItemRPCFlags = map[int32]string{
