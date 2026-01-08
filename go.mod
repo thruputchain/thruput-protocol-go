@@ -2,4 +2,4 @@ module github.com/groundhogchain/protocol-go
 
 go 1.24.0
 
-require github.com/xdrpp/goxdr v0.0.0-20251231045322-3f514b57115c
+require github.com/xdrpp/goxdr v0.0.0-20260107182035-3d96ebf84531
