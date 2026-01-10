@@ -2380,19 +2380,13 @@ const (
 	// No return buffer is available.  Either the most recent subcall failed, or
 	// there have been no subcalls within this call frame.
 	KSyscallErrorCodeNoReturnBufferAvailable SyscallErrorCode = 6
-	// Insufficient gas in call frame to supply requested gas limit for child
-	// invocation
-	KSyscallErrorCodeInsufficientGasForInvocation SyscallErrorCode = 7
 	// Invalid input to a syscall, such as subtracting below 0 on an nnint64
-	KSyscallErrorCodeInvalidSyscallInput SyscallErrorCode = 8
+	// or a bytestring that is too long
+	KSyscallErrorCodeInvalidSyscallInput SyscallErrorCode = 7
 	// Accessing a storage key that does not exist in the current view
-	KSyscallErrorCodeStorageKeyNotExist SyscallErrorCode = 9
+	KSyscallErrorCodeStorageKeyNotExist SyscallErrorCode = 8
 	// No entry in the retrocausal queue to consume
-	KSyscallErrorCodeNoRetrocausalQueueEntry SyscallErrorCode = 10
-	// Failed to parse calldata
-	KSyscallErrorCodeCalldataParseError SyscallErrorCode = 100
-	// Failed to parse returned data
-	KSyscallErrorCodeReturnParseError SyscallErrorCode = 101
+	KSyscallErrorCodeNoRetrocausalQueueEntry SyscallErrorCode = 9
 	// Deterministic error within called wasm (i.e. trap)
 	KSyscallErrorCodeDeterministicWasm SyscallErrorCode = -1
 	// Child call frame manually reverted
@@ -24536,12 +24530,9 @@ var _XdrNames_SyscallErrorCode = map[int32]string{
 	int32(KSyscallErrorCodeContractLookupFailed): "kSyscallErrorCodeContractLookupFailed",
 	int32(KSyscallErrorCodeContractAlreadyDeployed): "kSyscallErrorCodeContractAlreadyDeployed",
 	int32(KSyscallErrorCodeNoReturnBufferAvailable): "kSyscallErrorCodeNoReturnBufferAvailable",
-	int32(KSyscallErrorCodeInsufficientGasForInvocation): "kSyscallErrorCodeInsufficientGasForInvocation",
 	int32(KSyscallErrorCodeInvalidSyscallInput): "kSyscallErrorCodeInvalidSyscallInput",
 	int32(KSyscallErrorCodeStorageKeyNotExist): "kSyscallErrorCodeStorageKeyNotExist",
 	int32(KSyscallErrorCodeNoRetrocausalQueueEntry): "kSyscallErrorCodeNoRetrocausalQueueEntry",
-	int32(KSyscallErrorCodeCalldataParseError): "kSyscallErrorCodeCalldataParseError",
-	int32(KSyscallErrorCodeReturnParseError): "kSyscallErrorCodeReturnParseError",
 	int32(KSyscallErrorCodeDeterministicWasm): "kSyscallErrorCodeDeterministicWasm",
 	int32(KSyscallErrorCodeFrameReverted): "kSyscallErrorCodeFrameReverted",
 }
@@ -24553,12 +24544,9 @@ var _XdrValues_SyscallErrorCode = map[string]int32{
 	"kSyscallErrorCodeContractLookupFailed": int32(KSyscallErrorCodeContractLookupFailed),
 	"kSyscallErrorCodeContractAlreadyDeployed": int32(KSyscallErrorCodeContractAlreadyDeployed),
 	"kSyscallErrorCodeNoReturnBufferAvailable": int32(KSyscallErrorCodeNoReturnBufferAvailable),
-	"kSyscallErrorCodeInsufficientGasForInvocation": int32(KSyscallErrorCodeInsufficientGasForInvocation),
 	"kSyscallErrorCodeInvalidSyscallInput": int32(KSyscallErrorCodeInvalidSyscallInput),
 	"kSyscallErrorCodeStorageKeyNotExist": int32(KSyscallErrorCodeStorageKeyNotExist),
 	"kSyscallErrorCodeNoRetrocausalQueueEntry": int32(KSyscallErrorCodeNoRetrocausalQueueEntry),
-	"kSyscallErrorCodeCalldataParseError": int32(KSyscallErrorCodeCalldataParseError),
-	"kSyscallErrorCodeReturnParseError": int32(KSyscallErrorCodeReturnParseError),
 	"kSyscallErrorCodeDeterministicWasm": int32(KSyscallErrorCodeDeterministicWasm),
 	"kSyscallErrorCodeFrameReverted": int32(KSyscallErrorCodeFrameReverted),
 }
