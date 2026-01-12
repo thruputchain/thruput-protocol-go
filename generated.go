@@ -2372,8 +2372,6 @@ const (
 	KSyscallErrorCodeNoSyscall SyscallErrorCode = 2
 	// Cannot call get_msg_sender on root invocation
 	KSyscallErrorCodeIsRootTransaction SyscallErrorCode = 3
-	// Failed to find contract
-	KSyscallErrorCodeContractLookupFailed SyscallErrorCode = 4
 	// Attempt made to deploy a contract twice (same nonce and contract hash, from
 	// same address)
 	KSyscallErrorCodeContractAlreadyDeployed SyscallErrorCode = 5
@@ -24527,7 +24525,6 @@ var _XdrNames_SyscallErrorCode = map[int32]string{
 	int32(KSyscallErrorCodeFault): "kSyscallErrorCodeFault",
 	int32(KSyscallErrorCodeNoSyscall): "kSyscallErrorCodeNoSyscall",
 	int32(KSyscallErrorCodeIsRootTransaction): "kSyscallErrorCodeIsRootTransaction",
-	int32(KSyscallErrorCodeContractLookupFailed): "kSyscallErrorCodeContractLookupFailed",
 	int32(KSyscallErrorCodeContractAlreadyDeployed): "kSyscallErrorCodeContractAlreadyDeployed",
 	int32(KSyscallErrorCodeNoReturnBufferAvailable): "kSyscallErrorCodeNoReturnBufferAvailable",
 	int32(KSyscallErrorCodeInvalidSyscallInput): "kSyscallErrorCodeInvalidSyscallInput",
@@ -24541,7 +24538,6 @@ var _XdrValues_SyscallErrorCode = map[string]int32{
 	"kSyscallErrorCodeFault": int32(KSyscallErrorCodeFault),
 	"kSyscallErrorCodeNoSyscall": int32(KSyscallErrorCodeNoSyscall),
 	"kSyscallErrorCodeIsRootTransaction": int32(KSyscallErrorCodeIsRootTransaction),
-	"kSyscallErrorCodeContractLookupFailed": int32(KSyscallErrorCodeContractLookupFailed),
 	"kSyscallErrorCodeContractAlreadyDeployed": int32(KSyscallErrorCodeContractAlreadyDeployed),
 	"kSyscallErrorCodeNoReturnBufferAvailable": int32(KSyscallErrorCodeNoReturnBufferAvailable),
 	"kSyscallErrorCodeInvalidSyscallInput": int32(KSyscallErrorCodeInvalidSyscallInput),
