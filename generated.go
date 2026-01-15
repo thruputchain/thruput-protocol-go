@@ -182,7 +182,7 @@ type MempoolAuth1 interface {
 }
 
 type SubmittedTransactions struct {
-	Transactions []SignedTransaction
+	Transactions ParallelSignedTransactionBatch
 }
 
 // This struct is serialized and hashed to form the block hash.
@@ -193,7 +193,7 @@ type BlockHashPreimage struct {
 
 type CatchupBlock struct {
 	Consensus_value ConsensusValue
-	Signed_transactions []SignedTransaction
+	Signed_transactions ParallelSignedTransactionBatch
 }
 
 type CatchupSpan struct {
@@ -445,6 +445,7 @@ type ErrorXDR struct {
 	_u interface{}
 }
 
+/// An opaque blob of WebAssembly code.
 type ContractBlob struct {
 	Wasm []byte
 }
@@ -456,6 +457,16 @@ const (
 	KMockTest ContractType = 2
 )
 
+/// A `Contract` is something that can be deployed and invoked onchain.
+/// A contract can be deployed to a specific `ContractAddress`,
+/// and then invoked at that address.
+///
+/// Groundhog currently supports three types of contracts:
+/// - `kWasmi`: A contract that is implemented as a WASM blob.
+/// - `kNative`: A contract that is implemented as a precompiled native contract.   
+///   The primary example of a native contract is the one that implements the native token of the chain.
+/// - `kMockTest`: A `kMockTest` contract is is never deployed on chain, 
+///   but rather is created as part of the test harness when testing new contracts locally.
 type Contract struct {
 	// The union discriminant Contract_type selects among the following arms:
 	//   KWasmi:
@@ -464,53 +475,43 @@ type Contract struct {
 	//      Native_contract_id() *int32
 	//   KMockTest:
 	//      Mock_contract_id() *int32
-	//   default:
-	//      void
 	Contract_type ContractType
 	_u interface{}
 }
 
+/// When one contract deploys another, the address of the resulting contract is the hash of this struct.
+/// The nonce is an arbitrary value supplied by the calling contract.
+/// Informally, this is the groundhog analogue of the Ethereum virtual machine's `CREATE2` opcode.
 type ContractDeploymentHashPreimage struct {
 	Deployer_address ContractAddress
 	Nonce SHA256Hash
 	Contract_hash SHA256Hash
 }
 
-// This type must be a valid "identifier" as defined in RFC 4506,
-// Section 6.2: "An identifier is a letter followed by an optional sequence
-// of letters, digits, or underbar ('_')."  It must also obey Section 6.4,
-// which lists keywords that may not be used as identifiers.
+/// This type must be a valid "identifier" as defined in RFC 4506,
+/// Section 6.2: "An identifier is a letter followed by an optional sequence
+/// of letters, digits, or underbar ('_')."  It must also obey Section 6.4,
+/// which lists keywords that may not be used as identifiers.
 type Identifier = string
 
-// This type must be a valid version number as defined at
-// https://semver.org/.  For example, "0.1.3" or "1.0.0-alpha+001".
+/// This type must be a valid version number as defined at
+/// <https://semver.org/>.  For example, "0.1.3" or "1.0.0-alpha+001".
 type SemVer = string
 
+/// The hash of this type is used to compute the first 6 bytes of contract interface method IDs.
 type ContractInterfaceIDPreimage struct {
 	Name Identifier
 	Vers SemVer
 }
 
-// This type is computed as SHA256(ContractInterfaceIDPreimage)[0..6],
-// concatenated with a two-byte "method id" defined by the author of
-// the contract interface
+/// This is an 8-byte opaque type that is computed as SHA256(ContractInterfaceIDPreimage)[0..6],
+/// concatenated with a two-byte "method id" defined by the author of
+/// the contract interface
 type ContractEntrypointID = [8]byte
-
-type SchedulerNomination struct {
-	Block_id BlockID
-	Nomination Nomination
-}
-
-type SchedulerNominationChunk struct {
-	Chunk_idx uint32
-	Total_chunks uint32
-	Chunk SchedulerNomination
-}
 
 type CoordScheduler1 interface {
 	Coordscheduler_null(context.Context, ) error
-	Coordscheduler_notify_vetted(context.Context, SignedTransactionBatch) error
-	Coordscheduler_finish_nomination(context.Context, SchedulerNominationChunk) error
+	Coordscheduler_notify_vetted(context.Context, ParallelSignedTransactionBatch) error
 }
 
 type DbSchedResult int32
@@ -1211,16 +1212,39 @@ type KeySocketAddress struct {
 
 type SocketAddressMap = []KeySocketAddress
 
+type File struct {
+	Path Path
+	Content string
+}
+
+type Files = []File
+
 type HostDef struct {
-	Id string
-	Tag []Tag
+	Host_id string
+	Host_tags []Tag
+	//
+	Ssh_user string
+	Ssh_address string
 	Ssh_private_key string
+	//
 	Host_config HostConfig
 }
 
-type ClusterDef struct {
-	Id string
-	Host_def []HostDef
+// LayoutUnit maps a unit_type:unit_shard to a cluster host.
+type LayoutUnit struct {
+	Unit_role UnitRole
+	Host_id string
+}
+
+// LayoutDef maps all system units to cluster hosts.
+type LayoutDef struct {
+	Layout_id string
+	Layout_units []LayoutUnit
+}
+
+type ClusterConfig struct {
+	Host_defs []HostDef
+	Layout_defs []LayoutDef
 }
 
 type HostConfig struct {
@@ -1244,16 +1268,26 @@ type HostState struct {
 
 type SystemID = string
 
-// `coordinator`, `mempool`, `exec`, `db`, `event`
-type UnitType = string
+type UnitType int32
+const (
+	UNIT_COORDINATOR UnitType = 1
+	UNIT_MEMPOOL UnitType = 2
+	UNIT_EXEC UnitType = 3
+	UNIT_DB UnitType = 4
+	UNIT_EVENT UnitType = 5
+)
 
-type UnitID struct {
-	// sets HOGX_UNIT_SYSTEM_ID; identifies a set of unit instances comprising a system deployment
-	System_id SystemID
+type UnitRole struct {
 	// sets HOGX_UNIT_TYPE
 	Unit_type UnitType
 	// sets HOGX_UNIT_SHARD
 	Unit_shard string
+}
+
+type UnitID struct {
+	// sets HOGX_UNIT_SYSTEM_ID; identifies a set of unit instances comprising a system deployment
+	System_id SystemID
+	Unit_role UnitRole
 }
 
 type UnitBuild struct {
@@ -1275,6 +1309,8 @@ type UnitCommand struct {
 	Flag []Flag
 	// can use link variables
 	Env StringMap
+	// config files land in var_dir; can use link variables
+	Files Files
 }
 
 type UnitDef struct {
@@ -1295,7 +1331,7 @@ type UnitCommandLinked struct {
 	Binary_file Path
 	// holds persistent application data; does not depend on system_id
 	App_dir Path
-	// holds log files and core dumps; mounted as /var; depends on system_id
+	// holds configs, logs and core dumps; mounted as /var; depends on system_id
 	Var_dir Path
 	// mounted as /tmp; depends on system_id
 	Tmp_dir Path
@@ -1305,6 +1341,8 @@ type UnitCommandLinked struct {
 	Stderr_file Path
 	Flag []Flag
 	Env StringMap
+	// config files placed in var_dir
+	Files Files
 }
 
 type UnitDefLinked struct {
@@ -1438,13 +1476,8 @@ type Nomination struct {
 	Block_hash BlockHash
 	//XXX: rename to prev_merkle_hash
 	Prev_block_hash BlockHash
-	Transaction_hashes []SignedTransactionHash
-	Transaction_nominations []NominatedTransaction
-}
-
-type NominationTxsOnly struct {
-	Transaction_hashes []SignedTransactionHash
-	Transaction_nominations []NominatedTransaction
+	Transactions_hash ParallelSignedTransactionHashBatch
+	Transactions_nondeterministic_data ParallelNondeterministicProposalDataBatch
 }
 
 type PrevNominationSummary struct {
@@ -1862,10 +1895,15 @@ const (
 	SchedulerNominationError SchedulerNominationOutcome = 1
 )
 
+type SchedulerNominatedBlock struct {
+	Block_id BlockID
+	Nomination Nomination
+}
+
 type SchedulerNominationResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   SchedulerNominationOK:
-	//      Block_id() *BlockID
+	//      Nominated_block() *SchedulerNominatedBlock
 	//   default:
 	//      void
 	Outcome SchedulerNominationOutcome
@@ -1903,8 +1941,8 @@ const (
 type SchedulerCoord1 interface {
 	Schedulercoord_null(context.Context, ) error
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
-	Schedulercoord_submit_unvetted(context.Context, SignedTransactionBatch) error
-	Schedulercoord_submit_vetted(context.Context, ValidatorID, SignedTransactionBatch) error
+	Schedulercoord_submit_unvetted(context.Context, ParallelSignedTransactionBatch) error
+	Schedulercoord_submit_vetted(context.Context, ValidatorID, ParallelSignedTransactionBatch) error
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID) (SchedulerCommitOutcome, error)
@@ -2364,30 +2402,30 @@ type StorageLock struct {
 
 type SyscallErrorCode int32
 const (
-	// No error
+	/// No error
 	KSyscallErrorCodeNone SyscallErrorCode = 0
-	// Out of bounds pointer to wasm memory passed to syscall
+	/// Out of bounds pointer to wasm memory passed to syscall
 	KSyscallErrorCodeFault SyscallErrorCode = 1
-	// System call for supplied number is not supported
+	/// System call for supplied number is not supported
 	KSyscallErrorCodeNoSyscall SyscallErrorCode = 2
-	// Cannot call get_msg_sender on root invocation
+	/// Cannot call get_msg_sender on root invocation
 	KSyscallErrorCodeIsRootTransaction SyscallErrorCode = 3
-	// Attempt made to deploy a contract twice (same nonce and contract hash, from
-	// same address)
+	/// Attempt made to deploy a contract twice (same nonce and contract hash, from
+	/// same address)
 	KSyscallErrorCodeContractAlreadyDeployed SyscallErrorCode = 5
-	// No return buffer is available.  Either the most recent subcall failed, or
-	// there have been no subcalls within this call frame.
+	/// No return buffer is available.  Either the most recent subcall failed, or
+	/// there have been no subcalls within this call frame.
 	KSyscallErrorCodeNoReturnBufferAvailable SyscallErrorCode = 6
-	// Invalid input to a syscall, such as subtracting below 0 on an nnint64
-	// or a bytestring that is too long
+	/// Invalid input to a syscall, such as subtracting below 0 on an nnint64
+	/// or a bytestring that is too long
 	KSyscallErrorCodeInvalidSyscallInput SyscallErrorCode = 7
-	// Accessing a storage key that does not exist in the current view
+	/// Accessing a storage key that does not exist in the current view
 	KSyscallErrorCodeStorageKeyNotExist SyscallErrorCode = 8
-	// No entry in the retrocausal queue to consume
+	/// No entry in the retrocausal queue to consume
 	KSyscallErrorCodeNoRetrocausalQueueEntry SyscallErrorCode = 9
-	// Deterministic error within called wasm (i.e. trap)
+	/// Deterministic error within called wasm (i.e. trap)
 	KSyscallErrorCodeDeterministicWasm SyscallErrorCode = -1
-	// Child call frame manually reverted
+	/// Child call frame manually reverted
 	KSyscallErrorCodeFrameReverted SyscallErrorCode = -2
 )
 
@@ -2487,13 +2525,6 @@ type NondeterministicProposalData struct {
 // attached to it.
 type ProposedTransaction struct {
 	Signed_tx SignedTransaction
-	Nondeterministic_proposal_data NondeterministicProposalData
-}
-
-// Nominations, included in SCP messages, include only the ND data.
-// The transactions themselves are disseminated through the overlay.
-// XXX(petar): rename to TransactionProposalData
-type NominatedTransaction struct {
 	Nondeterministic_proposal_data NondeterministicProposalData
 }
 
@@ -4407,61 +4438,6 @@ func (c MempoolAuth1_Client) Mempoolauth_intro_auth(ctx context.Context, a1 Auth
 	}
 	return *proc.Res, nil
 }
-type _XdrVec_unbounded_SignedTransaction []SignedTransaction
-func (_XdrVec_unbounded_SignedTransaction) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_SignedTransaction) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_SignedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_SignedTransaction) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]SignedTransaction, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_SignedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_SignedTransaction) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_SignedTransaction) XdrTypeName() string { return "SignedTransaction<>" }
-func (v *_XdrVec_unbounded_SignedTransaction) XdrPointer() interface{} { return (*[]SignedTransaction)(v) }
-func (v _XdrVec_unbounded_SignedTransaction) XdrValue() interface{} { return ([]SignedTransaction)(v) }
-func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_SubmittedTransactions = *SubmittedTransactions
 func (v *SubmittedTransactions) XdrPointer() interface{} { return v }
 func (SubmittedTransactions) XdrTypeName() string { return "SubmittedTransactions" }
@@ -4471,7 +4447,7 @@ func (v *SubmittedTransactions) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%stransactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Transactions))
+	x.Marshal(x.Sprintf("%stransactions", name), XDR_ParallelSignedTransactionBatch(&v.Transactions))
 }
 func XDR_SubmittedTransactions(v *SubmittedTransactions) *SubmittedTransactions { return v }
 type XdrType_BlockHashPreimage = *BlockHashPreimage
@@ -4497,7 +4473,7 @@ func (v *CatchupBlock) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sconsensus_value", name), XDR_ConsensusValue(&v.Consensus_value))
-	x.Marshal(x.Sprintf("%ssigned_transactions", name), (*_XdrVec_unbounded_SignedTransaction)(&v.Signed_transactions))
+	x.Marshal(x.Sprintf("%ssigned_transactions", name), XDR_ParallelSignedTransactionBatch(&v.Signed_transactions))
 }
 func XDR_CatchupBlock(v *CatchupBlock) *CatchupBlock { return v }
 type XdrType_CatchupSpan = *CatchupSpan
@@ -7205,8 +7181,13 @@ func (v ContractType) XdrValue() interface{} { return v }
 func (v *ContractType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_ContractType = *ContractType
 func XDR_ContractType(v *ContractType) *ContractType { return v }
+var _XdrTags_Contract = map[int32]bool{
+	XdrToI32(KWasmi): true,
+	XdrToI32(KNative): true,
+	XdrToI32(KMockTest): true,
+}
 func (_ Contract) XdrValidTags() map[int32]bool {
-	return nil
+	return _XdrTags_Contract
 }
 func (u *Contract) Wasmi_contract() *ContractBlob {
 	switch u.Contract_type {
@@ -7254,7 +7235,11 @@ func (u *Contract) Mock_contract_id() *int32 {
 	}
 }
 func (u Contract) XdrValid() bool {
-	return true
+	switch u.Contract_type {
+	case KWasmi,KNative,KMockTest:
+		return true
+	}
+	return false
 }
 func (u *Contract) XdrUnionTag() XdrNum32 {
 	return XDR_ContractType(&u.Contract_type)
@@ -7270,9 +7255,8 @@ func (u *Contract) XdrUnionBody() XdrType {
 		return XDR_int32(u.Native_contract_id())
 	case KMockTest:
 		return XDR_int32(u.Mock_contract_id())
-	default:
-		return nil
 	}
+	return nil
 }
 func (u *Contract) XdrUnionBodyName() string {
 	switch u.Contract_type {
@@ -7282,9 +7266,8 @@ func (u *Contract) XdrUnionBodyName() string {
 		return "Native_contract_id"
 	case KMockTest:
 		return "Mock_contract_id"
-	default:
-		return ""
 	}
+	return ""
 }
 type XdrType_Contract = *Contract
 func (v *Contract) XdrPointer() interface{} { return v }
@@ -7306,9 +7289,8 @@ func (u *Contract) XdrRecurse(x XDR, name string) {
 	case KMockTest:
 		x.Marshal(x.Sprintf("%smock_contract_id", name), XDR_int32(u.Mock_contract_id()))
 		return
-	default:
-		return
 	}
+	XdrPanic("invalid Contract_type (%v) in Contract", u.Contract_type)
 }
 func XDR_Contract(v *Contract) *Contract { return v}
 type XdrType_ContractDeploymentHashPreimage = *ContractDeploymentHashPreimage
@@ -7376,33 +7358,6 @@ func XDR_ContractEntrypointID(v *ContractEntrypointID) XdrType_ContractEntrypoin
 }
 func (XdrType_ContractEntrypointID) XdrTypeName() string { return "ContractEntrypointID" }
 func (v XdrType_ContractEntrypointID) XdrUnwrap() XdrType { return v._XdrArray_8_opaque }
-type XdrType_SchedulerNomination = *SchedulerNomination
-func (v *SchedulerNomination) XdrPointer() interface{} { return v }
-func (SchedulerNomination) XdrTypeName() string { return "SchedulerNomination" }
-func (v SchedulerNomination) XdrValue() interface{} { return v }
-func (v *SchedulerNomination) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *SchedulerNomination) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(&v.Block_id))
-	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
-}
-func XDR_SchedulerNomination(v *SchedulerNomination) *SchedulerNomination { return v }
-type XdrType_SchedulerNominationChunk = *SchedulerNominationChunk
-func (v *SchedulerNominationChunk) XdrPointer() interface{} { return v }
-func (SchedulerNominationChunk) XdrTypeName() string { return "SchedulerNominationChunk" }
-func (v SchedulerNominationChunk) XdrValue() interface{} { return v }
-func (v *SchedulerNominationChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *SchedulerNominationChunk) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%schunk_idx", name), XDR_uint32(&v.Chunk_idx))
-	x.Marshal(x.Sprintf("%stotal_chunks", name), XDR_uint32(&v.Total_chunks))
-	x.Marshal(x.Sprintf("%schunk", name), XDR_SchedulerNomination(&v.Chunk))
-}
-func XDR_SchedulerNominationChunk(v *SchedulerNominationChunk) *SchedulerNominationChunk { return v }
 
 type xdrProc_Coordscheduler_null struct {
 	Arg *XdrVoid
@@ -7450,7 +7405,7 @@ func (p *xdrSrvProc_Coordscheduler_null) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Coordscheduler_null{} // XXX
 
 type xdrProc_Coordscheduler_notify_vetted struct {
-	Arg *SignedTransactionBatch
+	Arg *ParallelSignedTransactionBatch
 	Res *XdrVoid
 }
 func (xdrProc_Coordscheduler_notify_vetted) Prog() uint32 { return 286357095 }
@@ -7461,9 +7416,9 @@ func (xdrProc_Coordscheduler_notify_vetted) VersName() string { return "CoordSch
 func (xdrProc_Coordscheduler_notify_vetted) ProcName() string { return "coordscheduler_notify_vetted" }
 func (p *xdrProc_Coordscheduler_notify_vetted) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(SignedTransactionBatch)
+		p.Arg = new(ParallelSignedTransactionBatch)
 	}
-	return XDR_SignedTransactionBatch(p.Arg)
+	return XDR_ParallelSignedTransactionBatch(p.Arg)
 }
 func (p *xdrProc_Coordscheduler_notify_vetted) GetRes() XdrType {
 	if p.Res == nil {
@@ -7494,51 +7449,6 @@ func (p *xdrSrvProc_Coordscheduler_notify_vetted) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Coordscheduler_notify_vetted{} // XXX
 
-type xdrProc_Coordscheduler_finish_nomination struct {
-	Arg *SchedulerNominationChunk
-	Res *XdrVoid
-}
-func (xdrProc_Coordscheduler_finish_nomination) Prog() uint32 { return 286357095 }
-func (xdrProc_Coordscheduler_finish_nomination) Vers() uint32 { return 1 }
-func (xdrProc_Coordscheduler_finish_nomination) Proc() uint32 { return 2 }
-func (xdrProc_Coordscheduler_finish_nomination) ProgName() string { return "CoordScheduler" }
-func (xdrProc_Coordscheduler_finish_nomination) VersName() string { return "CoordScheduler1" }
-func (xdrProc_Coordscheduler_finish_nomination) ProcName() string { return "coordscheduler_finish_nomination" }
-func (p *xdrProc_Coordscheduler_finish_nomination) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(SchedulerNominationChunk)
-	}
-	return XDR_SchedulerNominationChunk(p.Arg)
-}
-func (p *xdrProc_Coordscheduler_finish_nomination) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Res)
-}
-var _ XdrProc = &xdrProc_Coordscheduler_finish_nomination{} // XXX
-
-type xdrSrvProc_Coordscheduler_finish_nomination struct {
-	xdrProc_Coordscheduler_finish_nomination
-	Srv CoordScheduler1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Coordscheduler_finish_nomination) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) CoordScheduler1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Coordscheduler_finish_nomination) Do() {
-	err := p.Srv.Coordscheduler_finish_nomination(p.Ctx, *p.Arg)
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Coordscheduler_finish_nomination{} // XXX
-
 func init() {
 	XdrCatalog[286357095<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -7546,8 +7456,6 @@ func init() {
 			return &xdrProc_Coordscheduler_null{}
 		case 1:
 			return &xdrProc_Coordscheduler_notify_vetted{}
-		case 2:
-			return &xdrProc_Coordscheduler_finish_nomination{}
 		}
 		return nil
 	}
@@ -7566,8 +7474,6 @@ func (s CoordScheduler1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Coordscheduler_null{ Srv: s.Srv }
 	case 1:  // coordscheduler_notify_vetted
 		return &xdrSrvProc_Coordscheduler_notify_vetted{ Srv: s.Srv }
-	case 2:  // coordscheduler_finish_nomination
-		return &xdrSrvProc_Coordscheduler_finish_nomination{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -7590,16 +7496,8 @@ func (c CoordScheduler1_Client) Coordscheduler_null(ctx context.Context, ) error
 	}
 	return nil
 }
-func (c CoordScheduler1_Client) Coordscheduler_notify_vetted(ctx context.Context, a1 SignedTransactionBatch) error {
+func (c CoordScheduler1_Client) Coordscheduler_notify_vetted(ctx context.Context, a1 ParallelSignedTransactionBatch) error {
 	var proc xdrProc_Coordscheduler_notify_vetted
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
-	}
-	return nil
-}
-func (c CoordScheduler1_Client) Coordscheduler_finish_nomination(ctx context.Context, a1 SchedulerNominationChunk) error {
-	var proc xdrProc_Coordscheduler_finish_nomination
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
@@ -15379,6 +15277,82 @@ func XDR_SocketAddressMap(v *SocketAddressMap) XdrType_SocketAddressMap {
 }
 func (XdrType_SocketAddressMap) XdrTypeName() string { return "SocketAddressMap" }
 func (v XdrType_SocketAddressMap) XdrUnwrap() XdrType { return v._XdrVec_unbounded_KeySocketAddress }
+type XdrType_File = *File
+func (v *File) XdrPointer() interface{} { return v }
+func (File) XdrTypeName() string { return "File" }
+func (v File) XdrValue() interface{} { return v }
+func (v *File) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *File) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%spath", name), XDR_Path(&v.Path))
+	x.Marshal(x.Sprintf("%scontent", name), XdrString{&v.Content, 0xffffffff})
+}
+func XDR_File(v *File) *File { return v }
+type _XdrVec_unbounded_File []File
+func (_XdrVec_unbounded_File) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_File) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_File length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_File length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_File) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_File) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]File, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_File) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_File(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_File) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_File) XdrTypeName() string { return "File<>" }
+func (v *_XdrVec_unbounded_File) XdrPointer() interface{} { return (*[]File)(v) }
+func (v _XdrVec_unbounded_File) XdrValue() interface{} { return ([]File)(v) }
+func (v *_XdrVec_unbounded_File) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_Files struct {
+	*_XdrVec_unbounded_File
+}
+func XDR_Files(v *Files) XdrType_Files {
+	return XdrType_Files{(*_XdrVec_unbounded_File)(v)}
+}
+func (XdrType_Files) XdrTypeName() string { return "Files" }
+func (v XdrType_Files) XdrUnwrap() XdrType { return v._XdrVec_unbounded_File }
 type _XdrVec_unbounded_Tag []Tag
 func (_XdrVec_unbounded_Tag) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -15443,12 +15417,95 @@ func (v *HostDef) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sid", name), XdrString{&v.Id, 0xffffffff})
-	x.Marshal(x.Sprintf("%stag", name), (*_XdrVec_unbounded_Tag)(&v.Tag))
+	x.Marshal(x.Sprintf("%shost_id", name), XdrString{&v.Host_id, 0xffffffff})
+	x.Marshal(x.Sprintf("%shost_tags", name), (*_XdrVec_unbounded_Tag)(&v.Host_tags))
+	x.Marshal(x.Sprintf("%sssh_user", name), XdrString{&v.Ssh_user, 0xffffffff})
+	x.Marshal(x.Sprintf("%sssh_address", name), XdrString{&v.Ssh_address, 0xffffffff})
 	x.Marshal(x.Sprintf("%sssh_private_key", name), XdrString{&v.Ssh_private_key, 0xffffffff})
 	x.Marshal(x.Sprintf("%shost_config", name), XDR_HostConfig(&v.Host_config))
 }
 func XDR_HostDef(v *HostDef) *HostDef { return v }
+type XdrType_LayoutUnit = *LayoutUnit
+func (v *LayoutUnit) XdrPointer() interface{} { return v }
+func (LayoutUnit) XdrTypeName() string { return "LayoutUnit" }
+func (v LayoutUnit) XdrValue() interface{} { return v }
+func (v *LayoutUnit) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *LayoutUnit) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sunit_role", name), XDR_UnitRole(&v.Unit_role))
+	x.Marshal(x.Sprintf("%shost_id", name), XdrString{&v.Host_id, 0xffffffff})
+}
+func XDR_LayoutUnit(v *LayoutUnit) *LayoutUnit { return v }
+type _XdrVec_unbounded_LayoutUnit []LayoutUnit
+func (_XdrVec_unbounded_LayoutUnit) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_LayoutUnit) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_LayoutUnit length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_LayoutUnit length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_LayoutUnit) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_LayoutUnit) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]LayoutUnit, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_LayoutUnit) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_LayoutUnit(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_LayoutUnit) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_LayoutUnit) XdrTypeName() string { return "LayoutUnit<>" }
+func (v *_XdrVec_unbounded_LayoutUnit) XdrPointer() interface{} { return (*[]LayoutUnit)(v) }
+func (v _XdrVec_unbounded_LayoutUnit) XdrValue() interface{} { return ([]LayoutUnit)(v) }
+func (v *_XdrVec_unbounded_LayoutUnit) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_LayoutDef = *LayoutDef
+func (v *LayoutDef) XdrPointer() interface{} { return v }
+func (LayoutDef) XdrTypeName() string { return "LayoutDef" }
+func (v LayoutDef) XdrValue() interface{} { return v }
+func (v *LayoutDef) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *LayoutDef) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%slayout_id", name), XdrString{&v.Layout_id, 0xffffffff})
+	x.Marshal(x.Sprintf("%slayout_units", name), (*_XdrVec_unbounded_LayoutUnit)(&v.Layout_units))
+}
+func XDR_LayoutDef(v *LayoutDef) *LayoutDef { return v }
 type _XdrVec_unbounded_HostDef []HostDef
 func (_XdrVec_unbounded_HostDef) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -15504,19 +15561,74 @@ func (_XdrVec_unbounded_HostDef) XdrTypeName() string { return "HostDef<>" }
 func (v *_XdrVec_unbounded_HostDef) XdrPointer() interface{} { return (*[]HostDef)(v) }
 func (v _XdrVec_unbounded_HostDef) XdrValue() interface{} { return ([]HostDef)(v) }
 func (v *_XdrVec_unbounded_HostDef) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_ClusterDef = *ClusterDef
-func (v *ClusterDef) XdrPointer() interface{} { return v }
-func (ClusterDef) XdrTypeName() string { return "ClusterDef" }
-func (v ClusterDef) XdrValue() interface{} { return v }
-func (v *ClusterDef) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ClusterDef) XdrRecurse(x XDR, name string) {
+type _XdrVec_unbounded_LayoutDef []LayoutDef
+func (_XdrVec_unbounded_LayoutDef) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_LayoutDef) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_LayoutDef length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_LayoutDef length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_LayoutDef) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_LayoutDef) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]LayoutDef, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_LayoutDef) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_LayoutDef(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_LayoutDef) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_LayoutDef) XdrTypeName() string { return "LayoutDef<>" }
+func (v *_XdrVec_unbounded_LayoutDef) XdrPointer() interface{} { return (*[]LayoutDef)(v) }
+func (v _XdrVec_unbounded_LayoutDef) XdrValue() interface{} { return ([]LayoutDef)(v) }
+func (v *_XdrVec_unbounded_LayoutDef) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ClusterConfig = *ClusterConfig
+func (v *ClusterConfig) XdrPointer() interface{} { return v }
+func (ClusterConfig) XdrTypeName() string { return "ClusterConfig" }
+func (v ClusterConfig) XdrValue() interface{} { return v }
+func (v *ClusterConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ClusterConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sid", name), XdrString{&v.Id, 0xffffffff})
-	x.Marshal(x.Sprintf("%shost_def", name), (*_XdrVec_unbounded_HostDef)(&v.Host_def))
+	x.Marshal(x.Sprintf("%shost_defs", name), (*_XdrVec_unbounded_HostDef)(&v.Host_defs))
+	x.Marshal(x.Sprintf("%slayout_defs", name), (*_XdrVec_unbounded_LayoutDef)(&v.Layout_defs))
 }
-func XDR_ClusterDef(v *ClusterDef) *ClusterDef { return v }
+func XDR_ClusterConfig(v *ClusterConfig) *ClusterConfig { return v }
 type XdrType_HostConfig = *HostConfig
 func (v *HostConfig) XdrPointer() interface{} { return v }
 func (HostConfig) XdrTypeName() string { return "HostConfig" }
@@ -15554,14 +15666,74 @@ func XDR_SystemID(v *SystemID) XdrType_SystemID {
 }
 func (XdrType_SystemID) XdrTypeName() string { return "SystemID" }
 func (v XdrType_SystemID) XdrUnwrap() XdrType { return v.XdrString }
-type XdrType_UnitType struct {
-	XdrString
+var _XdrNames_UnitType = map[int32]string{
+	int32(UNIT_COORDINATOR): "UNIT_COORDINATOR",
+	int32(UNIT_MEMPOOL): "UNIT_MEMPOOL",
+	int32(UNIT_EXEC): "UNIT_EXEC",
+	int32(UNIT_DB): "UNIT_DB",
+	int32(UNIT_EVENT): "UNIT_EVENT",
 }
-func XDR_UnitType(v *UnitType) XdrType_UnitType {
-	return XdrType_UnitType{XdrString{v, 0xffffffff}}
+var _XdrValues_UnitType = map[string]int32{
+	"UNIT_COORDINATOR": int32(UNIT_COORDINATOR),
+	"UNIT_MEMPOOL": int32(UNIT_MEMPOOL),
+	"UNIT_EXEC": int32(UNIT_EXEC),
+	"UNIT_DB": int32(UNIT_DB),
+	"UNIT_EVENT": int32(UNIT_EVENT),
 }
-func (XdrType_UnitType) XdrTypeName() string { return "UnitType" }
-func (v XdrType_UnitType) XdrUnwrap() XdrType { return v.XdrString }
+func (UnitType) XdrEnumNames() map[int32]string {
+	return _XdrNames_UnitType
+}
+func (v UnitType) String() string {
+	if s, ok := _XdrNames_UnitType[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("UnitType#%d", v)
+}
+func (v *UnitType) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_UnitType[stok]; ok {
+			*v = UnitType(val)
+			return nil
+		} else if stok == "UnitType" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid UnitType.", stok))
+	}
+}
+func (v UnitType) GetU32() uint32 { return uint32(v) }
+func (v *UnitType) SetU32(n uint32) { *v = UnitType(n) }
+func (v *UnitType) XdrPointer() interface{} { return v }
+func (UnitType) XdrTypeName() string { return "UnitType" }
+func (v UnitType) XdrValue() interface{} { return v }
+func (v *UnitType) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_UnitType = *UnitType
+func XDR_UnitType(v *UnitType) *UnitType { return v }
+func (v *UnitType) XdrInitialize() {
+	switch UnitType(0) {
+	case UNIT_COORDINATOR, UNIT_MEMPOOL, UNIT_EXEC, UNIT_DB, UNIT_EVENT:
+	default:
+		if *v == UnitType(0) { *v = UNIT_COORDINATOR }
+	}
+}
+type XdrType_UnitRole = *UnitRole
+func (v *UnitRole) XdrPointer() interface{} { return v }
+func (UnitRole) XdrTypeName() string { return "UnitRole" }
+func (v UnitRole) XdrValue() interface{} { return v }
+func (v *UnitRole) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *UnitRole) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sunit_type", name), XDR_UnitType(&v.Unit_type))
+	x.Marshal(x.Sprintf("%sunit_shard", name), XdrString{&v.Unit_shard, 0xffffffff})
+}
+func XDR_UnitRole(v *UnitRole) *UnitRole { return v }
 type XdrType_UnitID = *UnitID
 func (v *UnitID) XdrPointer() interface{} { return v }
 func (UnitID) XdrTypeName() string { return "UnitID" }
@@ -15572,8 +15744,7 @@ func (v *UnitID) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%ssystem_id", name), XDR_SystemID(&v.System_id))
-	x.Marshal(x.Sprintf("%sunit_type", name), XDR_UnitType(&v.Unit_type))
-	x.Marshal(x.Sprintf("%sunit_shard", name), XdrString{&v.Unit_shard, 0xffffffff})
+	x.Marshal(x.Sprintf("%sunit_role", name), XDR_UnitRole(&v.Unit_role))
 }
 func XDR_UnitID(v *UnitID) *UnitID { return v }
 type XdrType_UnitBuild = *UnitBuild
@@ -15668,6 +15839,7 @@ func (v *UnitCommand) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sbinary", name), XDR_Path(&v.Binary))
 	x.Marshal(x.Sprintf("%sflag", name), (*_XdrVec_unbounded_Flag)(&v.Flag))
 	x.Marshal(x.Sprintf("%senv", name), XDR_StringMap(&v.Env))
+	x.Marshal(x.Sprintf("%sfiles", name), XDR_Files(&v.Files))
 }
 func XDR_UnitCommand(v *UnitCommand) *UnitCommand { return v }
 type XdrType_UnitDef = *UnitDef
@@ -15715,6 +15887,7 @@ func (v *UnitCommandLinked) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sstderr_file", name), XDR_Path(&v.Stderr_file))
 	x.Marshal(x.Sprintf("%sflag", name), (*_XdrVec_unbounded_Flag)(&v.Flag))
 	x.Marshal(x.Sprintf("%senv", name), XDR_StringMap(&v.Env))
+	x.Marshal(x.Sprintf("%sfiles", name), XDR_Files(&v.Files))
 }
 func XDR_UnitCommandLinked(v *UnitCommandLinked) *UnitCommandLinked { return v }
 type XdrType_UnitDefLinked = *UnitDefLinked
@@ -16028,6 +16201,61 @@ func (u *ExperimentConfig) XdrRecurse(x XDR, name string) {
 	XdrPanic("invalid Experiment_type (%v) in ExperimentConfig", u.Experiment_type)
 }
 func XDR_ExperimentConfig(v *ExperimentConfig) *ExperimentConfig { return v}
+type _XdrVec_unbounded_SignedTransaction []SignedTransaction
+func (_XdrVec_unbounded_SignedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SignedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SignedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SignedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SignedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SignedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SignedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SignedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SignedTransaction) XdrTypeName() string { return "SignedTransaction<>" }
+func (v *_XdrVec_unbounded_SignedTransaction) XdrPointer() interface{} { return (*[]SignedTransaction)(v) }
+func (v _XdrVec_unbounded_SignedTransaction) XdrValue() interface{} { return ([]SignedTransaction)(v) }
+func (v *_XdrVec_unbounded_SignedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_InitializationBlock struct {
 	*_XdrVec_unbounded_SignedTransaction
 }
@@ -16622,116 +16850,6 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_MultiplexMessage(v *MultiplexMessage) *MultiplexMessage { return v}
-type _XdrVec_unbounded_SignedTransactionHash []SignedTransactionHash
-func (_XdrVec_unbounded_SignedTransactionHash) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_SignedTransactionHash) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_SignedTransactionHash) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_SignedTransactionHash) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]SignedTransactionHash, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_SignedTransactionHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_SignedTransactionHash) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_SignedTransactionHash) XdrTypeName() string { return "SignedTransactionHash<>" }
-func (v *_XdrVec_unbounded_SignedTransactionHash) XdrPointer() interface{} { return (*[]SignedTransactionHash)(v) }
-func (v _XdrVec_unbounded_SignedTransactionHash) XdrValue() interface{} { return ([]SignedTransactionHash)(v) }
-func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type _XdrVec_unbounded_NominatedTransaction []NominatedTransaction
-func (_XdrVec_unbounded_NominatedTransaction) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_NominatedTransaction) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_NominatedTransaction length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_NominatedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_NominatedTransaction) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]NominatedTransaction, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_NominatedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_NominatedTransaction) XdrTypeName() string { return "NominatedTransaction<>" }
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrPointer() interface{} { return (*[]NominatedTransaction)(v) }
-func (v _XdrVec_unbounded_NominatedTransaction) XdrValue() interface{} { return ([]NominatedTransaction)(v) }
-func (v *_XdrVec_unbounded_NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_Nomination = *Nomination
 func (v *Nomination) XdrPointer() interface{} { return v }
 func (Nomination) XdrTypeName() string { return "Nomination" }
@@ -16745,23 +16863,10 @@ func (v *Nomination) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
-	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Transaction_hashes))
-	x.Marshal(x.Sprintf("%stransaction_nominations", name), (*_XdrVec_unbounded_NominatedTransaction)(&v.Transaction_nominations))
+	x.Marshal(x.Sprintf("%stransactions_hash", name), XDR_ParallelSignedTransactionHashBatch(&v.Transactions_hash))
+	x.Marshal(x.Sprintf("%stransactions_nondeterministic_data", name), XDR_ParallelNondeterministicProposalDataBatch(&v.Transactions_nondeterministic_data))
 }
 func XDR_Nomination(v *Nomination) *Nomination { return v }
-type XdrType_NominationTxsOnly = *NominationTxsOnly
-func (v *NominationTxsOnly) XdrPointer() interface{} { return v }
-func (NominationTxsOnly) XdrTypeName() string { return "NominationTxsOnly" }
-func (v NominationTxsOnly) XdrValue() interface{} { return v }
-func (v *NominationTxsOnly) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *NominationTxsOnly) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Transaction_hashes))
-	x.Marshal(x.Sprintf("%stransaction_nominations", name), (*_XdrVec_unbounded_NominatedTransaction)(&v.Transaction_nominations))
-}
-func XDR_NominationTxsOnly(v *NominationTxsOnly) *NominationTxsOnly { return v }
 type XdrType_PrevNominationSummary = *PrevNominationSummary
 func (v *PrevNominationSummary) XdrPointer() interface{} { return v }
 func (PrevNominationSummary) XdrTypeName() string { return "PrevNominationSummary" }
@@ -16922,6 +17027,61 @@ func (v *RepairConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%smultiplier_denom", name), XDR_uint32(&v.Multiplier_denom))
 }
 func XDR_RepairConfig(v *RepairConfig) *RepairConfig { return v }
+type _XdrVec_unbounded_SignedTransactionHash []SignedTransactionHash
+func (_XdrVec_unbounded_SignedTransactionHash) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SignedTransactionHash) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SignedTransactionHash) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SignedTransactionHash) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SignedTransactionHash, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SignedTransactionHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SignedTransactionHash) XdrTypeName() string { return "SignedTransactionHash<>" }
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrPointer() interface{} { return (*[]SignedTransactionHash)(v) }
+func (v _XdrVec_unbounded_SignedTransactionHash) XdrValue() interface{} { return ([]SignedTransactionHash)(v) }
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_MissingTransactions = *MissingTransactions
 func (v *MissingTransactions) XdrPointer() interface{} { return v }
 func (MissingTransactions) XdrTypeName() string { return "MissingTransactions" }
@@ -19128,21 +19288,34 @@ func (v SchedulerNominationOutcome) XdrValue() interface{} { return v }
 func (v *SchedulerNominationOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_SchedulerNominationOutcome = *SchedulerNominationOutcome
 func XDR_SchedulerNominationOutcome(v *SchedulerNominationOutcome) *SchedulerNominationOutcome { return v }
+type XdrType_SchedulerNominatedBlock = *SchedulerNominatedBlock
+func (v *SchedulerNominatedBlock) XdrPointer() interface{} { return v }
+func (SchedulerNominatedBlock) XdrTypeName() string { return "SchedulerNominatedBlock" }
+func (v SchedulerNominatedBlock) XdrValue() interface{} { return v }
+func (v *SchedulerNominatedBlock) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SchedulerNominatedBlock) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(&v.Block_id))
+	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
+}
+func XDR_SchedulerNominatedBlock(v *SchedulerNominatedBlock) *SchedulerNominatedBlock { return v }
 func (_ SchedulerNominationResult) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *SchedulerNominationResult) Block_id() *BlockID {
+func (u *SchedulerNominationResult) Nominated_block() *SchedulerNominatedBlock {
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		if v, ok := u._u.(*BlockID); ok {
+		if v, ok := u._u.(*SchedulerNominatedBlock); ok {
 			return v
 		} else {
-			var zero BlockID
+			var zero SchedulerNominatedBlock
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("SchedulerNominationResult.Block_id accessed when Outcome == %v", u.Outcome)
+		XdrPanic("SchedulerNominationResult.Nominated_block accessed when Outcome == %v", u.Outcome)
 		return nil
 	}
 }
@@ -19158,7 +19331,7 @@ func (u *SchedulerNominationResult) XdrUnionTagName() string {
 func (u *SchedulerNominationResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		return XDR_BlockID(u.Block_id())
+		return XDR_SchedulerNominatedBlock(u.Nominated_block())
 	default:
 		return nil
 	}
@@ -19166,7 +19339,7 @@ func (u *SchedulerNominationResult) XdrUnionBody() XdrType {
 func (u *SchedulerNominationResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		return "Block_id"
+		return "Nominated_block"
 	default:
 		return ""
 	}
@@ -19183,7 +19356,7 @@ func (u *SchedulerNominationResult) XdrRecurse(x XDR, name string) {
 	XDR_SchedulerNominationOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
 	switch u.Outcome {
 	case SchedulerNominationOK:
-		x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(u.Block_id()))
+		x.Marshal(x.Sprintf("%snominated_block", name), XDR_SchedulerNominatedBlock(u.Nominated_block()))
 		return
 	default:
 		return
@@ -19460,7 +19633,7 @@ func (p *xdrSrvProc_Schedulercoord_intro_coord) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_intro_coord{} // XXX
 
 type xdrProc_Schedulercoord_submit_unvetted struct {
-	Arg *SignedTransactionBatch
+	Arg *ParallelSignedTransactionBatch
 	Res *XdrVoid
 }
 func (xdrProc_Schedulercoord_submit_unvetted) Prog() uint32 { return 1986466065 }
@@ -19471,9 +19644,9 @@ func (xdrProc_Schedulercoord_submit_unvetted) VersName() string { return "Schedu
 func (xdrProc_Schedulercoord_submit_unvetted) ProcName() string { return "schedulercoord_submit_unvetted" }
 func (p *xdrProc_Schedulercoord_submit_unvetted) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(SignedTransactionBatch)
+		p.Arg = new(ParallelSignedTransactionBatch)
 	}
-	return XDR_SignedTransactionBatch(p.Arg)
+	return XDR_ParallelSignedTransactionBatch(p.Arg)
 }
 func (p *xdrProc_Schedulercoord_submit_unvetted) GetRes() XdrType {
 	if p.Res == nil {
@@ -19506,7 +19679,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_unvetted{} // XXX
 
 type xdrProcArg_Schedulercoord_submit_vetted struct {
 	a1 *ValidatorID
-	a2 *SignedTransactionBatch
+	a2 *ParallelSignedTransactionBatch
 }
 func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrPointer() interface{} { return v }
 func (xdrProcArg_Schedulercoord_submit_vetted) XdrTypeName() string { return "xdrProcArg_Schedulercoord_submit_vetted" }
@@ -19518,8 +19691,8 @@ func (v *xdrProcArg_Schedulercoord_submit_vetted) XdrRecurse(x XDR, name string)
 	}
 	if v.a1 == nil { v.a1 = new(ValidatorID) }
 	XDR_ValidatorID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(SignedTransactionBatch) }
-	XDR_SignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(ParallelSignedTransactionBatch) }
+	XDR_ParallelSignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Schedulercoord_submit_vetted(v *xdrProcArg_Schedulercoord_submit_vetted) *xdrProcArg_Schedulercoord_submit_vetted { return v }
 var _ XdrType = &xdrProcArg_Schedulercoord_submit_vetted{} // XXX
@@ -19958,7 +20131,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_intro_coord(ctx context.Context, 
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Context, a1 SignedTransactionBatch) error {
+func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Context, a1 ParallelSignedTransactionBatch) error {
 	var proc xdrProc_Schedulercoord_submit_unvetted
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -19966,7 +20139,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_submit_unvetted(ctx context.Conte
 	}
 	return nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context, a1 ValidatorID, a2 SignedTransactionBatch) error {
+func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context, a1 ValidatorID, a2 ParallelSignedTransactionBatch) error {
 	var proc xdrProc_Schedulercoord_submit_vetted
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -25281,18 +25454,6 @@ func (v *ProposedTransaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snondeterministic_proposal_data", name), XDR_NondeterministicProposalData(&v.Nondeterministic_proposal_data))
 }
 func XDR_ProposedTransaction(v *ProposedTransaction) *ProposedTransaction { return v }
-type XdrType_NominatedTransaction = *NominatedTransaction
-func (v *NominatedTransaction) XdrPointer() interface{} { return v }
-func (NominatedTransaction) XdrTypeName() string { return "NominatedTransaction" }
-func (v NominatedTransaction) XdrValue() interface{} { return v }
-func (v *NominatedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *NominatedTransaction) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%snondeterministic_proposal_data", name), XDR_NondeterministicProposalData(&v.Nondeterministic_proposal_data))
-}
-func XDR_NominatedTransaction(v *NominatedTransaction) *NominatedTransaction { return v }
 var _XdrNames_TransactionStatistic = map[int32]string{
 	int32(KTxStatGasRemaining): "kTxStatGasRemaining",
 }
