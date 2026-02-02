@@ -2274,6 +2274,22 @@ const (
 	SchedulerCommitRace SchedulerCommitOutcome = 2
 )
 
+type SchedulerGetTipOutcome int32
+const (
+	SchedulerGetTipOK SchedulerGetTipOutcome = 0
+	SchedulerGetTipNoGenesisBlock SchedulerGetTipOutcome = 1
+)
+
+type SchedulerGetTipResult struct {
+	// The union discriminant Outcome selects among the following arms:
+	//   SchedulerGetTipOK:
+	//      Db_tip() *DbTip
+	//   default:
+	//      void
+	Outcome SchedulerGetTipOutcome
+	_u interface{}
+}
+
 type SchedulerCoord1 interface {
 	Schedulercoord_null(context.Context, ) error
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
@@ -2282,7 +2298,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_nominate(context.Context, DbTip) (SchedulerNominationResult, error)
 	Schedulercoord_validate(context.Context, DbTip, Nomination) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID) (SchedulerCommitOutcome, error)
-	Schedcoord_get_tip(context.Context, ) (DbTip, error)
+	Schedcoord_get_tip(context.Context, ) (SchedulerGetTipResult, error)
 	Schedcoord_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
 	Schedcoord_lookup_transactions(context.Context, SignedTransactionHashBatch) (OptSignedTransactionBatch, error)
 }
@@ -20652,6 +20668,110 @@ func (v SchedulerCommitOutcome) XdrValue() interface{} { return v }
 func (v *SchedulerCommitOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_SchedulerCommitOutcome = *SchedulerCommitOutcome
 func XDR_SchedulerCommitOutcome(v *SchedulerCommitOutcome) *SchedulerCommitOutcome { return v }
+var _XdrNames_SchedulerGetTipOutcome = map[int32]string{
+	int32(SchedulerGetTipOK): "SchedulerGetTipOK",
+	int32(SchedulerGetTipNoGenesisBlock): "SchedulerGetTipNoGenesisBlock",
+}
+var _XdrValues_SchedulerGetTipOutcome = map[string]int32{
+	"SchedulerGetTipOK": int32(SchedulerGetTipOK),
+	"SchedulerGetTipNoGenesisBlock": int32(SchedulerGetTipNoGenesisBlock),
+}
+func (SchedulerGetTipOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_SchedulerGetTipOutcome
+}
+func (v SchedulerGetTipOutcome) String() string {
+	if s, ok := _XdrNames_SchedulerGetTipOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SchedulerGetTipOutcome#%d", v)
+}
+func (v *SchedulerGetTipOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SchedulerGetTipOutcome[stok]; ok {
+			*v = SchedulerGetTipOutcome(val)
+			return nil
+		} else if stok == "SchedulerGetTipOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SchedulerGetTipOutcome.", stok))
+	}
+}
+func (v SchedulerGetTipOutcome) GetU32() uint32 { return uint32(v) }
+func (v *SchedulerGetTipOutcome) SetU32(n uint32) { *v = SchedulerGetTipOutcome(n) }
+func (v *SchedulerGetTipOutcome) XdrPointer() interface{} { return v }
+func (SchedulerGetTipOutcome) XdrTypeName() string { return "SchedulerGetTipOutcome" }
+func (v SchedulerGetTipOutcome) XdrValue() interface{} { return v }
+func (v *SchedulerGetTipOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedulerGetTipOutcome = *SchedulerGetTipOutcome
+func XDR_SchedulerGetTipOutcome(v *SchedulerGetTipOutcome) *SchedulerGetTipOutcome { return v }
+func (_ SchedulerGetTipResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *SchedulerGetTipResult) Db_tip() *DbTip {
+	switch u.Outcome {
+	case SchedulerGetTipOK:
+		if v, ok := u._u.(*DbTip); ok {
+			return v
+		} else {
+			var zero DbTip
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("SchedulerGetTipResult.Db_tip accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u SchedulerGetTipResult) XdrValid() bool {
+	return true
+}
+func (u *SchedulerGetTipResult) XdrUnionTag() XdrNum32 {
+	return XDR_SchedulerGetTipOutcome(&u.Outcome)
+}
+func (u *SchedulerGetTipResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *SchedulerGetTipResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case SchedulerGetTipOK:
+		return XDR_DbTip(u.Db_tip())
+	default:
+		return nil
+	}
+}
+func (u *SchedulerGetTipResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case SchedulerGetTipOK:
+		return "Db_tip"
+	default:
+		return ""
+	}
+}
+type XdrType_SchedulerGetTipResult = *SchedulerGetTipResult
+func (v *SchedulerGetTipResult) XdrPointer() interface{} { return v }
+func (SchedulerGetTipResult) XdrTypeName() string { return "SchedulerGetTipResult" }
+func (v SchedulerGetTipResult) XdrValue() interface{} { return v }
+func (v *SchedulerGetTipResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *SchedulerGetTipResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_SchedulerGetTipOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case SchedulerGetTipOK:
+		x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(u.Db_tip()))
+		return
+	default:
+		return
+	}
+}
+func XDR_SchedulerGetTipResult(v *SchedulerGetTipResult) *SchedulerGetTipResult { return v}
 
 type xdrProc_Schedulercoord_null struct {
 	Arg *XdrVoid
@@ -21018,7 +21138,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_commit_block{} // XXX
 
 type xdrProc_Schedcoord_get_tip struct {
 	Arg *XdrVoid
-	Res *DbTip
+	Res *SchedulerGetTipResult
 }
 func (xdrProc_Schedcoord_get_tip) Prog() uint32 { return 1986466065 }
 func (xdrProc_Schedcoord_get_tip) Vers() uint32 { return 1 }
@@ -21034,9 +21154,9 @@ func (p *xdrProc_Schedcoord_get_tip) GetArg() XdrType {
 }
 func (p *xdrProc_Schedcoord_get_tip) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(DbTip)
+		p.Res = new(SchedulerGetTipResult)
 	}
-	return XDR_DbTip(p.Res)
+	return XDR_SchedulerGetTipResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Schedcoord_get_tip{} // XXX
 
@@ -21288,7 +21408,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_commit_block(ctx context.Context,
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r DbTip, _ error) {
+func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r SchedulerGetTipResult, _ error) {
 	var proc xdrProc_Schedcoord_get_tip
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
