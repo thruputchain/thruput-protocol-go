@@ -38,5 +38,5 @@ EOF
 # build go
 
 go mod tidy
-go generate
+GOWORK=off go generate
 go build
