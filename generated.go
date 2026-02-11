@@ -335,12 +335,25 @@ type DBAuth1 interface {
 	Dbauth_intro(context.Context, AuthCard) (bool, error)
 }
 
+type IntroAuthOutcome int32
+const (
+	KSuccess IntroAuthOutcome = 0
+	KFailure IntroAuthOutcome = 1
+)
+
 type IntroAuthResult struct {
-	Shards []ShardCard
+	// The union discriminant Outcome selects among the following arms:
+	//   KSuccess:
+	//      Shards() *[]ShardCard
+	//   default:
+	//      void
+	Outcome IntroAuthOutcome
+	_u interface{}
 }
 
 type MempoolAuth1 interface {
 	Mempoolauth_intro_auth(context.Context, AuthCard) (IntroAuthResult, error)
+	Mempoolauth_auth_data_changed(context.Context, BlockHeight, KeyChangeBatch) error
 }
 
 type SubmittedTransactions struct {
@@ -1655,9 +1668,11 @@ const (
 	UNIT_LOADGEN UnitType = 100
 )
 
+type ChainID = string
+
 type Context struct {
 	Assembly_id AssemblyID
-	Chain string
+	Chain_id ChainID
 	Uniquifier string
 }
 
@@ -5080,6 +5095,48 @@ func (c DBAuth1_Client) Dbauth_intro(ctx context.Context, a1 AuthCard) (r bool, 
 	}
 	return *proc.Res, nil
 }
+var _XdrNames_IntroAuthOutcome = map[int32]string{
+	int32(KSuccess): "kSuccess",
+	int32(KFailure): "kFailure",
+}
+var _XdrValues_IntroAuthOutcome = map[string]int32{
+	"kSuccess": int32(KSuccess),
+	"kFailure": int32(KFailure),
+}
+func (IntroAuthOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_IntroAuthOutcome
+}
+func (v IntroAuthOutcome) String() string {
+	if s, ok := _XdrNames_IntroAuthOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("IntroAuthOutcome#%d", v)
+}
+func (v *IntroAuthOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_IntroAuthOutcome[stok]; ok {
+			*v = IntroAuthOutcome(val)
+			return nil
+		} else if stok == "IntroAuthOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid IntroAuthOutcome.", stok))
+	}
+}
+func (v IntroAuthOutcome) GetU32() uint32 { return uint32(v) }
+func (v *IntroAuthOutcome) SetU32(n uint32) { *v = IntroAuthOutcome(n) }
+func (v *IntroAuthOutcome) XdrPointer() interface{} { return v }
+func (IntroAuthOutcome) XdrTypeName() string { return "IntroAuthOutcome" }
+func (v IntroAuthOutcome) XdrValue() interface{} { return v }
+func (v *IntroAuthOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_IntroAuthOutcome = *IntroAuthOutcome
+func XDR_IntroAuthOutcome(v *IntroAuthOutcome) *IntroAuthOutcome { return v }
 type _XdrVec_unbounded_ShardCard []ShardCard
 func (_XdrVec_unbounded_ShardCard) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -5135,18 +5192,68 @@ func (_XdrVec_unbounded_ShardCard) XdrTypeName() string { return "ShardCard<>" }
 func (v *_XdrVec_unbounded_ShardCard) XdrPointer() interface{} { return (*[]ShardCard)(v) }
 func (v _XdrVec_unbounded_ShardCard) XdrValue() interface{} { return ([]ShardCard)(v) }
 func (v *_XdrVec_unbounded_ShardCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_ IntroAuthResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *IntroAuthResult) Shards() *[]ShardCard {
+	switch u.Outcome {
+	case KSuccess:
+		if v, ok := u._u.(*[]ShardCard); ok {
+			return v
+		} else {
+			var zero []ShardCard
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("IntroAuthResult.Shards accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u IntroAuthResult) XdrValid() bool {
+	return true
+}
+func (u *IntroAuthResult) XdrUnionTag() XdrNum32 {
+	return XDR_IntroAuthOutcome(&u.Outcome)
+}
+func (u *IntroAuthResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *IntroAuthResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case KSuccess:
+		return (*_XdrVec_unbounded_ShardCard)(u.Shards())
+	default:
+		return nil
+	}
+}
+func (u *IntroAuthResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case KSuccess:
+		return "Shards"
+	default:
+		return ""
+	}
+}
 type XdrType_IntroAuthResult = *IntroAuthResult
 func (v *IntroAuthResult) XdrPointer() interface{} { return v }
 func (IntroAuthResult) XdrTypeName() string { return "IntroAuthResult" }
 func (v IntroAuthResult) XdrValue() interface{} { return v }
 func (v *IntroAuthResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *IntroAuthResult) XdrRecurse(x XDR, name string) {
+func (u *IntroAuthResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_ShardCard)(&v.Shards))
+	XDR_IntroAuthOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case KSuccess:
+		x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_ShardCard)(u.Shards()))
+		return
+	default:
+		return
+	}
 }
-func XDR_IntroAuthResult(v *IntroAuthResult) *IntroAuthResult { return v }
+func XDR_IntroAuthResult(v *IntroAuthResult) *IntroAuthResult { return v}
 
 type xdrProc_Mempoolauth_intro_auth struct {
 	Arg *AuthCard
@@ -5195,11 +5302,78 @@ func (p *xdrSrvProc_Mempoolauth_intro_auth) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Mempoolauth_intro_auth{} // XXX
 
+type xdrProcArg_Mempoolauth_auth_data_changed struct {
+	a1 *BlockHeight
+	a2 *KeyChangeBatch
+}
+func (v *xdrProcArg_Mempoolauth_auth_data_changed) XdrPointer() interface{} { return v }
+func (xdrProcArg_Mempoolauth_auth_data_changed) XdrTypeName() string { return "xdrProcArg_Mempoolauth_auth_data_changed" }
+func (v xdrProcArg_Mempoolauth_auth_data_changed) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Mempoolauth_auth_data_changed) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Mempoolauth_auth_data_changed) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockHeight) }
+	XDR_BlockHeight(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(KeyChangeBatch) }
+	XDR_KeyChangeBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Mempoolauth_auth_data_changed(v *xdrProcArg_Mempoolauth_auth_data_changed) *xdrProcArg_Mempoolauth_auth_data_changed { return v }
+var _ XdrType = &xdrProcArg_Mempoolauth_auth_data_changed{} // XXX
+
+type xdrProc_Mempoolauth_auth_data_changed struct {
+	Arg *xdrProcArg_Mempoolauth_auth_data_changed
+	Res *XdrVoid
+}
+func (xdrProc_Mempoolauth_auth_data_changed) Prog() uint32 { return 2326297258 }
+func (xdrProc_Mempoolauth_auth_data_changed) Vers() uint32 { return 1 }
+func (xdrProc_Mempoolauth_auth_data_changed) Proc() uint32 { return 1 }
+func (xdrProc_Mempoolauth_auth_data_changed) ProgName() string { return "MempoolAuth" }
+func (xdrProc_Mempoolauth_auth_data_changed) VersName() string { return "MempoolAuth1" }
+func (xdrProc_Mempoolauth_auth_data_changed) ProcName() string { return "mempoolauth_auth_data_changed" }
+func (p *xdrProc_Mempoolauth_auth_data_changed) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Mempoolauth_auth_data_changed)
+	}
+	return XDR_xdrProcArg_Mempoolauth_auth_data_changed(p.Arg)
+}
+func (p *xdrProc_Mempoolauth_auth_data_changed) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Mempoolauth_auth_data_changed{} // XXX
+
+type xdrSrvProc_Mempoolauth_auth_data_changed struct {
+	xdrProc_Mempoolauth_auth_data_changed
+	Srv MempoolAuth1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Mempoolauth_auth_data_changed) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) MempoolAuth1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Mempoolauth_auth_data_changed) Do() {
+	err := p.Srv.Mempoolauth_auth_data_changed(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Mempoolauth_auth_data_changed{} // XXX
+
 func init() {
 	XdrCatalog[2326297258<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
 			return &xdrProc_Mempoolauth_intro_auth{}
+		case 1:
+			return &xdrProc_Mempoolauth_auth_data_changed{}
 		}
 		return nil
 	}
@@ -5216,6 +5390,8 @@ func (s MempoolAuth1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // mempoolauth_intro_auth
 		return &xdrSrvProc_Mempoolauth_intro_auth{ Srv: s.Srv }
+	case 1:  // mempoolauth_auth_data_changed
+		return &xdrSrvProc_Mempoolauth_auth_data_changed{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -5238,6 +5414,16 @@ func (c MempoolAuth1_Client) Mempoolauth_intro_auth(ctx context.Context, a1 Auth
 		return r, err
 	}
 	return *proc.Res, nil
+}
+func (c MempoolAuth1_Client) Mempoolauth_auth_data_changed(ctx context.Context, a1 BlockHeight, a2 KeyChangeBatch) error {
+	var proc xdrProc_Mempoolauth_auth_data_changed
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
 }
 type XdrType_SubmittedTransactions = *SubmittedTransactions
 func (v *SubmittedTransactions) XdrPointer() interface{} { return v }
@@ -16995,6 +17181,14 @@ func (v *UnitType) XdrInitialize() {
 		if *v == UnitType(0) { *v = UNIT_COORDINATOR }
 	}
 }
+type XdrType_ChainID struct {
+	XdrString
+}
+func XDR_ChainID(v *ChainID) XdrType_ChainID {
+	return XdrType_ChainID{XdrString{v, 0xffffffff}}
+}
+func (XdrType_ChainID) XdrTypeName() string { return "ChainID" }
+func (v XdrType_ChainID) XdrUnwrap() XdrType { return v.XdrString }
 type XdrType_Context = *Context
 func (v *Context) XdrPointer() interface{} { return v }
 func (Context) XdrTypeName() string { return "Context" }
@@ -17005,7 +17199,7 @@ func (v *Context) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sassembly_id", name), XDR_AssemblyID(&v.Assembly_id))
-	x.Marshal(x.Sprintf("%schain", name), XdrString{&v.Chain, 0xffffffff})
+	x.Marshal(x.Sprintf("%schain_id", name), XDR_ChainID(&v.Chain_id))
 	x.Marshal(x.Sprintf("%suniquifier", name), XdrString{&v.Uniquifier, 0xffffffff})
 }
 func XDR_Context(v *Context) *Context { return v }
