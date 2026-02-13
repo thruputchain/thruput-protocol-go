@@ -2,9 +2,26 @@
 
 set -e
 
+# Files to exclude from XDR generation (space-separated list of filenames, e.g., "file1.x file2.x")
+EXCLUDE_FILES="transaction_trace.x"
+
 # generate pkg.go
 
-X_FILES=$(ls -1 protocol/*.x | tr '\n' ' ')
+X_FILES=""
+for file in protocol/*.x; do
+    filename=$(basename "$file")
+    exclude=0
+    for excl in $EXCLUDE_FILES; do
+        if [ "$filename" = "$excl" ]; then
+            exclude=1
+            break
+        fi
+    done
+    if [ $exclude -eq 0 ]; then
+        X_FILES="$X_FILES $file"
+    fi
+done
+X_FILES=$(echo "$X_FILES" | sed 's/^ *//')
 PKG_NAME="proto"
 
 cat <<EOF > pkg.go
