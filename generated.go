@@ -3054,6 +3054,25 @@ type Invocation struct {
 	Calldata Calldata
 }
 
+type InvocationFrameStatusCode int32
+const (
+	KInvocationFrameStatusCodeReturn InvocationFrameStatusCode = 0
+	KInvocationFrameStatusCodeFault InvocationFrameStatusCode = 1
+	KInvocationFrameStatusCodeAbort InvocationFrameStatusCode = 2
+)
+
+type InvocationFrameOutput struct {
+	// The union discriminant Status_code selects among the following arms:
+	//   KInvocationFrameStatusCodeReturn:
+	//      Return_buffer() *ReturnBuffer
+	//   KInvocationFrameStatusCodeAbort:
+	//      Abort_buffer() *ReturnBuffer
+	//   KInvocationFrameStatusCodeFault:
+	//      void
+	Status_code InvocationFrameStatusCode
+	_u interface{}
+}
+
 /// Flags that modify the behavior of a contract invocation.
 ///
 /// These flags are used with the Invoke syscall to control how a subinvocation
@@ -27766,6 +27785,146 @@ func (v *Invocation) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scalldata", name), XDR_Calldata(&v.Calldata))
 }
 func XDR_Invocation(v *Invocation) *Invocation { return v }
+var _XdrNames_InvocationFrameStatusCode = map[int32]string{
+	int32(KInvocationFrameStatusCodeReturn): "kInvocationFrameStatusCodeReturn",
+	int32(KInvocationFrameStatusCodeFault): "kInvocationFrameStatusCodeFault",
+	int32(KInvocationFrameStatusCodeAbort): "kInvocationFrameStatusCodeAbort",
+}
+var _XdrValues_InvocationFrameStatusCode = map[string]int32{
+	"kInvocationFrameStatusCodeReturn": int32(KInvocationFrameStatusCodeReturn),
+	"kInvocationFrameStatusCodeFault": int32(KInvocationFrameStatusCodeFault),
+	"kInvocationFrameStatusCodeAbort": int32(KInvocationFrameStatusCodeAbort),
+}
+func (InvocationFrameStatusCode) XdrEnumNames() map[int32]string {
+	return _XdrNames_InvocationFrameStatusCode
+}
+func (v InvocationFrameStatusCode) String() string {
+	if s, ok := _XdrNames_InvocationFrameStatusCode[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("InvocationFrameStatusCode#%d", v)
+}
+func (v *InvocationFrameStatusCode) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_InvocationFrameStatusCode[stok]; ok {
+			*v = InvocationFrameStatusCode(val)
+			return nil
+		} else if stok == "InvocationFrameStatusCode" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid InvocationFrameStatusCode.", stok))
+	}
+}
+func (v InvocationFrameStatusCode) GetU32() uint32 { return uint32(v) }
+func (v *InvocationFrameStatusCode) SetU32(n uint32) { *v = InvocationFrameStatusCode(n) }
+func (v *InvocationFrameStatusCode) XdrPointer() interface{} { return v }
+func (InvocationFrameStatusCode) XdrTypeName() string { return "InvocationFrameStatusCode" }
+func (v InvocationFrameStatusCode) XdrValue() interface{} { return v }
+func (v *InvocationFrameStatusCode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_InvocationFrameStatusCode = *InvocationFrameStatusCode
+func XDR_InvocationFrameStatusCode(v *InvocationFrameStatusCode) *InvocationFrameStatusCode { return v }
+var _XdrTags_InvocationFrameOutput = map[int32]bool{
+	XdrToI32(KInvocationFrameStatusCodeReturn): true,
+	XdrToI32(KInvocationFrameStatusCodeAbort): true,
+	XdrToI32(KInvocationFrameStatusCodeFault): true,
+}
+func (_ InvocationFrameOutput) XdrValidTags() map[int32]bool {
+	return _XdrTags_InvocationFrameOutput
+}
+func (u *InvocationFrameOutput) Return_buffer() *ReturnBuffer {
+	switch u.Status_code {
+	case KInvocationFrameStatusCodeReturn:
+		if v, ok := u._u.(*ReturnBuffer); ok {
+			return v
+		} else {
+			var zero ReturnBuffer
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("InvocationFrameOutput.Return_buffer accessed when Status_code == %v", u.Status_code)
+		return nil
+	}
+}
+func (u *InvocationFrameOutput) Abort_buffer() *ReturnBuffer {
+	switch u.Status_code {
+	case KInvocationFrameStatusCodeAbort:
+		if v, ok := u._u.(*ReturnBuffer); ok {
+			return v
+		} else {
+			var zero ReturnBuffer
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("InvocationFrameOutput.Abort_buffer accessed when Status_code == %v", u.Status_code)
+		return nil
+	}
+}
+func (u InvocationFrameOutput) XdrValid() bool {
+	switch u.Status_code {
+	case KInvocationFrameStatusCodeReturn,KInvocationFrameStatusCodeAbort,KInvocationFrameStatusCodeFault:
+		return true
+	}
+	return false
+}
+func (u *InvocationFrameOutput) XdrUnionTag() XdrNum32 {
+	return XDR_InvocationFrameStatusCode(&u.Status_code)
+}
+func (u *InvocationFrameOutput) XdrUnionTagName() string {
+	return "Status_code"
+}
+func (u *InvocationFrameOutput) XdrUnionBody() XdrType {
+	switch u.Status_code {
+	case KInvocationFrameStatusCodeReturn:
+		return XDR_ReturnBuffer(u.Return_buffer())
+	case KInvocationFrameStatusCodeAbort:
+		return XDR_ReturnBuffer(u.Abort_buffer())
+	case KInvocationFrameStatusCodeFault:
+		return nil
+	}
+	return nil
+}
+func (u *InvocationFrameOutput) XdrUnionBodyName() string {
+	switch u.Status_code {
+	case KInvocationFrameStatusCodeReturn:
+		return "Return_buffer"
+	case KInvocationFrameStatusCodeAbort:
+		return "Abort_buffer"
+	case KInvocationFrameStatusCodeFault:
+		return ""
+	}
+	return ""
+}
+type XdrType_InvocationFrameOutput = *InvocationFrameOutput
+func (v *InvocationFrameOutput) XdrPointer() interface{} { return v }
+func (InvocationFrameOutput) XdrTypeName() string { return "InvocationFrameOutput" }
+func (v InvocationFrameOutput) XdrValue() interface{} { return v }
+func (v *InvocationFrameOutput) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *InvocationFrameOutput) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_InvocationFrameStatusCode(&u.Status_code).XdrMarshal(x, x.Sprintf("%sstatus_code", name))
+	switch u.Status_code {
+	case KInvocationFrameStatusCodeReturn:
+		x.Marshal(x.Sprintf("%sreturn_buffer", name), XDR_ReturnBuffer(u.Return_buffer()))
+		return
+	case KInvocationFrameStatusCodeAbort:
+		x.Marshal(x.Sprintf("%sabort_buffer", name), XDR_ReturnBuffer(u.Abort_buffer()))
+		return
+	case KInvocationFrameStatusCodeFault:
+		return
+	}
+	XdrPanic("invalid Status_code (%v) in InvocationFrameOutput", u.Status_code)
+}
+func XDR_InvocationFrameOutput(v *InvocationFrameOutput) *InvocationFrameOutput { return v}
 var _XdrNames_InvokeFlag = map[int32]string{
 	int32(KInvokeFlagNone): "kInvokeFlagNone",
 	int32(KInvokeFlagTryInvoke): "kInvokeFlagTryInvoke",
