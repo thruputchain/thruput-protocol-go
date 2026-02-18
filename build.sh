@@ -43,9 +43,7 @@ quoted=$(printf '"%s"\n' "$proto_commit")
 cat > hogp.go <<EOF
 package proto
 
-func ProtocolGitCommit() string {
-	return ${quoted}
-}
+const ProtocolGitCommit string = ${quoted}
 
 func HogProtocol() string {
 	return "hogp/" + ProtocolGitCommit()[:12]
