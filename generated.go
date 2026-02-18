@@ -2803,6 +2803,10 @@ const KReplayCacheHeightsMaxLen = 4000
 /// Maximum unexpired consumed uniquifiers allowed per height in a cache.
 const KReplayCacheNoncesMaxLen = 8000
 
+/// Maximum number of entries in a single RetrocausalQueue block.
+/// Each entry is at most 256 bytes, so 1000 entries is ~256KB.
+const KRetrocausalQueueBlockEntriesMaxLen = 1000
+
 // #[doc(hidden)]
 // Information about the number of nonces stored at each height of a
 // ReplayCache. Tracked in the ReplayCacheMetadata so nonce GC can
