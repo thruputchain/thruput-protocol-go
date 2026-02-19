@@ -46,7 +46,7 @@ package proto
 const ProtocolGitCommit string = ${quoted}
 
 func HogProtocol() string {
-	return "hogp/" + ProtocolGitCommit()[:12]
+	return "hogp/" + ProtocolGitCommit[:12]
 }
 EOF
 
