@@ -404,14 +404,14 @@ type Catchup1 interface {
 	Catchup_solicit(context.Context, SignedCatchupBlocksRequest) (SignedCatchupBlocksResult, error)
 }
 
-type ProgramArg = string
+type ProgramArg = []byte
 
 type ServerConfig struct {
-	Program_name string
+	Program_name []byte
 	Program_args []ProgramArg
 }
 
-type HogdGitHash = string
+type HogdGitHash = []byte
 
 type CIServerErrorCode int32
 const (
@@ -434,7 +434,7 @@ type CIProcStatus struct {
 type CIWorkDirStatus struct {
 	// The union discriminant Error_code selects among the following arms:
 	//   KCIServerErrorCodeOK:
-	//      Work_dir() *string
+	//      Work_dir() *[]byte
 	//   default:
 	//      void
 	Error_code CIServerErrorCode
@@ -5760,13 +5760,13 @@ func (c Catchup1_Client) Catchup_solicit(ctx context.Context, a1 SignedCatchupBl
 	return *proc.Res, nil
 }
 type XdrType_ProgramArg struct {
-	XdrString
+	XdrVecOpaque
 }
 func XDR_ProgramArg(v *ProgramArg) XdrType_ProgramArg {
-	return XdrType_ProgramArg{XdrString{v, 0xffffffff}}
+	return XdrType_ProgramArg{XdrVecOpaque{v, 0xffffffff}}
 }
 func (XdrType_ProgramArg) XdrTypeName() string { return "ProgramArg" }
-func (v XdrType_ProgramArg) XdrUnwrap() XdrType { return v.XdrString }
+func (v XdrType_ProgramArg) XdrUnwrap() XdrType { return v.XdrVecOpaque }
 type _XdrVec_unbounded_ProgramArg []ProgramArg
 func (_XdrVec_unbounded_ProgramArg) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -5831,18 +5831,18 @@ func (v *ServerConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sprogram_name", name), XdrString{&v.Program_name, 0xffffffff})
+	x.Marshal(x.Sprintf("%sprogram_name", name), XdrVecOpaque{&v.Program_name, 0xffffffff})
 	x.Marshal(x.Sprintf("%sprogram_args", name), (*_XdrVec_unbounded_ProgramArg)(&v.Program_args))
 }
 func XDR_ServerConfig(v *ServerConfig) *ServerConfig { return v }
 type XdrType_HogdGitHash struct {
-	XdrString
+	XdrVecOpaque
 }
 func XDR_HogdGitHash(v *HogdGitHash) XdrType_HogdGitHash {
-	return XdrType_HogdGitHash{XdrString{v, 0xffffffff}}
+	return XdrType_HogdGitHash{XdrVecOpaque{v, 0xffffffff}}
 }
 func (XdrType_HogdGitHash) XdrTypeName() string { return "HogdGitHash" }
-func (v XdrType_HogdGitHash) XdrUnwrap() XdrType { return v.XdrString }
+func (v XdrType_HogdGitHash) XdrUnwrap() XdrType { return v.XdrVecOpaque }
 var _XdrNames_CIServerErrorCode = map[int32]string{
 	int32(KCIServerErrorCodeOK): "kCIServerErrorCodeOK",
 	int32(KCIServerErrorCodeAlreadyRunning): "kCIServerErrorCodeAlreadyRunning",
@@ -5954,13 +5954,13 @@ func XDR_CIProcStatus(v *CIProcStatus) *CIProcStatus { return v}
 func (_ CIWorkDirStatus) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *CIWorkDirStatus) Work_dir() *string {
+func (u *CIWorkDirStatus) Work_dir() *[]byte {
 	switch u.Error_code {
 	case KCIServerErrorCodeOK:
-		if v, ok := u._u.(*string); ok {
+		if v, ok := u._u.(*[]byte); ok {
 			return v
 		} else {
-			var zero string
+			var zero []byte
 			u._u = &zero
 			return &zero
 		}
@@ -5981,7 +5981,7 @@ func (u *CIWorkDirStatus) XdrUnionTagName() string {
 func (u *CIWorkDirStatus) XdrUnionBody() XdrType {
 	switch u.Error_code {
 	case KCIServerErrorCodeOK:
-		return XdrString{u.Work_dir(), 0xffffffff}
+		return XdrVecOpaque{u.Work_dir(), 0xffffffff}
 	default:
 		return nil
 	}
@@ -6006,7 +6006,7 @@ func (u *CIWorkDirStatus) XdrRecurse(x XDR, name string) {
 	XDR_CIServerErrorCode(&u.Error_code).XdrMarshal(x, x.Sprintf("%serror_code", name))
 	switch u.Error_code {
 	case KCIServerErrorCodeOK:
-		x.Marshal(x.Sprintf("%swork_dir", name), XdrString{u.Work_dir(), 0xffffffff})
+		x.Marshal(x.Sprintf("%swork_dir", name), XdrVecOpaque{u.Work_dir(), 0xffffffff})
 		return
 	default:
 		return
