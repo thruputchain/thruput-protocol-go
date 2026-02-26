@@ -827,6 +827,16 @@ const (
 	ShardOK DbShardResult = 0
 )
 
+type DbTipResult struct {
+	// The union discriminant Result selects among the following arms:
+	//   DbSchedResultOK:
+	//      Db_tip() *DbTip
+	//   default:
+	//      void
+	Result DbSchedResult
+	_u interface{}
+}
+
 type DbSched1 interface {
 	Dbsched_null(context.Context, ) error
 	Dbsched_get_address_auth_data(context.Context, BlockID, ContractAddressBatch) (DbAddressAuthDataBatchResult, error)
@@ -837,6 +847,7 @@ type DbSched1 interface {
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
 	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
+	Dbsched_get_tip(context.Context, ) (DbTipResult, error)
 }
 
 type Debug1 interface {
@@ -8519,6 +8530,68 @@ func (v DbShardResult) XdrValue() interface{} { return v }
 func (v *DbShardResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_DbShardResult = *DbShardResult
 func XDR_DbShardResult(v *DbShardResult) *DbShardResult { return v }
+func (_ DbTipResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *DbTipResult) Db_tip() *DbTip {
+	switch u.Result {
+	case DbSchedResultOK:
+		if v, ok := u._u.(*DbTip); ok {
+			return v
+		} else {
+			var zero DbTip
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("DbTipResult.Db_tip accessed when Result == %v", u.Result)
+		return nil
+	}
+}
+func (u DbTipResult) XdrValid() bool {
+	return true
+}
+func (u *DbTipResult) XdrUnionTag() XdrNum32 {
+	return XDR_DbSchedResult(&u.Result)
+}
+func (u *DbTipResult) XdrUnionTagName() string {
+	return "Result"
+}
+func (u *DbTipResult) XdrUnionBody() XdrType {
+	switch u.Result {
+	case DbSchedResultOK:
+		return XDR_DbTip(u.Db_tip())
+	default:
+		return nil
+	}
+}
+func (u *DbTipResult) XdrUnionBodyName() string {
+	switch u.Result {
+	case DbSchedResultOK:
+		return "Db_tip"
+	default:
+		return ""
+	}
+}
+type XdrType_DbTipResult = *DbTipResult
+func (v *DbTipResult) XdrPointer() interface{} { return v }
+func (DbTipResult) XdrTypeName() string { return "DbTipResult" }
+func (v DbTipResult) XdrValue() interface{} { return v }
+func (v *DbTipResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *DbTipResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_DbSchedResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
+	switch u.Result {
+	case DbSchedResultOK:
+		x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(u.Db_tip()))
+		return
+	default:
+		return
+	}
+}
+func XDR_DbTipResult(v *DbTipResult) *DbTipResult { return v}
 
 type xdrProc_Dbsched_null struct {
 	Arg *XdrVoid
@@ -8984,6 +9057,53 @@ func (p *xdrSrvProc_Dbsched_load_genesis_configuration) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbsched_load_genesis_configuration{} // XXX
 
+type xdrProc_Dbsched_get_tip struct {
+	Arg *XdrVoid
+	Res *DbTipResult
+}
+func (xdrProc_Dbsched_get_tip) Prog() uint32 { return 2290646759 }
+func (xdrProc_Dbsched_get_tip) Vers() uint32 { return 1 }
+func (xdrProc_Dbsched_get_tip) Proc() uint32 { return 10 }
+func (xdrProc_Dbsched_get_tip) ProgName() string { return "DbSched" }
+func (xdrProc_Dbsched_get_tip) VersName() string { return "DbSched1" }
+func (xdrProc_Dbsched_get_tip) ProcName() string { return "dbsched_get_tip" }
+func (p *xdrProc_Dbsched_get_tip) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Arg)
+}
+func (p *xdrProc_Dbsched_get_tip) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(DbTipResult)
+	}
+	return XDR_DbTipResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Dbsched_get_tip{} // XXX
+
+type xdrSrvProc_Dbsched_get_tip struct {
+	xdrProc_Dbsched_get_tip
+	Srv DbSched1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Dbsched_get_tip) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DbSched1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Dbsched_get_tip) Do() {
+	r, err := p.Srv.Dbsched_get_tip(p.Ctx, )
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Dbsched_get_tip{} // XXX
+
 func init() {
 	XdrCatalog[2290646759<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -9005,6 +9125,8 @@ func init() {
 			return &xdrProc_Dbsched_abandon_snapshot{}
 		case 9:
 			return &xdrProc_Dbsched_load_genesis_configuration{}
+		case 10:
+			return &xdrProc_Dbsched_get_tip{}
 		}
 		return nil
 	}
@@ -9037,6 +9159,8 @@ func (s DbSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbsched_abandon_snapshot{ Srv: s.Srv }
 	case 9:  // dbsched_load_genesis_configuration
 		return &xdrSrvProc_Dbsched_load_genesis_configuration{ Srv: s.Srv }
+	case 10:  // dbsched_get_tip
+		return &xdrSrvProc_Dbsched_get_tip{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -9123,6 +9247,13 @@ func (c DbSched1_Client) Dbsched_abandon_snapshot(ctx context.Context, a1 BlockI
 func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration) (r DbSchedResult, _ error) {
 	var proc xdrProc_Dbsched_load_genesis_configuration
 	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DbSched1_Client) Dbsched_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
+	var proc xdrProc_Dbsched_get_tip
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
