@@ -843,7 +843,7 @@ type DbSched1 interface {
 	Dbsched_get_hog_ages(context.Context, ContractAddressBatch) (HogAgeResult, error)
 	Dbsched_write_hog_ages(context.Context, HogAgeBatch) (DbSchedResult, error)
 	Dbsched_create_snapshot(context.Context, BlockID, BlockID, BlockExecutionMode) (DbSchedResult, error)
-	Dbsched_commit_snapshot(context.Context, BlockID) (DbBlockResult, error)
+	Dbsched_commit_snapshot(context.Context, BlockID, BlockHash) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
 	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
@@ -8870,8 +8870,28 @@ func (p *xdrSrvProc_Dbsched_create_snapshot) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbsched_create_snapshot{} // XXX
 
+type xdrProcArg_Dbsched_commit_snapshot struct {
+	a1 *BlockID
+	a2 *BlockHash
+}
+func (v *xdrProcArg_Dbsched_commit_snapshot) XdrPointer() interface{} { return v }
+func (xdrProcArg_Dbsched_commit_snapshot) XdrTypeName() string { return "xdrProcArg_Dbsched_commit_snapshot" }
+func (v xdrProcArg_Dbsched_commit_snapshot) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Dbsched_commit_snapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Dbsched_commit_snapshot) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(BlockHash) }
+	XDR_BlockHash(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Dbsched_commit_snapshot(v *xdrProcArg_Dbsched_commit_snapshot) *xdrProcArg_Dbsched_commit_snapshot { return v }
+var _ XdrType = &xdrProcArg_Dbsched_commit_snapshot{} // XXX
+
 type xdrProc_Dbsched_commit_snapshot struct {
-	Arg *BlockID
+	Arg *xdrProcArg_Dbsched_commit_snapshot
 	Res *DbBlockResult
 }
 func (xdrProc_Dbsched_commit_snapshot) Prog() uint32 { return 2290646759 }
@@ -8882,9 +8902,9 @@ func (xdrProc_Dbsched_commit_snapshot) VersName() string { return "DbSched1" }
 func (xdrProc_Dbsched_commit_snapshot) ProcName() string { return "dbsched_commit_snapshot" }
 func (p *xdrProc_Dbsched_commit_snapshot) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(BlockID)
+		p.Arg = new(xdrProcArg_Dbsched_commit_snapshot)
 	}
-	return XDR_BlockID(p.Arg)
+	return XDR_xdrProcArg_Dbsched_commit_snapshot(p.Arg)
 }
 func (p *xdrProc_Dbsched_commit_snapshot) GetRes() XdrType {
 	if p.Res == nil {
@@ -8908,7 +8928,7 @@ func (p *xdrSrvProc_Dbsched_commit_snapshot) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dbsched_commit_snapshot) Do() {
-	r, err := p.Srv.Dbsched_commit_snapshot(p.Ctx, *p.Arg)
+	r, err := p.Srv.Dbsched_commit_snapshot(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -9221,9 +9241,11 @@ func (c DbSched1_Client) Dbsched_create_snapshot(ctx context.Context, a1 BlockID
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_commit_snapshot(ctx context.Context, a1 BlockID) (r DbBlockResult, _ error) {
+func (c DbSched1_Client) Dbsched_commit_snapshot(ctx context.Context, a1 BlockID, a2 BlockHash) (r DbBlockResult, _ error) {
 	var proc xdrProc_Dbsched_commit_snapshot
-	proc.Arg = &a1
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
