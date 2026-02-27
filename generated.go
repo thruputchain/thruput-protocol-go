@@ -2000,13 +2000,14 @@ type RetrocausalQueueDelta struct {
 // An internal unique ID describing a block.
 type BlockID = uint64
 
-// XXX(petar): BlockHash should be renamed to MerkleHash
 type BlockHash = SHA256Hash
+
+type DbHash = SHA256Hash
 
 type DbTip struct {
 	Height BlockHeight
 	Block_hash BlockHash
-	Db_hash BlockHash
+	Db_hash DbHash
 	Id BlockID
 }
 
@@ -20023,6 +20024,14 @@ func XDR_BlockHash(v *BlockHash) XdrType_BlockHash {
 }
 func (XdrType_BlockHash) XdrTypeName() string { return "BlockHash" }
 func (v XdrType_BlockHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_DbHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_DbHash(v *DbHash) XdrType_DbHash {
+	return XdrType_DbHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_DbHash) XdrTypeName() string { return "DbHash" }
+func (v XdrType_DbHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type XdrType_DbTip = *DbTip
 func (v *DbTip) XdrPointer() interface{} { return v }
 func (DbTip) XdrTypeName() string { return "DbTip" }
@@ -20034,7 +20043,7 @@ func (v *DbTip) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
-	x.Marshal(x.Sprintf("%sdb_hash", name), XDR_BlockHash(&v.Db_hash))
+	x.Marshal(x.Sprintf("%sdb_hash", name), XDR_DbHash(&v.Db_hash))
 	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
 }
 func XDR_DbTip(v *DbTip) *DbTip { return v }
