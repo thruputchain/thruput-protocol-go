@@ -846,7 +846,7 @@ type DbSched1 interface {
 	Dbsched_commit_snapshot(context.Context, BlockID, BlockHash) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
-	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
+	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration, BlockHash) (DbSchedResult, error)
 	Dbsched_get_tip(context.Context, ) (DbTipResult, error)
 }
 
@@ -9031,8 +9031,28 @@ func (p *xdrSrvProc_Dbsched_abandon_snapshot) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbsched_abandon_snapshot{} // XXX
 
+type xdrProcArg_Dbsched_load_genesis_configuration struct {
+	a1 *GenesisConfiguration
+	a2 *BlockHash
+}
+func (v *xdrProcArg_Dbsched_load_genesis_configuration) XdrPointer() interface{} { return v }
+func (xdrProcArg_Dbsched_load_genesis_configuration) XdrTypeName() string { return "xdrProcArg_Dbsched_load_genesis_configuration" }
+func (v xdrProcArg_Dbsched_load_genesis_configuration) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Dbsched_load_genesis_configuration) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Dbsched_load_genesis_configuration) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(GenesisConfiguration) }
+	XDR_GenesisConfiguration(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(BlockHash) }
+	XDR_BlockHash(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Dbsched_load_genesis_configuration(v *xdrProcArg_Dbsched_load_genesis_configuration) *xdrProcArg_Dbsched_load_genesis_configuration { return v }
+var _ XdrType = &xdrProcArg_Dbsched_load_genesis_configuration{} // XXX
+
 type xdrProc_Dbsched_load_genesis_configuration struct {
-	Arg *GenesisConfiguration
+	Arg *xdrProcArg_Dbsched_load_genesis_configuration
 	Res *DbSchedResult
 }
 func (xdrProc_Dbsched_load_genesis_configuration) Prog() uint32 { return 2290646759 }
@@ -9043,9 +9063,9 @@ func (xdrProc_Dbsched_load_genesis_configuration) VersName() string { return "Db
 func (xdrProc_Dbsched_load_genesis_configuration) ProcName() string { return "dbsched_load_genesis_configuration" }
 func (p *xdrProc_Dbsched_load_genesis_configuration) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(GenesisConfiguration)
+		p.Arg = new(xdrProcArg_Dbsched_load_genesis_configuration)
 	}
-	return XDR_GenesisConfiguration(p.Arg)
+	return XDR_xdrProcArg_Dbsched_load_genesis_configuration(p.Arg)
 }
 func (p *xdrProc_Dbsched_load_genesis_configuration) GetRes() XdrType {
 	if p.Res == nil {
@@ -9069,7 +9089,7 @@ func (p *xdrSrvProc_Dbsched_load_genesis_configuration) SetContext(ctx context.C
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dbsched_load_genesis_configuration) Do() {
-	r, err := p.Srv.Dbsched_load_genesis_configuration(p.Ctx, *p.Arg)
+	r, err := p.Srv.Dbsched_load_genesis_configuration(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -9267,9 +9287,11 @@ func (c DbSched1_Client) Dbsched_abandon_snapshot(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration) (r DbSchedResult, _ error) {
+func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration, a2 BlockHash) (r DbSchedResult, _ error) {
 	var proc xdrProc_Dbsched_load_genesis_configuration
-	proc.Arg = &a1
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
