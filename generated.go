@@ -2202,6 +2202,8 @@ type SchedulerGetTipResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   SchedulerGetTipOK:
 	//      Db_tip() *DbTip
+	//   SchedulerGetTipNoGenesisBlock:
+	//      void
 	//   default:
 	//      void
 	Outcome SchedulerGetTipOutcome
@@ -21182,6 +21184,8 @@ func (u *SchedulerGetTipResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case SchedulerGetTipOK:
 		return XDR_DbTip(u.Db_tip())
+	case SchedulerGetTipNoGenesisBlock:
+		return nil
 	default:
 		return nil
 	}
@@ -21190,6 +21194,8 @@ func (u *SchedulerGetTipResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case SchedulerGetTipOK:
 		return "Db_tip"
+	case SchedulerGetTipNoGenesisBlock:
+		return ""
 	default:
 		return ""
 	}
@@ -21207,6 +21213,8 @@ func (u *SchedulerGetTipResult) XdrRecurse(x XDR, name string) {
 	switch u.Outcome {
 	case SchedulerGetTipOK:
 		x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(u.Db_tip()))
+		return
+	case SchedulerGetTipNoGenesisBlock:
 		return
 	default:
 		return
