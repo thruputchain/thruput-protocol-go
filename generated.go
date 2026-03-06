@@ -366,12 +366,12 @@ type BlockHeader struct {
 	// the blockchain running, each one will have a different [network_id].
 	Network_id uint64
 	// The Merkle root hash of the transactions.
-	Txset_hash BlockHash
+	Txset_hash SHA256Hash
 	// The hash of the database contents after this block is applied to the
 	// database.
-	Db_hash BlockHash
+	Db_hash DbHash
 	// The Merkle root hash of the events.
-	Events_hash BlockHash
+	Events_hash SHA256Hash
 	// The hash of the previous block.
 	Prev_block_hash BlockHash
 }
@@ -825,7 +825,7 @@ type DbAddressAuthDataBatchResult struct {
 type DbBlockResult struct {
 	// The union discriminant Result selects among the following arms:
 	//   DbSchedResultOK:
-	//      Db_hash() *BlockHash
+	//      Db_hash() *DbHash
 	//   default:
 	//      void
 	Result DbSchedResult
@@ -856,7 +856,7 @@ type DbSched1 interface {
 	Dbsched_commit_snapshot(context.Context, BlockID, BlockHash) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
-	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration, BlockHash) (DbSchedResult, error)
+	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration, uint64, SHA256Hash, SHA256Hash) (DbSchedResult, error)
 	Dbsched_get_tip(context.Context, ) (DbTipResult, error)
 }
 
@@ -2012,7 +2012,7 @@ type BlockID = uint64
 
 type BlockHash = SHA256Hash
 
-type DbHash = SHA256Hash
+type DbHash = [2048]byte
 
 type DbTip struct {
 	Height BlockHeight
@@ -3437,7 +3437,7 @@ type AddressAndKey struct {
 }
 
 /// BlockHeight is the height of a block, measured as the number of blocks since the genesis of the chain.
-/// The first block of transactions is at height 1.
+/// The first block of transactions is at height 0.
 /// It is signed to prevent overflows in
 /// calculations.
 type BlockHeight = int64
@@ -5442,9 +5442,9 @@ func (v *BlockHeader) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%snetwork_id", name), XDR_uint64(&v.Network_id))
-	x.Marshal(x.Sprintf("%stxset_hash", name), XDR_BlockHash(&v.Txset_hash))
-	x.Marshal(x.Sprintf("%sdb_hash", name), XDR_BlockHash(&v.Db_hash))
-	x.Marshal(x.Sprintf("%sevents_hash", name), XDR_BlockHash(&v.Events_hash))
+	x.Marshal(x.Sprintf("%stxset_hash", name), XDR_SHA256Hash(&v.Txset_hash))
+	x.Marshal(x.Sprintf("%sdb_hash", name), XDR_DbHash(&v.Db_hash))
+	x.Marshal(x.Sprintf("%sevents_hash", name), XDR_SHA256Hash(&v.Events_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
 }
 func XDR_BlockHeader(v *BlockHeader) *BlockHeader { return v }
@@ -8447,13 +8447,13 @@ func XDR_DbAddressAuthDataBatchResult(v *DbAddressAuthDataBatchResult) *DbAddres
 func (_ DbBlockResult) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *DbBlockResult) Db_hash() *BlockHash {
+func (u *DbBlockResult) Db_hash() *DbHash {
 	switch u.Result {
 	case DbSchedResultOK:
-		if v, ok := u._u.(*BlockHash); ok {
+		if v, ok := u._u.(*DbHash); ok {
 			return v
 		} else {
-			var zero BlockHash
+			var zero DbHash
 			u._u = &zero
 			return &zero
 		}
@@ -8474,7 +8474,7 @@ func (u *DbBlockResult) XdrUnionTagName() string {
 func (u *DbBlockResult) XdrUnionBody() XdrType {
 	switch u.Result {
 	case DbSchedResultOK:
-		return XDR_BlockHash(u.Db_hash())
+		return XDR_DbHash(u.Db_hash())
 	default:
 		return nil
 	}
@@ -8499,7 +8499,7 @@ func (u *DbBlockResult) XdrRecurse(x XDR, name string) {
 	XDR_DbSchedResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
 	switch u.Result {
 	case DbSchedResultOK:
-		x.Marshal(x.Sprintf("%sdb_hash", name), XDR_BlockHash(u.Db_hash()))
+		x.Marshal(x.Sprintf("%sdb_hash", name), XDR_DbHash(u.Db_hash()))
 		return
 	default:
 		return
@@ -9048,7 +9048,9 @@ var _ XdrSrvProc = &xdrSrvProc_Dbsched_abandon_snapshot{} // XXX
 
 type xdrProcArg_Dbsched_load_genesis_configuration struct {
 	a1 *GenesisConfiguration
-	a2 *BlockHash
+	a2 *uint64
+	a3 *SHA256Hash
+	a4 *SHA256Hash
 }
 func (v *xdrProcArg_Dbsched_load_genesis_configuration) XdrPointer() interface{} { return v }
 func (xdrProcArg_Dbsched_load_genesis_configuration) XdrTypeName() string { return "xdrProcArg_Dbsched_load_genesis_configuration" }
@@ -9060,8 +9062,12 @@ func (v *xdrProcArg_Dbsched_load_genesis_configuration) XdrRecurse(x XDR, name s
 	}
 	if v.a1 == nil { v.a1 = new(GenesisConfiguration) }
 	XDR_GenesisConfiguration(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(BlockHash) }
-	XDR_BlockHash(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(uint64) }
+	XDR_uint64(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(SHA256Hash) }
+	XDR_SHA256Hash(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
+	if v.a4 == nil { v.a4 = new(SHA256Hash) }
+	XDR_SHA256Hash(v.a4).XdrMarshal(x, x.Sprintf("%sa4", name))
 }
 func XDR_xdrProcArg_Dbsched_load_genesis_configuration(v *xdrProcArg_Dbsched_load_genesis_configuration) *xdrProcArg_Dbsched_load_genesis_configuration { return v }
 var _ XdrType = &xdrProcArg_Dbsched_load_genesis_configuration{} // XXX
@@ -9104,7 +9110,7 @@ func (p *xdrSrvProc_Dbsched_load_genesis_configuration) SetContext(ctx context.C
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dbsched_load_genesis_configuration) Do() {
-	r, err := p.Srv.Dbsched_load_genesis_configuration(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Dbsched_load_genesis_configuration(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3, *p.Arg.a4)
 	p.Res = &r
 
 	if err != nil {
@@ -9302,11 +9308,13 @@ func (c DbSched1_Client) Dbsched_abandon_snapshot(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration, a2 BlockHash) (r DbSchedResult, _ error) {
+func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration, a2 uint64, a3 SHA256Hash, a4 SHA256Hash) (r DbSchedResult, _ error) {
 	var proc xdrProc_Dbsched_load_genesis_configuration
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
+	proc.Arg.a3 = &a3
+	proc.Arg.a4 = &a4
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -20083,14 +20091,28 @@ func XDR_BlockHash(v *BlockHash) XdrType_BlockHash {
 }
 func (XdrType_BlockHash) XdrTypeName() string { return "BlockHash" }
 func (v XdrType_BlockHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type _XdrArray_2048_opaque [2048]byte
+func (v *_XdrArray_2048_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_2048_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_2048_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_2048_opaque) XdrPointer() interface{} { return (*[2048]byte)(v) }
+func (v *_XdrArray_2048_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_2048_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_2048_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_2048_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 2048 // Force error if not const or doesn't fit
+	return bound
+}
 type XdrType_DbHash struct {
-	XdrType_SHA256Hash
+	*_XdrArray_2048_opaque
 }
 func XDR_DbHash(v *DbHash) XdrType_DbHash {
-	return XdrType_DbHash{XDR_SHA256Hash(v)}
+	return XdrType_DbHash{(*_XdrArray_2048_opaque)(v)}
 }
 func (XdrType_DbHash) XdrTypeName() string { return "DbHash" }
-func (v XdrType_DbHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+func (v XdrType_DbHash) XdrUnwrap() XdrType { return v._XdrArray_2048_opaque }
 type XdrType_DbTip = *DbTip
 func (v *DbTip) XdrPointer() interface{} { return v }
 func (DbTip) XdrTypeName() string { return "DbTip" }
