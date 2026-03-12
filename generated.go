@@ -327,12 +327,28 @@ type DBAuthResult struct {
 	_u interface{}
 }
 
+type DBAuthIntroOutcome int32
+const (
+	KIntroSuccess DBAuthIntroOutcome = 0
+	KIntroFailure DBAuthIntroOutcome = 1
+)
+
+type DBAuthIntroResult struct {
+	// The union discriminant Outcome selects among the following arms:
+	//   KIntroSuccess:
+	//      Current_height() *BlockHeight
+	//   default:
+	//      void
+	Outcome DBAuthIntroOutcome
+	_u interface{}
+}
+
 type DBAuthResultBatch = []DBAuthResult
 
 type DBAuth1 interface {
 	Authdb_get_auth_data(context.Context, BlockHeight, ContractAddress) (DBAuthResult, error)
 	Authdb_get_auth_data_batch(context.Context, BlockHeight, ContractAddressBatch) (DBAuthResultBatch, error)
-	Dbauth_intro(context.Context, AuthCard) (bool, error)
+	Dbauth_intro(context.Context, AuthCard) (DBAuthIntroResult, error)
 }
 
 type IntroAuthOutcome int32
@@ -4774,6 +4790,110 @@ func (u *DBAuthResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_DBAuthResult(v *DBAuthResult) *DBAuthResult { return v}
+var _XdrNames_DBAuthIntroOutcome = map[int32]string{
+	int32(KIntroSuccess): "kIntroSuccess",
+	int32(KIntroFailure): "kIntroFailure",
+}
+var _XdrValues_DBAuthIntroOutcome = map[string]int32{
+	"kIntroSuccess": int32(KIntroSuccess),
+	"kIntroFailure": int32(KIntroFailure),
+}
+func (DBAuthIntroOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_DBAuthIntroOutcome
+}
+func (v DBAuthIntroOutcome) String() string {
+	if s, ok := _XdrNames_DBAuthIntroOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("DBAuthIntroOutcome#%d", v)
+}
+func (v *DBAuthIntroOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_DBAuthIntroOutcome[stok]; ok {
+			*v = DBAuthIntroOutcome(val)
+			return nil
+		} else if stok == "DBAuthIntroOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid DBAuthIntroOutcome.", stok))
+	}
+}
+func (v DBAuthIntroOutcome) GetU32() uint32 { return uint32(v) }
+func (v *DBAuthIntroOutcome) SetU32(n uint32) { *v = DBAuthIntroOutcome(n) }
+func (v *DBAuthIntroOutcome) XdrPointer() interface{} { return v }
+func (DBAuthIntroOutcome) XdrTypeName() string { return "DBAuthIntroOutcome" }
+func (v DBAuthIntroOutcome) XdrValue() interface{} { return v }
+func (v *DBAuthIntroOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_DBAuthIntroOutcome = *DBAuthIntroOutcome
+func XDR_DBAuthIntroOutcome(v *DBAuthIntroOutcome) *DBAuthIntroOutcome { return v }
+func (_ DBAuthIntroResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *DBAuthIntroResult) Current_height() *BlockHeight {
+	switch u.Outcome {
+	case KIntroSuccess:
+		if v, ok := u._u.(*BlockHeight); ok {
+			return v
+		} else {
+			var zero BlockHeight
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("DBAuthIntroResult.Current_height accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u DBAuthIntroResult) XdrValid() bool {
+	return true
+}
+func (u *DBAuthIntroResult) XdrUnionTag() XdrNum32 {
+	return XDR_DBAuthIntroOutcome(&u.Outcome)
+}
+func (u *DBAuthIntroResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *DBAuthIntroResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case KIntroSuccess:
+		return XDR_BlockHeight(u.Current_height())
+	default:
+		return nil
+	}
+}
+func (u *DBAuthIntroResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case KIntroSuccess:
+		return "Current_height"
+	default:
+		return ""
+	}
+}
+type XdrType_DBAuthIntroResult = *DBAuthIntroResult
+func (v *DBAuthIntroResult) XdrPointer() interface{} { return v }
+func (DBAuthIntroResult) XdrTypeName() string { return "DBAuthIntroResult" }
+func (v DBAuthIntroResult) XdrValue() interface{} { return v }
+func (v *DBAuthIntroResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *DBAuthIntroResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_DBAuthIntroOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case KIntroSuccess:
+		x.Marshal(x.Sprintf("%scurrent_height", name), XDR_BlockHeight(u.Current_height()))
+		return
+	default:
+		return
+	}
+}
+func XDR_DBAuthIntroResult(v *DBAuthIntroResult) *DBAuthIntroResult { return v}
 type _XdrVec_unbounded_DBAuthResult []DBAuthResult
 func (_XdrVec_unbounded_DBAuthResult) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -4974,7 +5094,7 @@ var _ XdrSrvProc = &xdrSrvProc_Authdb_get_auth_data_batch{} // XXX
 
 type xdrProc_Dbauth_intro struct {
 	Arg *AuthCard
-	Res *bool
+	Res *DBAuthIntroResult
 }
 func (xdrProc_Dbauth_intro) Prog() uint32 { return 2326297257 }
 func (xdrProc_Dbauth_intro) Vers() uint32 { return 1 }
@@ -4990,9 +5110,9 @@ func (p *xdrProc_Dbauth_intro) GetArg() XdrType {
 }
 func (p *xdrProc_Dbauth_intro) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(bool)
+		p.Res = new(DBAuthIntroResult)
 	}
-	return XDR_bool(p.Res)
+	return XDR_DBAuthIntroResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Dbauth_intro{} // XXX
 
@@ -5083,7 +5203,7 @@ func (c DBAuth1_Client) Authdb_get_auth_data_batch(ctx context.Context, a1 Block
 	}
 	return *proc.Res, nil
 }
-func (c DBAuth1_Client) Dbauth_intro(ctx context.Context, a1 AuthCard) (r bool, _ error) {
+func (c DBAuth1_Client) Dbauth_intro(ctx context.Context, a1 AuthCard) (r DBAuthIntroResult, _ error) {
 	var proc xdrProc_Dbauth_intro
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
