@@ -1154,9 +1154,9 @@ type ExecValidateBatchResult = []ExecResult
 type ExecutorSched1 interface {
 	Executorsched_null(context.Context, ) error
 	Executorsched_ready(context.Context, ) (ExecResult, error)
-	Executorsched_propose_transaction(context.Context, BlockID, SignedTransaction) (ExecProposeResult, error)
+	Executorsched_propose_transaction(context.Context, BlockID, Transaction) (ExecProposeResult, error)
 	Executorsched_validate_transaction(context.Context, BlockID, ProposedTransaction) (ExecResult, error)
-	Executorsched_propose_batch(context.Context, BlockID, SignedTransactionBatch) (ExecProposeBatchResult, error)
+	Executorsched_propose_batch(context.Context, BlockID, TransactionBatch) (ExecProposeBatchResult, error)
 	Executorsched_validate_batch(context.Context, BlockID, ProposedTransactionBatch) (ExecValidateBatchResult, error)
 	Executorsched_open_proposal_block(context.Context, BlockID) (ExecResult, error)
 	Executorsched_open_validation_block(context.Context, BlockID) (ExecResult, error)
@@ -3211,6 +3211,9 @@ type SignedTransaction struct {
 	Signatures []DecoratedSignature
 }
 
+/// A batch of transactions (without signatures).
+type TransactionBatch = []Transaction
+
 /// A batch of signed transactions.
 type SignedTransactionBatch = []SignedTransaction
 
@@ -3378,7 +3381,7 @@ type ExtensionPoint struct {
 type SHA256Hash = [32]byte
 
 /// Hash of the groundhog database contents.
-/// Format is a 2048-bit LtHash16 hash.
+/// Format is a 2048-byte LtHash16 hash.
 type DbHash = [2048]byte
 
 /// Hash of a groundhog block of transactions
@@ -12065,7 +12068,7 @@ var _ XdrSrvProc = &xdrSrvProc_Executorsched_ready{} // XXX
 
 type xdrProcArg_Executorsched_propose_transaction struct {
 	a1 *BlockID
-	a2 *SignedTransaction
+	a2 *Transaction
 }
 func (v *xdrProcArg_Executorsched_propose_transaction) XdrPointer() interface{} { return v }
 func (xdrProcArg_Executorsched_propose_transaction) XdrTypeName() string { return "xdrProcArg_Executorsched_propose_transaction" }
@@ -12077,8 +12080,8 @@ func (v *xdrProcArg_Executorsched_propose_transaction) XdrRecurse(x XDR, name st
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(SignedTransaction) }
-	XDR_SignedTransaction(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(Transaction) }
+	XDR_Transaction(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Executorsched_propose_transaction(v *xdrProcArg_Executorsched_propose_transaction) *xdrProcArg_Executorsched_propose_transaction { return v }
 var _ XdrType = &xdrProcArg_Executorsched_propose_transaction{} // XXX
@@ -12199,7 +12202,7 @@ var _ XdrSrvProc = &xdrSrvProc_Executorsched_validate_transaction{} // XXX
 
 type xdrProcArg_Executorsched_propose_batch struct {
 	a1 *BlockID
-	a2 *SignedTransactionBatch
+	a2 *TransactionBatch
 }
 func (v *xdrProcArg_Executorsched_propose_batch) XdrPointer() interface{} { return v }
 func (xdrProcArg_Executorsched_propose_batch) XdrTypeName() string { return "xdrProcArg_Executorsched_propose_batch" }
@@ -12211,8 +12214,8 @@ func (v *xdrProcArg_Executorsched_propose_batch) XdrRecurse(x XDR, name string) 
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(SignedTransactionBatch) }
-	XDR_SignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(TransactionBatch) }
+	XDR_TransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Executorsched_propose_batch(v *xdrProcArg_Executorsched_propose_batch) *xdrProcArg_Executorsched_propose_batch { return v }
 var _ XdrType = &xdrProcArg_Executorsched_propose_batch{} // XXX
@@ -12603,7 +12606,7 @@ func (c ExecutorSched1_Client) Executorsched_ready(ctx context.Context, ) (r Exe
 	}
 	return *proc.Res, nil
 }
-func (c ExecutorSched1_Client) Executorsched_propose_transaction(ctx context.Context, a1 BlockID, a2 SignedTransaction) (r ExecProposeResult, _ error) {
+func (c ExecutorSched1_Client) Executorsched_propose_transaction(ctx context.Context, a1 BlockID, a2 Transaction) (r ExecProposeResult, _ error) {
 	var proc xdrProc_Executorsched_propose_transaction
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -12623,7 +12626,7 @@ func (c ExecutorSched1_Client) Executorsched_validate_transaction(ctx context.Co
 	}
 	return *proc.Res, nil
 }
-func (c ExecutorSched1_Client) Executorsched_propose_batch(ctx context.Context, a1 BlockID, a2 SignedTransactionBatch) (r ExecProposeBatchResult, _ error) {
+func (c ExecutorSched1_Client) Executorsched_propose_batch(ctx context.Context, a1 BlockID, a2 TransactionBatch) (r ExecProposeBatchResult, _ error) {
 	var proc xdrProc_Executorsched_propose_batch
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -28439,6 +28442,69 @@ func (v *SignedTransaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%ssignatures", name), (*_XdrVec_unbounded_DecoratedSignature)(&v.Signatures))
 }
 func XDR_SignedTransaction(v *SignedTransaction) *SignedTransaction { return v }
+type _XdrVec_unbounded_Transaction []Transaction
+func (_XdrVec_unbounded_Transaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_Transaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_Transaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_Transaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_Transaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_Transaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]Transaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_Transaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_Transaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_Transaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_Transaction) XdrTypeName() string { return "Transaction<>" }
+func (v *_XdrVec_unbounded_Transaction) XdrPointer() interface{} { return (*[]Transaction)(v) }
+func (v _XdrVec_unbounded_Transaction) XdrValue() interface{} { return ([]Transaction)(v) }
+func (v *_XdrVec_unbounded_Transaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_TransactionBatch struct {
+	*_XdrVec_unbounded_Transaction
+}
+func XDR_TransactionBatch(v *TransactionBatch) XdrType_TransactionBatch {
+	return XdrType_TransactionBatch{(*_XdrVec_unbounded_Transaction)(v)}
+}
+func (XdrType_TransactionBatch) XdrTypeName() string { return "TransactionBatch" }
+func (v XdrType_TransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_Transaction }
 type XdrType_SignedTransactionBatch struct {
 	*_XdrVec_unbounded_SignedTransaction
 }
