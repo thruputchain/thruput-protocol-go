@@ -1901,6 +1901,7 @@ type BlockID = uint64
 type DbTip struct {
 	Height BlockHeight
 	Block_hash BlockHash
+	Events_hash SHA256Hash
 	Db_hash DbHash
 	Id BlockID
 }
@@ -19053,6 +19054,7 @@ func (v *DbTip) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
+	x.Marshal(x.Sprintf("%sevents_hash", name), XDR_SHA256Hash(&v.Events_hash))
 	x.Marshal(x.Sprintf("%sdb_hash", name), XDR_DbHash(&v.Db_hash))
 	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
 }
