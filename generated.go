@@ -1049,7 +1049,6 @@ type EventBlockResult struct {
 type EventSched1 interface {
 	Eventsched_null(context.Context, ) error
 	Eventsched_open_block(context.Context, BlockID) (RPCError, error)
-	Eventsched_get_block_hash(context.Context, BlockID) (EventBlockResult, error)
 	Eventsched_close_block(context.Context, BlockID, BlockHeight) (EventBlockResult, error)
 	Eventsched_abandon_block(context.Context, BlockID) (RPCError, error)
 }
@@ -11191,53 +11190,6 @@ func (p *xdrSrvProc_Eventsched_open_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Eventsched_open_block{} // XXX
 
-type xdrProc_Eventsched_get_block_hash struct {
-	Arg *BlockID
-	Res *EventBlockResult
-}
-func (xdrProc_Eventsched_get_block_hash) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched_get_block_hash) Vers() uint32 { return 1 }
-func (xdrProc_Eventsched_get_block_hash) Proc() uint32 { return 20 }
-func (xdrProc_Eventsched_get_block_hash) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched_get_block_hash) VersName() string { return "EventSched1" }
-func (xdrProc_Eventsched_get_block_hash) ProcName() string { return "eventsched_get_block_hash" }
-func (p *xdrProc_Eventsched_get_block_hash) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(BlockID)
-	}
-	return XDR_BlockID(p.Arg)
-}
-func (p *xdrProc_Eventsched_get_block_hash) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(EventBlockResult)
-	}
-	return XDR_EventBlockResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched_get_block_hash{} // XXX
-
-type xdrSrvProc_Eventsched_get_block_hash struct {
-	xdrProc_Eventsched_get_block_hash
-	Srv EventSched1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched_get_block_hash) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched_get_block_hash) Do() {
-	r, err := p.Srv.Eventsched_get_block_hash(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched_get_block_hash{} // XXX
-
 type xdrProcArg_Eventsched_close_block struct {
 	a1 *BlockID
 	a2 *BlockHeight
@@ -11359,8 +11311,6 @@ func init() {
 			return &xdrProc_Eventsched_null{}
 		case 10:
 			return &xdrProc_Eventsched_open_block{}
-		case 20:
-			return &xdrProc_Eventsched_get_block_hash{}
 		case 30:
 			return &xdrProc_Eventsched_close_block{}
 		case 40:
@@ -11383,8 +11333,6 @@ func (s EventSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Eventsched_null{ Srv: s.Srv }
 	case 10:  // eventsched_open_block
 		return &xdrSrvProc_Eventsched_open_block{ Srv: s.Srv }
-	case 20:  // eventsched_get_block_hash
-		return &xdrSrvProc_Eventsched_get_block_hash{ Srv: s.Srv }
 	case 30:  // eventsched_close_block
 		return &xdrSrvProc_Eventsched_close_block{ Srv: s.Srv }
 	case 40:  // eventsched_abandon_block
@@ -11413,14 +11361,6 @@ func (c EventSched1_Client) Eventsched_null(ctx context.Context, ) error {
 }
 func (c EventSched1_Client) Eventsched_open_block(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
 	var proc xdrProc_Eventsched_open_block
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c EventSched1_Client) Eventsched_get_block_hash(ctx context.Context, a1 BlockID) (r EventBlockResult, _ error) {
-	var proc xdrProc_Eventsched_get_block_hash
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
