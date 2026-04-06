@@ -1656,8 +1656,6 @@ type TxInfoResult struct {
 	_u interface{}
 }
 
-type IdentifiedEventBatch = []IdentifiedEvent
-
 type IndexerBlockExplorerIntroOutcome int32
 const (
 	IntroSuccess IndexerBlockExplorerIntroOutcome = 0
@@ -1667,7 +1665,6 @@ const (
 type IndexerBlockExplorer1 interface {
 	Indexer_block_explorer_intro(context.Context, Protocol) (IndexerBlockExplorerIntroOutcome, error)
 	Get_transaction_info(context.Context, SignedTransactionHash) (TxInfoResult, error)
-	Get_contract_events(context.Context, ContractAddress, BlockHeight, BlockHeight) (IdentifiedEventBatch, error)
 }
 
 type TxEventLogBatch = []TxEventLog
@@ -17018,69 +17015,6 @@ func (u *TxInfoResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_TxInfoResult(v *TxInfoResult) *TxInfoResult { return v}
-type _XdrVec_unbounded_IdentifiedEvent []IdentifiedEvent
-func (_XdrVec_unbounded_IdentifiedEvent) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_IdentifiedEvent) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_IdentifiedEvent length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_IdentifiedEvent length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_IdentifiedEvent) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_IdentifiedEvent) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]IdentifiedEvent, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_IdentifiedEvent) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_IdentifiedEvent(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_IdentifiedEvent) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_IdentifiedEvent) XdrTypeName() string { return "IdentifiedEvent<>" }
-func (v *_XdrVec_unbounded_IdentifiedEvent) XdrPointer() interface{} { return (*[]IdentifiedEvent)(v) }
-func (v _XdrVec_unbounded_IdentifiedEvent) XdrValue() interface{} { return ([]IdentifiedEvent)(v) }
-func (v *_XdrVec_unbounded_IdentifiedEvent) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_IdentifiedEventBatch struct {
-	*_XdrVec_unbounded_IdentifiedEvent
-}
-func XDR_IdentifiedEventBatch(v *IdentifiedEventBatch) XdrType_IdentifiedEventBatch {
-	return XdrType_IdentifiedEventBatch{(*_XdrVec_unbounded_IdentifiedEvent)(v)}
-}
-func (XdrType_IdentifiedEventBatch) XdrTypeName() string { return "IdentifiedEventBatch" }
-func (v XdrType_IdentifiedEventBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_IdentifiedEvent }
 var _XdrNames_IndexerBlockExplorerIntroOutcome = map[int32]string{
 	int32(IntroSuccess): "IntroSuccess",
 	int32(IntroMismatchedProtocol): "IntroMismatchedProtocol",
@@ -17218,76 +17152,6 @@ func (p *xdrSrvProc_Get_transaction_info) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_transaction_info{} // XXX
 
-type xdrProcArg_Get_contract_events struct {
-	a1 *ContractAddress
-	a2 *BlockHeight
-	a3 *BlockHeight
-}
-func (v *xdrProcArg_Get_contract_events) XdrPointer() interface{} { return v }
-func (xdrProcArg_Get_contract_events) XdrTypeName() string { return "xdrProcArg_Get_contract_events" }
-func (v xdrProcArg_Get_contract_events) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Get_contract_events) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Get_contract_events) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(ContractAddress) }
-	XDR_ContractAddress(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(BlockHeight) }
-	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(BlockHeight) }
-	XDR_BlockHeight(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
-}
-func XDR_xdrProcArg_Get_contract_events(v *xdrProcArg_Get_contract_events) *xdrProcArg_Get_contract_events { return v }
-var _ XdrType = &xdrProcArg_Get_contract_events{} // XXX
-
-type xdrProc_Get_contract_events struct {
-	Arg *xdrProcArg_Get_contract_events
-	Res *IdentifiedEventBatch
-}
-func (xdrProc_Get_contract_events) Prog() uint32 { return 1126279850 }
-func (xdrProc_Get_contract_events) Vers() uint32 { return 1 }
-func (xdrProc_Get_contract_events) Proc() uint32 { return 2 }
-func (xdrProc_Get_contract_events) ProgName() string { return "IndexerBlockExplorer" }
-func (xdrProc_Get_contract_events) VersName() string { return "IndexerBlockExplorer1" }
-func (xdrProc_Get_contract_events) ProcName() string { return "get_contract_events" }
-func (p *xdrProc_Get_contract_events) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Get_contract_events)
-	}
-	return XDR_xdrProcArg_Get_contract_events(p.Arg)
-}
-func (p *xdrProc_Get_contract_events) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(IdentifiedEventBatch)
-	}
-	return XDR_IdentifiedEventBatch(p.Res)
-}
-var _ XdrProc = &xdrProc_Get_contract_events{} // XXX
-
-type xdrSrvProc_Get_contract_events struct {
-	xdrProc_Get_contract_events
-	Srv IndexerBlockExplorer1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Get_contract_events) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) IndexerBlockExplorer1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Get_contract_events) Do() {
-	r, err := p.Srv.Get_contract_events(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Get_contract_events{} // XXX
-
 func init() {
 	XdrCatalog[1126279850<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -17295,8 +17159,6 @@ func init() {
 			return &xdrProc_Indexer_block_explorer_intro{}
 		case 1:
 			return &xdrProc_Get_transaction_info{}
-		case 2:
-			return &xdrProc_Get_contract_events{}
 		}
 		return nil
 	}
@@ -17315,8 +17177,6 @@ func (s IndexerBlockExplorer1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Indexer_block_explorer_intro{ Srv: s.Srv }
 	case 1:  // get_transaction_info
 		return &xdrSrvProc_Get_transaction_info{ Srv: s.Srv }
-	case 2:  // get_contract_events
-		return &xdrSrvProc_Get_contract_events{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -17343,17 +17203,6 @@ func (c IndexerBlockExplorer1_Client) Indexer_block_explorer_intro(ctx context.C
 func (c IndexerBlockExplorer1_Client) Get_transaction_info(ctx context.Context, a1 SignedTransactionHash) (r TxInfoResult, _ error) {
 	var proc xdrProc_Get_transaction_info
 	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c IndexerBlockExplorer1_Client) Get_contract_events(ctx context.Context, a1 ContractAddress, a2 BlockHeight, a3 BlockHeight) (r IdentifiedEventBatch, _ error) {
-	var proc xdrProc_Get_contract_events
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
