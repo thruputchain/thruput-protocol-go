@@ -1063,6 +1063,7 @@ type TxEmittedEvent struct {
 type TxEventLog struct {
 	// sha256(ProposedTransaction)
 	Proposed_tx_hash SHA256Hash
+	Exec_result ExecResult
 	Events []TxEmittedEvent
 }
 
@@ -1076,6 +1077,7 @@ type TxEventLog struct {
 type IdentifiedEvent struct {
 	// sha256(ProposedTransaction)
 	Proposed_tx_hash SHA256Hash
+	Block_height BlockHeight
 	// uniquifies the event
 	Sequence_number uint32
 	Emitted_event TxEmittedEvent
@@ -2275,6 +2277,7 @@ type SchedulerCoord1 interface {
 	Schedcoord_get_tip(context.Context, ) (SchedulerGetTipResult, error)
 	Schedcoord_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
 	Schedcoord_lookup_transactions(context.Context, SignedTransactionHashBatch) (OptSignedTransactionBatch, error)
+	Schedcoord_pending_transaction_count(context.Context, ) (BlockHeight, error)
 }
 
 // ShardCard uniquely describes a database shard instance and its initial
@@ -10838,6 +10841,7 @@ func (v *TxEventLog) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sproposed_tx_hash", name), XDR_SHA256Hash(&v.Proposed_tx_hash))
+	x.Marshal(x.Sprintf("%sexec_result", name), XDR_ExecResult(&v.Exec_result))
 	x.Marshal(x.Sprintf("%sevents", name), (*_XdrVec_unbounded_TxEmittedEvent)(&v.Events))
 }
 func XDR_TxEventLog(v *TxEventLog) *TxEventLog { return v }
@@ -10851,6 +10855,7 @@ func (v *IdentifiedEvent) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sproposed_tx_hash", name), XDR_SHA256Hash(&v.Proposed_tx_hash))
+	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%ssequence_number", name), XDR_uint32(&v.Sequence_number))
 	x.Marshal(x.Sprintf("%semitted_event", name), XDR_TxEmittedEvent(&v.Emitted_event))
 }
@@ -21809,6 +21814,53 @@ func (p *xdrSrvProc_Schedcoord_lookup_transactions) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedcoord_lookup_transactions{} // XXX
 
+type xdrProc_Schedcoord_pending_transaction_count struct {
+	Arg *XdrVoid
+	Res *BlockHeight
+}
+func (xdrProc_Schedcoord_pending_transaction_count) Prog() uint32 { return 1986466065 }
+func (xdrProc_Schedcoord_pending_transaction_count) Vers() uint32 { return 1 }
+func (xdrProc_Schedcoord_pending_transaction_count) Proc() uint32 { return 101 }
+func (xdrProc_Schedcoord_pending_transaction_count) ProgName() string { return "SchedulerCoord" }
+func (xdrProc_Schedcoord_pending_transaction_count) VersName() string { return "SchedulerCoord1" }
+func (xdrProc_Schedcoord_pending_transaction_count) ProcName() string { return "schedcoord_pending_transaction_count" }
+func (p *xdrProc_Schedcoord_pending_transaction_count) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Arg)
+}
+func (p *xdrProc_Schedcoord_pending_transaction_count) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(BlockHeight)
+	}
+	return XDR_BlockHeight(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedcoord_pending_transaction_count{} // XXX
+
+type xdrSrvProc_Schedcoord_pending_transaction_count struct {
+	xdrProc_Schedcoord_pending_transaction_count
+	Srv SchedulerCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedcoord_pending_transaction_count) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedulerCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedcoord_pending_transaction_count) Do() {
+	r, err := p.Srv.Schedcoord_pending_transaction_count(p.Ctx, )
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedcoord_pending_transaction_count{} // XXX
+
 func init() {
 	XdrCatalog[1986466065<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -21832,6 +21884,8 @@ func init() {
 			return &xdrProc_Schedcoord_load_genesis_configuration{}
 		case 100:
 			return &xdrProc_Schedcoord_lookup_transactions{}
+		case 101:
+			return &xdrProc_Schedcoord_pending_transaction_count{}
 		}
 		return nil
 	}
@@ -21866,6 +21920,8 @@ func (s SchedulerCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedcoord_load_genesis_configuration{ Srv: s.Srv }
 	case 100:  // schedcoord_lookup_transactions
 		return &xdrSrvProc_Schedcoord_lookup_transactions{ Srv: s.Srv }
+	case 101:  // schedcoord_pending_transaction_count
+		return &xdrSrvProc_Schedcoord_pending_transaction_count{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -21958,6 +22014,13 @@ func (c SchedulerCoord1_Client) Schedcoord_load_genesis_configuration(ctx contex
 func (c SchedulerCoord1_Client) Schedcoord_lookup_transactions(ctx context.Context, a1 SignedTransactionHashBatch) (r OptSignedTransactionBatch, _ error) {
 	var proc xdrProc_Schedcoord_lookup_transactions
 	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c SchedulerCoord1_Client) Schedcoord_pending_transaction_count(ctx context.Context, ) (r BlockHeight, _ error) {
+	var proc xdrProc_Schedcoord_pending_transaction_count
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
