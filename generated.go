@@ -1830,6 +1830,7 @@ const (
 
 type MissingTransactions struct {
 	Transaction_hashes []SignedTransactionHash
+	Height BlockHeight
 	Cv_hash ConsensusValueHash
 	Block_hash BlockHash
 }
@@ -18668,6 +18669,7 @@ func (v *MissingTransactions) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Transaction_hashes))
+	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
 	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusValueHash(&v.Cv_hash))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 }
