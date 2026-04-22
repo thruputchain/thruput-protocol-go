@@ -470,8 +470,23 @@ type CIWorkDirStatus struct {
 	_u interface{}
 }
 
+type CIStartPaths struct {
+	Stdout_path []byte
+	Stderr_path []byte
+}
+
+type CIStartStatus struct {
+	// The union discriminant Error_code selects among the following arms:
+	//   KCIServerErrorCodeOK:
+	//      Paths() *CIStartPaths
+	//   default:
+	//      void
+	Error_code CIServerErrorCode
+	_u interface{}
+}
+
 type CIServer1 interface {
-	Ciserver_start(context.Context, HogdGitHash, ServerConfig) (CIServerErrorCode, error)
+	Ciserver_start(context.Context, HogdGitHash, ServerConfig) (CIStartStatus, error)
 	Ciserver_stop(context.Context, HogdGitHash) (CIServerErrorCode, error)
 	Ciserver_shutdown(context.Context, HogdGitHash) (CIServerErrorCode, error)
 	Ciserver_query_proc_status(context.Context, HogdGitHash) (CIProcStatus, error)
@@ -5998,6 +6013,81 @@ func (u *CIWorkDirStatus) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_CIWorkDirStatus(v *CIWorkDirStatus) *CIWorkDirStatus { return v}
+type XdrType_CIStartPaths = *CIStartPaths
+func (v *CIStartPaths) XdrPointer() interface{} { return v }
+func (CIStartPaths) XdrTypeName() string { return "CIStartPaths" }
+func (v CIStartPaths) XdrValue() interface{} { return v }
+func (v *CIStartPaths) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *CIStartPaths) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sstdout_path", name), XdrVecOpaque{&v.Stdout_path, 0xffffffff})
+	x.Marshal(x.Sprintf("%sstderr_path", name), XdrVecOpaque{&v.Stderr_path, 0xffffffff})
+}
+func XDR_CIStartPaths(v *CIStartPaths) *CIStartPaths { return v }
+func (_ CIStartStatus) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *CIStartStatus) Paths() *CIStartPaths {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		if v, ok := u._u.(*CIStartPaths); ok {
+			return v
+		} else {
+			var zero CIStartPaths
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("CIStartStatus.Paths accessed when Error_code == %v", u.Error_code)
+		return nil
+	}
+}
+func (u CIStartStatus) XdrValid() bool {
+	return true
+}
+func (u *CIStartStatus) XdrUnionTag() XdrNum32 {
+	return XDR_CIServerErrorCode(&u.Error_code)
+}
+func (u *CIStartStatus) XdrUnionTagName() string {
+	return "Error_code"
+}
+func (u *CIStartStatus) XdrUnionBody() XdrType {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		return XDR_CIStartPaths(u.Paths())
+	default:
+		return nil
+	}
+}
+func (u *CIStartStatus) XdrUnionBodyName() string {
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		return "Paths"
+	default:
+		return ""
+	}
+}
+type XdrType_CIStartStatus = *CIStartStatus
+func (v *CIStartStatus) XdrPointer() interface{} { return v }
+func (CIStartStatus) XdrTypeName() string { return "CIStartStatus" }
+func (v CIStartStatus) XdrValue() interface{} { return v }
+func (v *CIStartStatus) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *CIStartStatus) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_CIServerErrorCode(&u.Error_code).XdrMarshal(x, x.Sprintf("%serror_code", name))
+	switch u.Error_code {
+	case KCIServerErrorCodeOK:
+		x.Marshal(x.Sprintf("%spaths", name), XDR_CIStartPaths(u.Paths()))
+		return
+	default:
+		return
+	}
+}
+func XDR_CIStartStatus(v *CIStartStatus) *CIStartStatus { return v}
 
 type xdrProcArg_Ciserver_start struct {
 	a1 *HogdGitHash
@@ -6021,7 +6111,7 @@ var _ XdrType = &xdrProcArg_Ciserver_start{} // XXX
 
 type xdrProc_Ciserver_start struct {
 	Arg *xdrProcArg_Ciserver_start
-	Res *CIServerErrorCode
+	Res *CIStartStatus
 }
 func (xdrProc_Ciserver_start) Prog() uint32 { return 286357096 }
 func (xdrProc_Ciserver_start) Vers() uint32 { return 1 }
@@ -6037,9 +6127,9 @@ func (p *xdrProc_Ciserver_start) GetArg() XdrType {
 }
 func (p *xdrProc_Ciserver_start) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(CIServerErrorCode)
+		p.Res = new(CIStartStatus)
 	}
-	return XDR_CIServerErrorCode(p.Res)
+	return XDR_CIStartStatus(p.Res)
 }
 var _ XdrProc = &xdrProc_Ciserver_start{} // XXX
 
@@ -6357,7 +6447,7 @@ func (c CIServer1_Client) WithContext(ctx context.Context) CIServer1 {
 	c.Ctx = ctx
 	return c
 }
-func (c CIServer1_Client) Ciserver_start(ctx context.Context, a1 HogdGitHash, a2 ServerConfig) (r CIServerErrorCode, _ error) {
+func (c CIServer1_Client) Ciserver_start(ctx context.Context, a1 HogdGitHash, a2 ServerConfig) (r CIStartStatus, _ error) {
 	var proc xdrProc_Ciserver_start
 	proc.GetArg()
 	proc.Arg.a1 = &a1
