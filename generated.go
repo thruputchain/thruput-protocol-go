@@ -1878,6 +1878,10 @@ const KCoordinatorMaxBytesSCPEnvelopeMessage = 5_000_000
 /// before submitting them to the mempool without violating kMempoolCoordinatorRpcMaxBytes.
 const KMaxBytesSignedTransaction = 2_000_000
 
+/// kRPCFrameMaxBytes is an over-estimate of the maximum RPC frame size, used by the coordinator
+/// to make sure it does not overflow the mempool's max RPC message size.
+const KRPCFrameMaxBytes = 10_000
+
 type ExperimentType int32
 const (
 	KExperimentTypeERC20Payments ExperimentType = 0
