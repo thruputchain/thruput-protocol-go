@@ -1872,6 +1872,12 @@ const KCoordinatorMaxBytesCVMessage = 70_000_000
 /// maximum message size to accommodate for RPC framing.
 const KCoordinatorMaxBytesSCPEnvelopeMessage = 5_000_000
 
+/// kMaxBytesSignedTransaction is a currently assumed (but not enforced) bound on the
+/// maximum size of a signed transaction submitted through the wallet.
+/// This bound is used by the coordinator to calculate how many unvetted transactions it can buffer
+/// before submitting them to the mempool without violating kMempoolCoordinatorRpcMaxBytes.
+const KMaxBytesSignedTransaction = 2_000_000
+
 type ExperimentType int32
 const (
 	KExperimentTypeERC20Payments ExperimentType = 0
