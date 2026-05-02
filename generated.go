@@ -32,29 +32,6 @@ type PublicKeyConfig struct {
 /// A null value indicates that key slot is unoccupied.
 type PublicKeyConfigOpt = *PublicKeyConfig
 
-/// Configuration for gas sponsorship permissions.
-///
-/// Allows an address to grant specific keys permission to spend gas
-/// on behalf of the address, with configurable limits and multi-sig requirements.
-type GasPermissionConfig struct {
-	/// Maximum amount of gas that can be spent under this permission.
-	Limit GasAmount
-	/// Bitmap of keys that are acceptable for this gas permission.
-	Accepted_keys BitMap
-	/// Total weight required from the accepted keys to use this permission.
-	Required_weight Weight
-}
-
-/// Configuration for transaction nonce management.
-///
-/// Specifies which keys can increment the nonce and what weight is required.
-type NonceConfig struct {
-	/// Bitmap of keys that can contribute to nonce operations.
-	Accepted_keys BitMap
-	/// Total weight required to increment the nonce.
-	Required_weight Weight
-}
-
 /// Default required weight for a newly initialized address.
 ///
 /// When an address is first created (e.g., from a public key hash),
@@ -76,8 +53,7 @@ const KDefaultNewAddressKeyID = 0
 /// This struct stores all the information needed to verify transactions
 /// originating from an address:
 /// - The set of public keys and their weights
-/// - Gas sponsorship permissions
-/// - Nonce management rules
+/// - The minimum weight threshold required to authorize a transaction
 ///
 /// When a transaction is submitted, its `AuthClaims` are verified against
 /// this data to determine if the transaction is properly authorized.
@@ -95,12 +71,9 @@ type AddressAuthData struct {
 	///
 	/// Null entries indicate unoccupied key slots.
 	Public_keys [KMaxSigners]PublicKeyConfigOpt
-	/// Gas permission configurations.
-	///
-	/// Allows separation of concerns (e.g., sponsored gas vs contract owner management).
-	Gas_permissions []GasPermissionConfig // bound KMaxGasConfigs
-	/// Configuration for nonce management.
-	Nonce_config NonceConfig
+	/// The minimum total weight required from signing keys to authorize
+	/// a transaction from this address.
+	Required_weight Weight
 	/// The block height at which this auth data was last modified.
 	///
 	/// # TODO
@@ -141,46 +114,18 @@ type KeyID = uint32
 /// Must be <= 31 to fit in the `BitMap` representation.
 const KMaxSigners = 21
 
-/// Maximum number of gas permission configurations per address.
-///
-/// Multiple configs allow separation of concerns (e.g., sponsored gas vs
-/// contract owner management operations).
-const KMaxGasConfigs = 5
-
-/// Maximum number of auth claims allowed in a single transaction.
-///
-/// This limits the verification complexity of a transaction.
-const KMaxAuthClaims = 10
-
 /// Discriminator for the different types of authorization claims.
-///
-/// Claims are categorized by:
-/// 1. Whether they reference the invoked contract or another contract
-/// 2. Whether they require a single signature or weighted multi-sig
 type AuthClaimType int32
 const (
-	/// Requires a signature from a specific key on the invoked contract address.
+	/// Requires a set of signatures from the source address's auth data.
+	/// The runtime checks whether there are sufficient signatures associated with the address
+	/// to satisfy the address auth data's required weight.
+	// TODO(geoff): consider surfacing the data about which keys signed in a syscall.
+	KSourceAddressAuthData AuthClaimType = 0
+	/// Requires a signature from a specific public key.
 	///
-	/// This is the simplest and most common authorization pattern.
-	KInvokedAddressSignature AuthClaimType = 0
-	/// Requires a weighted threshold of signatures from the invoked contract.
-	///
-	/// The bitmap specifies which keys are acceptable, and signatures are
-	/// accumulated until the `required_weight` threshold is met.
-	KInvokedAddressSignedWeight AuthClaimType = 1
-	/// Requires a signature from a specific key on a different contract address.
-	///
-	/// Used for cross-contract authorization (e.g., a contract authorizing
-	/// operations on behalf of another contract).
-	KOtherAddressSignature AuthClaimType = 2
-	/// Requires a weighted threshold of signatures from a different contract.
-	///
-	/// Combines cross-contract auth with multi-signature requirements.
-	KOtherAddressSignedWeight AuthClaimType = 3
-	/// Requires a signature from a specific key
-	///
-	/// XXX
-	KPubkeySignature AuthClaimType = 4
+	/// Used for accounts identified by a pubkey preimage (pubkey + nonce).
+	KPubkeySignature AuthClaimType = 1
 )
 
 type PubkeyAccountPreimage struct {
@@ -190,57 +135,21 @@ type PubkeyAccountPreimage struct {
 
 /// An authorization claim specifying what signatures are needed to authorize
 /// a transaction.
-///
-/// Each transaction includes one or more auth claims. During verification,
-/// the signatures in the `SignedTransaction` are matched against these claims
-/// to determine if the transaction is properly authorized.
-///
-/// The four variants support different authorization patterns:
-/// - Single key from invoked contract (most common)
-/// - Multi-sig from invoked contract (for high-security operations)
-/// - Single key from other contract (for delegation)
-/// - Multi-sig from other contract (for complex delegated operations)
 type AuthClaim struct {
 	// The union discriminant Claim_type selects among the following arms:
-	//   KInvokedAddressSignature:
-	//      Invoked_address_signature_id() *KeyID
-	//   KInvokedAddressSignedWeight:
-	//      Invoked_address_signed_weight() *XdrAnon_AuthClaim_Invoked_address_signed_weight
-	//   KOtherAddressSignature:
-	//      Other_address_signature_id() *XdrAnon_AuthClaim_Other_address_signature_id
-	//   KOtherAddressSignedWeight:
-	//      Other_address_signed_weight() *XdrAnon_AuthClaim_Other_address_signed_weight
+	//   KSourceAddressAuthData:
+	//      Source_address_claim() *XdrAnon_AuthClaim_Source_address_claim
 	//   KPubkeySignature:
 	//      Pubkey_preimage() *PubkeyAccountPreimage
 	Claim_type AuthClaimType
 	_u interface{}
 }
-type XdrAnon_AuthClaim_Invoked_address_signed_weight struct {
-	/// Bitmap of acceptable keys (bit `i` = 1 means key `i` can contribute).
-	Accepted_keys BitMap
-	/// Total weight required from the accepted keys' signatures.
+/// The transaction is signed by the keys in the source address's auth data.
+/// The bitmap specifies which are allowed to be used to sign the transaction.
+type XdrAnon_AuthClaim_Source_address_claim struct {
+	Allowed_keys BitMap
 	Required_weight Weight
 }
-type XdrAnon_AuthClaim_Other_address_signature_id struct {
-	/// The contract address whose key must sign.
-	Address ContractAddress
-	/// The ID of the key from that address's key set.
-	Key_id KeyID
-}
-type XdrAnon_AuthClaim_Other_address_signed_weight struct {
-	/// The contract address whose keys must sign.
-	Address ContractAddress
-	/// Bitmap of acceptable keys from that address's key set.
-	Accepted_keys BitMap
-	/// Total weight required from the accepted keys' signatures.
-	Required_weight Weight
-}
-
-/// A list of auth claims for a transaction.
-///
-/// Each transaction must include at least one auth claim to be valid.
-/// The list is bounded by `kMaxAuthClaims` to limit verification complexity.
-type AuthClaimData = []AuthClaim // bound KMaxAuthClaims
 
 /// Error codes returned when verifying authorization on a SignedTransaction.
 ///
@@ -258,8 +167,6 @@ const (
 	/// Transactions with this error should never be flooded over the network
 	/// as they are structurally invalid. Examples include:
 	/// - Public key IDs that are out of bounds
-	/// - Invalid bitmaps (bits set beyond kMaxSigners)
-	/// - Mismatched signature counts
 	KAuthMalformed AuthVerifyErrorCode = 1
 	/// Cryptographic signature verification failed.
 	///
@@ -273,7 +180,6 @@ const (
 	/// that do not exist or do not satisfy the requirements. Examples include:
 	/// - Referencing a public key ID that doesn't exist in the auth data
 	/// - Failing to meet required weight thresholds
-	/// - Insufficient gas permissions for the claimed sponsorship
 	KAuthDataMismatch AuthVerifyErrorCode = 3
 )
 
@@ -1215,8 +1121,8 @@ const (
 	// Transactions with this error code should not be included in a proposal,
 	// and indicate a block validation failure.
 	ExecResultTxNonDeterministicError ExecResult = 3
-	// One or more [GasClaim]s in the transaction were not validated with a
-	// corresponding [sponsor_gas()] system call in a contract.
+	// No longer used. Previously indicated that gas sponsorship claims were
+	// not validated. Retained to avoid renumbering enum values.
 	ExecResultFailedGasSponsorship ExecResult = 100
 	// Validation on the transaction has failed because the attached validation
 	// data is bad. E.g. missing data or unused data. This error code is only
@@ -2876,14 +2782,9 @@ type AuthDataChangeSigner struct {
 	Public_key PublicKeyConfigOpt
 }
 
-type GasConfigChange struct {
-	New_gas_permission_configs []GasPermissionConfig // bound KMaxGasConfigs
-}
-
 type AuthDataChangeArgs struct {
 	Auth_data_change_signers []AuthDataChangeSigner
-	New_nonce_config *NonceConfig
-	New_gas_config_change *GasConfigChange
+	New_required_weight *Weight
 }
 
 type NonnegativeInt128SetAddArgs struct {
@@ -3120,23 +3021,6 @@ const KMaxReturnBufferLen = 1024
 /// SDK default uses XDR serialization per RFC 4506 (<https://datatracker.ietf.org/doc/html/rfc4506>).
 type ReturnBuffer = []byte // bound KMaxReturnBufferLen
 
-/// A claim that gas should be sponsored for a specific contract.
-///
-/// Gas claims allow one contract to pay for the gas costs of another contract's
-/// execution. The transaction will fail if the gas claim is not covered during
-/// execution by the appropriate authorization.
-///
-/// TODO(geoff): Update this documentation once gas sponsorship syscalls are finalized.
-/// Current plan: Add a syscall that lets a contract declare "I am willing to
-/// sponsor X units of gas". The transaction will fail if there's a gas claim
-/// that isn't covered during execution by such a declaration.
-type GasClaim struct {
-	/// The contract address whose gas costs are being sponsored.
-	Sponsored_contract ContractAddress
-	/// The number of gas units being sponsored for this contract.
-	Amount GasAmount
-}
-
 /// Specifies a contract method invocation with its parameters.
 ///
 /// This struct is used both for the root transaction invocation and for
@@ -3231,28 +3115,18 @@ type Transaction struct {
 	///
 	/// Deployed via the DeployContract syscall during transaction execution.
 	Contracts_to_deploy []Contract
-	/// Authorization claims specifying required signatures.
+	/// Authorization claim specifying required signatures.
 	///
-	/// See [`AuthClaimData`] in auth_claim.x for details.
-	Auth_claims AuthClaimData
-	/// Gas sponsorship claims for this transaction.
-	///
-	/// TODO(geoff): Update when gas sponsorship is finalized.
-	Gas_claims []GasClaim
+	/// See [`AuthClaim`] in auth_claim.x for details.
+	Auth_claim AuthClaim
 }
 
 /// A cryptographic signature paired with its key identifier.
-///
-/// The auth_claim_idx indicates which auth claim from a signed transaction's
-/// list of claims produced this signature.
 ///
 /// The public_key_id indicates which key from an address's key set produced
 /// this signature, allowing the signature to be matched against the transaction's
 /// auth claims.
 type DecoratedSignature struct {
-	// The index in [SignedTransaction::auth_claims] for the address that
-	// generated this signature.
-	Auth_claim_idx uint32
 	/// The KeyID of the public key that created this signature.
 	///
 	/// This is matched against the auth claims to determine if the signature
@@ -3281,7 +3155,7 @@ type SignedTransaction struct {
 	Tx Transaction
 	/// Signatures that authorize this transaction.
 	///
-	/// These signatures must satisfy the auth_claims in the transaction.
+	/// These signatures must satisfy the auth_claim in the transaction.
 	/// The signatures are over the [`Transaction`] object.
 	Signatures []DecoratedSignature
 }
@@ -3671,33 +3545,6 @@ func XDR_PublicKeyConfigOpt(v *PublicKeyConfigOpt) XdrType_PublicKeyConfigOpt {
 }
 func (XdrType_PublicKeyConfigOpt) XdrTypeName() string { return "PublicKeyConfigOpt" }
 func (v XdrType_PublicKeyConfigOpt) XdrUnwrap() XdrType { return v._XdrPtr_PublicKeyConfig }
-type XdrType_GasPermissionConfig = *GasPermissionConfig
-func (v *GasPermissionConfig) XdrPointer() interface{} { return v }
-func (GasPermissionConfig) XdrTypeName() string { return "GasPermissionConfig" }
-func (v GasPermissionConfig) XdrValue() interface{} { return v }
-func (v *GasPermissionConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *GasPermissionConfig) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%slimit", name), XDR_GasAmount(&v.Limit))
-	x.Marshal(x.Sprintf("%saccepted_keys", name), XDR_BitMap(&v.Accepted_keys))
-	x.Marshal(x.Sprintf("%srequired_weight", name), XDR_Weight(&v.Required_weight))
-}
-func XDR_GasPermissionConfig(v *GasPermissionConfig) *GasPermissionConfig { return v }
-type XdrType_NonceConfig = *NonceConfig
-func (v *NonceConfig) XdrPointer() interface{} { return v }
-func (NonceConfig) XdrTypeName() string { return "NonceConfig" }
-func (v NonceConfig) XdrValue() interface{} { return v }
-func (v *NonceConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *NonceConfig) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%saccepted_keys", name), XDR_BitMap(&v.Accepted_keys))
-	x.Marshal(x.Sprintf("%srequired_weight", name), XDR_Weight(&v.Required_weight))
-}
-func XDR_NonceConfig(v *NonceConfig) *NonceConfig { return v }
 type _XdrArray_21_PublicKeyConfigOpt [21]PublicKeyConfigOpt
 func (_XdrArray_21_PublicKeyConfigOpt) XdrArraySize() uint32 {
 	const bound uint32 = 21 // Force error if not const or doesn't fit
@@ -3712,61 +3559,6 @@ func (v *_XdrArray_21_PublicKeyConfigOpt) XdrPointer() interface{} { return (*[2
 func (_XdrArray_21_PublicKeyConfigOpt) XdrTypeName() string { return "PublicKeyConfigOpt[]" }
 func (v *_XdrArray_21_PublicKeyConfigOpt) XdrValue() interface{} { return v[:] }
 func (v *_XdrArray_21_PublicKeyConfigOpt) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type _XdrVec_5_GasPermissionConfig []GasPermissionConfig
-func (_XdrVec_5_GasPermissionConfig) XdrBound() uint32 {
-	const bound uint32 = 5 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_5_GasPermissionConfig) XdrCheckLen(length uint32) {
-	if length > uint32(5) {
-		XdrPanic("_XdrVec_5_GasPermissionConfig length %d exceeds bound 5", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_5_GasPermissionConfig length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_5_GasPermissionConfig) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_5_GasPermissionConfig) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(5); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]GasPermissionConfig, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_5_GasPermissionConfig) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_GasPermissionConfig(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_5_GasPermissionConfig) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 5 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_5_GasPermissionConfig) XdrTypeName() string { return "GasPermissionConfig<>" }
-func (v *_XdrVec_5_GasPermissionConfig) XdrPointer() interface{} { return (*[]GasPermissionConfig)(v) }
-func (v _XdrVec_5_GasPermissionConfig) XdrValue() interface{} { return ([]GasPermissionConfig)(v) }
-func (v *_XdrVec_5_GasPermissionConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_AddressAuthData = *AddressAuthData
 func (v *AddressAuthData) XdrPointer() interface{} { return v }
 func (AddressAuthData) XdrTypeName() string { return "AddressAuthData" }
@@ -3777,8 +3569,7 @@ func (v *AddressAuthData) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%spublic_keys", name), (*_XdrArray_21_PublicKeyConfigOpt)(&v.Public_keys))
-	x.Marshal(x.Sprintf("%sgas_permissions", name), (*_XdrVec_5_GasPermissionConfig)(&v.Gas_permissions))
-	x.Marshal(x.Sprintf("%snonce_config", name), XDR_NonceConfig(&v.Nonce_config))
+	x.Marshal(x.Sprintf("%srequired_weight", name), XDR_Weight(&v.Required_weight))
 	x.Marshal(x.Sprintf("%slast_written_height", name), XDR_BlockHeight(&v.Last_written_height))
 }
 func XDR_AddressAuthData(v *AddressAuthData) *AddressAuthData { return v }
@@ -3822,17 +3613,11 @@ func XDR_KeyID(v *KeyID) XdrType_KeyID {
 func (XdrType_KeyID) XdrTypeName() string { return "KeyID" }
 func (v XdrType_KeyID) XdrUnwrap() XdrType { return v.XdrType_uint32 }
 var _XdrNames_AuthClaimType = map[int32]string{
-	int32(KInvokedAddressSignature): "kInvokedAddressSignature",
-	int32(KInvokedAddressSignedWeight): "kInvokedAddressSignedWeight",
-	int32(KOtherAddressSignature): "kOtherAddressSignature",
-	int32(KOtherAddressSignedWeight): "kOtherAddressSignedWeight",
+	int32(KSourceAddressAuthData): "kSourceAddressAuthData",
 	int32(KPubkeySignature): "kPubkeySignature",
 }
 var _XdrValues_AuthClaimType = map[string]int32{
-	"kInvokedAddressSignature": int32(KInvokedAddressSignature),
-	"kInvokedAddressSignedWeight": int32(KInvokedAddressSignedWeight),
-	"kOtherAddressSignature": int32(KOtherAddressSignature),
-	"kOtherAddressSignedWeight": int32(KOtherAddressSignedWeight),
+	"kSourceAddressAuthData": int32(KSourceAddressAuthData),
 	"kPubkeySignature": int32(KPubkeySignature),
 }
 func (AuthClaimType) XdrEnumNames() map[int32]string {
@@ -3882,114 +3667,38 @@ func (v *PubkeyAccountPreimage) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snonce", name), XDR_uint64(&v.Nonce))
 }
 func XDR_PubkeyAccountPreimage(v *PubkeyAccountPreimage) *PubkeyAccountPreimage { return v }
-type XdrType_XdrAnon_AuthClaim_Invoked_address_signed_weight = *XdrAnon_AuthClaim_Invoked_address_signed_weight
-func (v *XdrAnon_AuthClaim_Invoked_address_signed_weight) XdrPointer() interface{} { return v }
-func (XdrAnon_AuthClaim_Invoked_address_signed_weight) XdrTypeName() string { return "XdrAnon_AuthClaim_Invoked_address_signed_weight" }
-func (v XdrAnon_AuthClaim_Invoked_address_signed_weight) XdrValue() interface{} { return v }
-func (v *XdrAnon_AuthClaim_Invoked_address_signed_weight) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *XdrAnon_AuthClaim_Invoked_address_signed_weight) XdrRecurse(x XDR, name string) {
+type XdrType_XdrAnon_AuthClaim_Source_address_claim = *XdrAnon_AuthClaim_Source_address_claim
+func (v *XdrAnon_AuthClaim_Source_address_claim) XdrPointer() interface{} { return v }
+func (XdrAnon_AuthClaim_Source_address_claim) XdrTypeName() string { return "XdrAnon_AuthClaim_Source_address_claim" }
+func (v XdrAnon_AuthClaim_Source_address_claim) XdrValue() interface{} { return v }
+func (v *XdrAnon_AuthClaim_Source_address_claim) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *XdrAnon_AuthClaim_Source_address_claim) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%saccepted_keys", name), XDR_BitMap(&v.Accepted_keys))
+	x.Marshal(x.Sprintf("%sallowed_keys", name), XDR_BitMap(&v.Allowed_keys))
 	x.Marshal(x.Sprintf("%srequired_weight", name), XDR_Weight(&v.Required_weight))
 }
-func XDR_XdrAnon_AuthClaim_Invoked_address_signed_weight(v *XdrAnon_AuthClaim_Invoked_address_signed_weight) *XdrAnon_AuthClaim_Invoked_address_signed_weight { return v }
-type XdrType_XdrAnon_AuthClaim_Other_address_signature_id = *XdrAnon_AuthClaim_Other_address_signature_id
-func (v *XdrAnon_AuthClaim_Other_address_signature_id) XdrPointer() interface{} { return v }
-func (XdrAnon_AuthClaim_Other_address_signature_id) XdrTypeName() string { return "XdrAnon_AuthClaim_Other_address_signature_id" }
-func (v XdrAnon_AuthClaim_Other_address_signature_id) XdrValue() interface{} { return v }
-func (v *XdrAnon_AuthClaim_Other_address_signature_id) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *XdrAnon_AuthClaim_Other_address_signature_id) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%saddress", name), XDR_ContractAddress(&v.Address))
-	x.Marshal(x.Sprintf("%skey_id", name), XDR_KeyID(&v.Key_id))
-}
-func XDR_XdrAnon_AuthClaim_Other_address_signature_id(v *XdrAnon_AuthClaim_Other_address_signature_id) *XdrAnon_AuthClaim_Other_address_signature_id { return v }
-type XdrType_XdrAnon_AuthClaim_Other_address_signed_weight = *XdrAnon_AuthClaim_Other_address_signed_weight
-func (v *XdrAnon_AuthClaim_Other_address_signed_weight) XdrPointer() interface{} { return v }
-func (XdrAnon_AuthClaim_Other_address_signed_weight) XdrTypeName() string { return "XdrAnon_AuthClaim_Other_address_signed_weight" }
-func (v XdrAnon_AuthClaim_Other_address_signed_weight) XdrValue() interface{} { return v }
-func (v *XdrAnon_AuthClaim_Other_address_signed_weight) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *XdrAnon_AuthClaim_Other_address_signed_weight) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%saddress", name), XDR_ContractAddress(&v.Address))
-	x.Marshal(x.Sprintf("%saccepted_keys", name), XDR_BitMap(&v.Accepted_keys))
-	x.Marshal(x.Sprintf("%srequired_weight", name), XDR_Weight(&v.Required_weight))
-}
-func XDR_XdrAnon_AuthClaim_Other_address_signed_weight(v *XdrAnon_AuthClaim_Other_address_signed_weight) *XdrAnon_AuthClaim_Other_address_signed_weight { return v }
+func XDR_XdrAnon_AuthClaim_Source_address_claim(v *XdrAnon_AuthClaim_Source_address_claim) *XdrAnon_AuthClaim_Source_address_claim { return v }
 var _XdrTags_AuthClaim = map[int32]bool{
-	XdrToI32(KInvokedAddressSignature): true,
-	XdrToI32(KInvokedAddressSignedWeight): true,
-	XdrToI32(KOtherAddressSignature): true,
-	XdrToI32(KOtherAddressSignedWeight): true,
+	XdrToI32(KSourceAddressAuthData): true,
 	XdrToI32(KPubkeySignature): true,
 }
 func (_ AuthClaim) XdrValidTags() map[int32]bool {
 	return _XdrTags_AuthClaim
 }
-/// The ID of the key that must sign, from the invoked address's key set.
-func (u *AuthClaim) Invoked_address_signature_id() *KeyID {
+func (u *AuthClaim) Source_address_claim() *XdrAnon_AuthClaim_Source_address_claim {
 	switch u.Claim_type {
-	case KInvokedAddressSignature:
-		if v, ok := u._u.(*KeyID); ok {
+	case KSourceAddressAuthData:
+		if v, ok := u._u.(*XdrAnon_AuthClaim_Source_address_claim); ok {
 			return v
 		} else {
-			var zero KeyID
+			var zero XdrAnon_AuthClaim_Source_address_claim
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("AuthClaim.Invoked_address_signature_id accessed when Claim_type == %v", u.Claim_type)
-		return nil
-	}
-}
-func (u *AuthClaim) Invoked_address_signed_weight() *XdrAnon_AuthClaim_Invoked_address_signed_weight {
-	switch u.Claim_type {
-	case KInvokedAddressSignedWeight:
-		if v, ok := u._u.(*XdrAnon_AuthClaim_Invoked_address_signed_weight); ok {
-			return v
-		} else {
-			var zero XdrAnon_AuthClaim_Invoked_address_signed_weight
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("AuthClaim.Invoked_address_signed_weight accessed when Claim_type == %v", u.Claim_type)
-		return nil
-	}
-}
-func (u *AuthClaim) Other_address_signature_id() *XdrAnon_AuthClaim_Other_address_signature_id {
-	switch u.Claim_type {
-	case KOtherAddressSignature:
-		if v, ok := u._u.(*XdrAnon_AuthClaim_Other_address_signature_id); ok {
-			return v
-		} else {
-			var zero XdrAnon_AuthClaim_Other_address_signature_id
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("AuthClaim.Other_address_signature_id accessed when Claim_type == %v", u.Claim_type)
-		return nil
-	}
-}
-func (u *AuthClaim) Other_address_signed_weight() *XdrAnon_AuthClaim_Other_address_signed_weight {
-	switch u.Claim_type {
-	case KOtherAddressSignedWeight:
-		if v, ok := u._u.(*XdrAnon_AuthClaim_Other_address_signed_weight); ok {
-			return v
-		} else {
-			var zero XdrAnon_AuthClaim_Other_address_signed_weight
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("AuthClaim.Other_address_signed_weight accessed when Claim_type == %v", u.Claim_type)
+		XdrPanic("AuthClaim.Source_address_claim accessed when Claim_type == %v", u.Claim_type)
 		return nil
 	}
 }
@@ -4010,7 +3719,7 @@ func (u *AuthClaim) Pubkey_preimage() *PubkeyAccountPreimage {
 }
 func (u AuthClaim) XdrValid() bool {
 	switch u.Claim_type {
-	case KInvokedAddressSignature,KInvokedAddressSignedWeight,KOtherAddressSignature,KOtherAddressSignedWeight,KPubkeySignature:
+	case KSourceAddressAuthData,KPubkeySignature:
 		return true
 	}
 	return false
@@ -4023,14 +3732,8 @@ func (u *AuthClaim) XdrUnionTagName() string {
 }
 func (u *AuthClaim) XdrUnionBody() XdrType {
 	switch u.Claim_type {
-	case KInvokedAddressSignature:
-		return XDR_KeyID(u.Invoked_address_signature_id())
-	case KInvokedAddressSignedWeight:
-		return XDR_XdrAnon_AuthClaim_Invoked_address_signed_weight(u.Invoked_address_signed_weight())
-	case KOtherAddressSignature:
-		return XDR_XdrAnon_AuthClaim_Other_address_signature_id(u.Other_address_signature_id())
-	case KOtherAddressSignedWeight:
-		return XDR_XdrAnon_AuthClaim_Other_address_signed_weight(u.Other_address_signed_weight())
+	case KSourceAddressAuthData:
+		return XDR_XdrAnon_AuthClaim_Source_address_claim(u.Source_address_claim())
 	case KPubkeySignature:
 		return XDR_PubkeyAccountPreimage(u.Pubkey_preimage())
 	}
@@ -4038,14 +3741,8 @@ func (u *AuthClaim) XdrUnionBody() XdrType {
 }
 func (u *AuthClaim) XdrUnionBodyName() string {
 	switch u.Claim_type {
-	case KInvokedAddressSignature:
-		return "Invoked_address_signature_id"
-	case KInvokedAddressSignedWeight:
-		return "Invoked_address_signed_weight"
-	case KOtherAddressSignature:
-		return "Other_address_signature_id"
-	case KOtherAddressSignedWeight:
-		return "Other_address_signed_weight"
+	case KSourceAddressAuthData:
+		return "Source_address_claim"
 	case KPubkeySignature:
 		return "Pubkey_preimage"
 	}
@@ -4062,17 +3759,8 @@ func (u *AuthClaim) XdrRecurse(x XDR, name string) {
 	}
 	XDR_AuthClaimType(&u.Claim_type).XdrMarshal(x, x.Sprintf("%sclaim_type", name))
 	switch u.Claim_type {
-	case KInvokedAddressSignature:
-		x.Marshal(x.Sprintf("%sinvoked_address_signature_id", name), XDR_KeyID(u.Invoked_address_signature_id()))
-		return
-	case KInvokedAddressSignedWeight:
-		x.Marshal(x.Sprintf("%sinvoked_address_signed_weight", name), XDR_XdrAnon_AuthClaim_Invoked_address_signed_weight(u.Invoked_address_signed_weight()))
-		return
-	case KOtherAddressSignature:
-		x.Marshal(x.Sprintf("%sother_address_signature_id", name), XDR_XdrAnon_AuthClaim_Other_address_signature_id(u.Other_address_signature_id()))
-		return
-	case KOtherAddressSignedWeight:
-		x.Marshal(x.Sprintf("%sother_address_signed_weight", name), XDR_XdrAnon_AuthClaim_Other_address_signed_weight(u.Other_address_signed_weight()))
+	case KSourceAddressAuthData:
+		x.Marshal(x.Sprintf("%ssource_address_claim", name), XDR_XdrAnon_AuthClaim_Source_address_claim(u.Source_address_claim()))
 		return
 	case KPubkeySignature:
 		x.Marshal(x.Sprintf("%spubkey_preimage", name), XDR_PubkeyAccountPreimage(u.Pubkey_preimage()))
@@ -4081,69 +3769,6 @@ func (u *AuthClaim) XdrRecurse(x XDR, name string) {
 	XdrPanic("invalid Claim_type (%v) in AuthClaim", u.Claim_type)
 }
 func XDR_AuthClaim(v *AuthClaim) *AuthClaim { return v}
-type _XdrVec_10_AuthClaim []AuthClaim
-func (_XdrVec_10_AuthClaim) XdrBound() uint32 {
-	const bound uint32 = 10 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_10_AuthClaim) XdrCheckLen(length uint32) {
-	if length > uint32(10) {
-		XdrPanic("_XdrVec_10_AuthClaim length %d exceeds bound 10", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_10_AuthClaim length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_10_AuthClaim) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_10_AuthClaim) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(10); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]AuthClaim, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_10_AuthClaim) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_AuthClaim(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_10_AuthClaim) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 10 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_10_AuthClaim) XdrTypeName() string { return "AuthClaim<>" }
-func (v *_XdrVec_10_AuthClaim) XdrPointer() interface{} { return (*[]AuthClaim)(v) }
-func (v _XdrVec_10_AuthClaim) XdrValue() interface{} { return ([]AuthClaim)(v) }
-func (v *_XdrVec_10_AuthClaim) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_AuthClaimData struct {
-	*_XdrVec_10_AuthClaim
-}
-func XDR_AuthClaimData(v *AuthClaimData) XdrType_AuthClaimData {
-	return XdrType_AuthClaimData{(*_XdrVec_10_AuthClaim)(v)}
-}
-func (XdrType_AuthClaimData) XdrTypeName() string { return "AuthClaimData" }
-func (v XdrType_AuthClaimData) XdrUnwrap() XdrType { return v._XdrVec_10_AuthClaim }
 var _XdrNames_AuthVerifyErrorCode = map[int32]string{
 	int32(KAuthMalformed): "kAuthMalformed",
 	int32(KSignatureVerificationFailed): "kSignatureVerificationFailed",
@@ -27217,18 +26842,6 @@ func (v *AuthDataChangeSigner) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%spublic_key", name), XDR_PublicKeyConfigOpt(&v.Public_key))
 }
 func XDR_AuthDataChangeSigner(v *AuthDataChangeSigner) *AuthDataChangeSigner { return v }
-type XdrType_GasConfigChange = *GasConfigChange
-func (v *GasConfigChange) XdrPointer() interface{} { return v }
-func (GasConfigChange) XdrTypeName() string { return "GasConfigChange" }
-func (v GasConfigChange) XdrValue() interface{} { return v }
-func (v *GasConfigChange) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *GasConfigChange) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%snew_gas_permission_configs", name), (*_XdrVec_5_GasPermissionConfig)(&v.New_gas_permission_configs))
-}
-func XDR_GasConfigChange(v *GasConfigChange) *GasConfigChange { return v }
 type _XdrVec_unbounded_AuthDataChangeSigner []AuthDataChangeSigner
 func (_XdrVec_unbounded_AuthDataChangeSigner) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -27284,17 +26897,17 @@ func (_XdrVec_unbounded_AuthDataChangeSigner) XdrTypeName() string { return "Aut
 func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrPointer() interface{} { return (*[]AuthDataChangeSigner)(v) }
 func (v _XdrVec_unbounded_AuthDataChangeSigner) XdrValue() interface{} { return ([]AuthDataChangeSigner)(v) }
 func (v *_XdrVec_unbounded_AuthDataChangeSigner) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type _XdrPtr_NonceConfig struct {
-	p **NonceConfig
+type _XdrPtr_Weight struct {
+	p **Weight
 }
-type _ptrflag_NonceConfig _XdrPtr_NonceConfig
-func (v _ptrflag_NonceConfig) String() string {
+type _ptrflag_Weight _XdrPtr_Weight
+func (v _ptrflag_Weight) String() string {
 	if *v.p == nil {
 		return "nil"
 	}
 	return "non-nil"
 }
-func (v _ptrflag_NonceConfig) Scan(ss fmt.ScanState, r rune) error {
+func (v _ptrflag_Weight) Scan(ss fmt.ScanState, r rune) error {
 	tok, err := ss.Token(true, func(c rune) bool {
 		return c == '-' || (c >= 'a' && c <= 'z')
 	})
@@ -27307,125 +26920,54 @@ func (v _ptrflag_NonceConfig) Scan(ss fmt.ScanState, r rune) error {
 	case "non-nil":
 		v.SetU32(1)
 	default:
-		return XdrError("NonceConfig flag should be \"nil\" or \"non-nil\"")
+		return XdrError("Weight flag should be \"nil\" or \"non-nil\"")
 	}
 	return nil
 }
-func (v _ptrflag_NonceConfig) GetU32() uint32 {
+func (v _ptrflag_Weight) GetU32() uint32 {
 	if *v.p == nil {
 		return 0
 	}
 	return 1
 }
-func (v _ptrflag_NonceConfig) SetU32(nv uint32) {
+func (v _ptrflag_Weight) SetU32(nv uint32) {
 	switch nv {
 	case 0:
 		*v.p = nil
 	case 1:
 		if *v.p == nil {
-			*v.p = new(NonceConfig)
+			*v.p = new(Weight)
 		}
 	default:
-		XdrPanic("*NonceConfig present flag value %d should be 0 or 1", nv)
+		XdrPanic("*Weight present flag value %d should be 0 or 1", nv)
 	}
 }
-func (_ptrflag_NonceConfig) XdrTypeName() string { return "NonceConfig?" }
-func (v _ptrflag_NonceConfig) XdrPointer() interface{} { return nil }
-func (v _ptrflag_NonceConfig) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_NonceConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_NonceConfig) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_NonceConfig) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_NonceConfig) SetPresent(present bool) {
+func (_ptrflag_Weight) XdrTypeName() string { return "Weight?" }
+func (v _ptrflag_Weight) XdrPointer() interface{} { return nil }
+func (v _ptrflag_Weight) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_Weight) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_Weight) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_Weight) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_Weight) SetPresent(present bool) {
 	if !present {
 		*v.p = nil
 	} else if *v.p == nil {
-		*v.p = new(NonceConfig)
+		*v.p = new(Weight)
 	}
 }
-func (v _XdrPtr_NonceConfig) XdrMarshalValue(x XDR, name string) {
+func (v _XdrPtr_Weight) XdrMarshalValue(x XDR, name string) {
 	if *v.p != nil {
-		XDR_NonceConfig(*v.p).XdrMarshal(x, name)
+		XDR_Weight(*v.p).XdrMarshal(x, name)
 	}
 }
-func (v _XdrPtr_NonceConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_NonceConfig) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_NonceConfig(v))
+func (v _XdrPtr_Weight) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_Weight) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_Weight(v))
 	v.XdrMarshalValue(x, name)
 }
-func (_XdrPtr_NonceConfig) XdrTypeName() string { return "NonceConfig*" }
-func (v _XdrPtr_NonceConfig) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_NonceConfig) XdrValue() interface{} { return *v.p }
-type _XdrPtr_GasConfigChange struct {
-	p **GasConfigChange
-}
-type _ptrflag_GasConfigChange _XdrPtr_GasConfigChange
-func (v _ptrflag_GasConfigChange) String() string {
-	if *v.p == nil {
-		return "nil"
-	}
-	return "non-nil"
-}
-func (v _ptrflag_GasConfigChange) Scan(ss fmt.ScanState, r rune) error {
-	tok, err := ss.Token(true, func(c rune) bool {
-		return c == '-' || (c >= 'a' && c <= 'z')
-	})
-	if err != nil {
-		return err
-	}
-	switch string(tok) {
-	case "nil":
-		v.SetU32(0)
-	case "non-nil":
-		v.SetU32(1)
-	default:
-		return XdrError("GasConfigChange flag should be \"nil\" or \"non-nil\"")
-	}
-	return nil
-}
-func (v _ptrflag_GasConfigChange) GetU32() uint32 {
-	if *v.p == nil {
-		return 0
-	}
-	return 1
-}
-func (v _ptrflag_GasConfigChange) SetU32(nv uint32) {
-	switch nv {
-	case 0:
-		*v.p = nil
-	case 1:
-		if *v.p == nil {
-			*v.p = new(GasConfigChange)
-		}
-	default:
-		XdrPanic("*GasConfigChange present flag value %d should be 0 or 1", nv)
-	}
-}
-func (_ptrflag_GasConfigChange) XdrTypeName() string { return "GasConfigChange?" }
-func (v _ptrflag_GasConfigChange) XdrPointer() interface{} { return nil }
-func (v _ptrflag_GasConfigChange) XdrValue() interface{} { return v.GetU32() != 0 }
-func (v _ptrflag_GasConfigChange) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _ptrflag_GasConfigChange) XdrBound() uint32 { return 1 }
-func (v _XdrPtr_GasConfigChange) GetPresent() bool { return *v.p != nil }
-func (v _XdrPtr_GasConfigChange) SetPresent(present bool) {
-	if !present {
-		*v.p = nil
-	} else if *v.p == nil {
-		*v.p = new(GasConfigChange)
-	}
-}
-func (v _XdrPtr_GasConfigChange) XdrMarshalValue(x XDR, name string) {
-	if *v.p != nil {
-		XDR_GasConfigChange(*v.p).XdrMarshal(x, name)
-	}
-}
-func (v _XdrPtr_GasConfigChange) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v _XdrPtr_GasConfigChange) XdrRecurse(x XDR, name string) {
-	x.Marshal(name, _ptrflag_GasConfigChange(v))
-	v.XdrMarshalValue(x, name)
-}
-func (_XdrPtr_GasConfigChange) XdrTypeName() string { return "GasConfigChange*" }
-func (v _XdrPtr_GasConfigChange) XdrPointer() interface{} { return v.p }
-func (v _XdrPtr_GasConfigChange) XdrValue() interface{} { return *v.p }
+func (_XdrPtr_Weight) XdrTypeName() string { return "Weight*" }
+func (v _XdrPtr_Weight) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_Weight) XdrValue() interface{} { return *v.p }
 type XdrType_AuthDataChangeArgs = *AuthDataChangeArgs
 func (v *AuthDataChangeArgs) XdrPointer() interface{} { return v }
 func (AuthDataChangeArgs) XdrTypeName() string { return "AuthDataChangeArgs" }
@@ -27436,8 +26978,7 @@ func (v *AuthDataChangeArgs) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sauth_data_change_signers", name), (*_XdrVec_unbounded_AuthDataChangeSigner)(&v.Auth_data_change_signers))
-	x.Marshal(x.Sprintf("%snew_nonce_config", name), _XdrPtr_NonceConfig{&v.New_nonce_config})
-	x.Marshal(x.Sprintf("%snew_gas_config_change", name), _XdrPtr_GasConfigChange{&v.New_gas_config_change})
+	x.Marshal(x.Sprintf("%snew_required_weight", name), _XdrPtr_Weight{&v.New_required_weight})
 }
 func XDR_AuthDataChangeArgs(v *AuthDataChangeArgs) *AuthDataChangeArgs { return v }
 type XdrType_NonnegativeInt128SetAddArgs = *NonnegativeInt128SetAddArgs
@@ -28585,19 +28126,6 @@ func XDR_ReturnBuffer(v *ReturnBuffer) XdrType_ReturnBuffer {
 }
 func (XdrType_ReturnBuffer) XdrTypeName() string { return "ReturnBuffer" }
 func (v XdrType_ReturnBuffer) XdrUnwrap() XdrType { return v.XdrVecOpaque }
-type XdrType_GasClaim = *GasClaim
-func (v *GasClaim) XdrPointer() interface{} { return v }
-func (GasClaim) XdrTypeName() string { return "GasClaim" }
-func (v GasClaim) XdrValue() interface{} { return v }
-func (v *GasClaim) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *GasClaim) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%ssponsored_contract", name), XDR_ContractAddress(&v.Sponsored_contract))
-	x.Marshal(x.Sprintf("%samount", name), XDR_GasAmount(&v.Amount))
-}
-func XDR_GasClaim(v *GasClaim) *GasClaim { return v }
 type XdrType_Invocation = *Invocation
 func (v *Invocation) XdrPointer() interface{} { return v }
 func (Invocation) XdrTypeName() string { return "Invocation" }
@@ -28821,61 +28349,6 @@ func (_XdrVec_unbounded_Contract) XdrTypeName() string { return "Contract<>" }
 func (v *_XdrVec_unbounded_Contract) XdrPointer() interface{} { return (*[]Contract)(v) }
 func (v _XdrVec_unbounded_Contract) XdrValue() interface{} { return ([]Contract)(v) }
 func (v *_XdrVec_unbounded_Contract) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type _XdrVec_unbounded_GasClaim []GasClaim
-func (_XdrVec_unbounded_GasClaim) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_GasClaim) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_GasClaim length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_GasClaim length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_GasClaim) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_GasClaim) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]GasClaim, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_GasClaim) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_GasClaim(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_GasClaim) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_GasClaim) XdrTypeName() string { return "GasClaim<>" }
-func (v *_XdrVec_unbounded_GasClaim) XdrPointer() interface{} { return (*[]GasClaim)(v) }
-func (v _XdrVec_unbounded_GasClaim) XdrValue() interface{} { return ([]GasClaim)(v) }
-func (v *_XdrVec_unbounded_GasClaim) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_Transaction = *Transaction
 func (v *Transaction) XdrPointer() interface{} { return v }
 func (Transaction) XdrTypeName() string { return "Transaction" }
@@ -28888,8 +28361,7 @@ func (v *Transaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sinvocation", name), XDR_Invocation(&v.Invocation))
 	x.Marshal(x.Sprintf("%suniquifier", name), XDR_Uniquifier(&v.Uniquifier))
 	x.Marshal(x.Sprintf("%scontracts_to_deploy", name), (*_XdrVec_unbounded_Contract)(&v.Contracts_to_deploy))
-	x.Marshal(x.Sprintf("%sauth_claims", name), XDR_AuthClaimData(&v.Auth_claims))
-	x.Marshal(x.Sprintf("%sgas_claims", name), (*_XdrVec_unbounded_GasClaim)(&v.Gas_claims))
+	x.Marshal(x.Sprintf("%sauth_claim", name), XDR_AuthClaim(&v.Auth_claim))
 }
 func XDR_Transaction(v *Transaction) *Transaction { return v }
 type XdrType_DecoratedSignature = *DecoratedSignature
@@ -28901,7 +28373,6 @@ func (v *DecoratedSignature) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sauth_claim_idx", name), XDR_uint32(&v.Auth_claim_idx))
 	x.Marshal(x.Sprintf("%spublic_key_id", name), XDR_uint32(&v.Public_key_id))
 	x.Marshal(x.Sprintf("%ssignature", name), XDR_Signature(&v.Signature))
 }
