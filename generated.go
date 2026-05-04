@@ -1967,9 +1967,7 @@ const (
 
 type MissingTransactions struct {
 	Transaction_hashes []SignedTransactionHash
-	Height BlockHeight
-	Cv_hash ConsensusValueHash
-	Block_hash BlockHash
+	Cue ConsensusValueCue
 }
 
 type MissingTransactionsEnvelope struct {
@@ -1985,7 +1983,7 @@ type RepairedTransactions struct {
 type Repair1 interface {
 	Repair_null(context.Context, ) error
 	Repair_missing_txs(context.Context, MissingTransactionsEnvelope) (RepairedTransactions, error)
-	Repair_missing_cv(context.Context, ConsensusValueHash, BlockHeight) (OptConsensusValue, error)
+	Repair_missing_cv(context.Context, ConsensusValueCue) (OptConsensusValue, error)
 	Repair_missing_scp_envelopes(context.Context, SCPSlotIndex) (SCPEnvelopes, error)
 }
 
@@ -19399,9 +19397,7 @@ func (v *MissingTransactions) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Transaction_hashes))
-	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
-	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusValueHash(&v.Cv_hash))
-	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
+	x.Marshal(x.Sprintf("%scue", name), XDR_ConsensusValueCue(&v.Cue))
 }
 func XDR_MissingTransactions(v *MissingTransactions) *MissingTransactions { return v }
 type XdrType_MissingTransactionsEnvelope = *MissingTransactionsEnvelope
@@ -19523,28 +19519,8 @@ func (p *xdrSrvProc_Repair_missing_txs) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Repair_missing_txs{} // XXX
 
-type xdrProcArg_Repair_missing_cv struct {
-	a1 *ConsensusValueHash
-	a2 *BlockHeight
-}
-func (v *xdrProcArg_Repair_missing_cv) XdrPointer() interface{} { return v }
-func (xdrProcArg_Repair_missing_cv) XdrTypeName() string { return "xdrProcArg_Repair_missing_cv" }
-func (v xdrProcArg_Repair_missing_cv) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Repair_missing_cv) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Repair_missing_cv) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(ConsensusValueHash) }
-	XDR_ConsensusValueHash(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(BlockHeight) }
-	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Repair_missing_cv(v *xdrProcArg_Repair_missing_cv) *xdrProcArg_Repair_missing_cv { return v }
-var _ XdrType = &xdrProcArg_Repair_missing_cv{} // XXX
-
 type xdrProc_Repair_missing_cv struct {
-	Arg *xdrProcArg_Repair_missing_cv
+	Arg *ConsensusValueCue
 	Res *OptConsensusValue
 }
 func (xdrProc_Repair_missing_cv) Prog() uint32 { return 573820108 }
@@ -19555,9 +19531,9 @@ func (xdrProc_Repair_missing_cv) VersName() string { return "Repair1" }
 func (xdrProc_Repair_missing_cv) ProcName() string { return "repair_missing_cv" }
 func (p *xdrProc_Repair_missing_cv) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Repair_missing_cv)
+		p.Arg = new(ConsensusValueCue)
 	}
-	return XDR_xdrProcArg_Repair_missing_cv(p.Arg)
+	return XDR_ConsensusValueCue(p.Arg)
 }
 func (p *xdrProc_Repair_missing_cv) GetRes() XdrType {
 	if p.Res == nil {
@@ -19581,7 +19557,7 @@ func (p *xdrSrvProc_Repair_missing_cv) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Repair_missing_cv) Do() {
-	r, err := p.Srv.Repair_missing_cv(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Repair_missing_cv(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
@@ -19700,11 +19676,9 @@ func (c Repair1_Client) Repair_missing_txs(ctx context.Context, a1 MissingTransa
 	}
 	return *proc.Res, nil
 }
-func (c Repair1_Client) Repair_missing_cv(ctx context.Context, a1 ConsensusValueHash, a2 BlockHeight) (r OptConsensusValue, _ error) {
+func (c Repair1_Client) Repair_missing_cv(ctx context.Context, a1 ConsensusValueCue) (r OptConsensusValue, _ error) {
 	var proc xdrProc_Repair_missing_cv
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
