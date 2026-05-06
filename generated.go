@@ -1205,6 +1205,8 @@ const KMaxSHA256Buffers = 8
 
 const KSHA256BufferMaxSize = 4096
 
+const KMaxSavepointDepth = 1024
+
 type HogXID = string
 
 type HogHost = string
