@@ -3,7 +3,7 @@
 set -e
 
 # Files to exclude from XDR generation (space-separated list of filenames, e.g., "file1.x file2.x")
-EXCLUDE_FILES="transaction_trace.x ffi_enums.x invoke_flag.x executor_to_db_rpc.x groundhog_contract_spec.x"
+EXCLUDE_FILES="transaction_trace.x ffi_enums.x invoke_flag.x executor_to_db_rpc.x groundhog_contract_spec.x view.x"
 
 # generate pkg.go
 
