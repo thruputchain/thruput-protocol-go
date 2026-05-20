@@ -2175,6 +2175,21 @@ type ExpectedDBTip struct {
 	_u interface{}
 }
 
+type ViewingSnapshot struct {
+	Block_id BlockID
+	Tip DbTip
+}
+
+type ExpectedViewingSnapshot struct {
+	// The union discriminant Error selects among the following arms:
+	//   KRPCNone:
+	//      Snapshot() *ViewingSnapshot
+	//   default:
+	//      void
+	Error RPCError
+	_u interface{}
+}
+
 /// Typedef for a list of contract addresses.
 type ContractAddressBatch = []ContractAddress
 
@@ -20496,6 +20511,81 @@ func (u *ExpectedDBTip) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_ExpectedDBTip(v *ExpectedDBTip) *ExpectedDBTip { return v}
+type XdrType_ViewingSnapshot = *ViewingSnapshot
+func (v *ViewingSnapshot) XdrPointer() interface{} { return v }
+func (ViewingSnapshot) XdrTypeName() string { return "ViewingSnapshot" }
+func (v ViewingSnapshot) XdrValue() interface{} { return v }
+func (v *ViewingSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ViewingSnapshot) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(&v.Block_id))
+	x.Marshal(x.Sprintf("%stip", name), XDR_DbTip(&v.Tip))
+}
+func XDR_ViewingSnapshot(v *ViewingSnapshot) *ViewingSnapshot { return v }
+func (_ ExpectedViewingSnapshot) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *ExpectedViewingSnapshot) Snapshot() *ViewingSnapshot {
+	switch u.Error {
+	case KRPCNone:
+		if v, ok := u._u.(*ViewingSnapshot); ok {
+			return v
+		} else {
+			var zero ViewingSnapshot
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ExpectedViewingSnapshot.Snapshot accessed when Error == %v", u.Error)
+		return nil
+	}
+}
+func (u ExpectedViewingSnapshot) XdrValid() bool {
+	return true
+}
+func (u *ExpectedViewingSnapshot) XdrUnionTag() XdrNum32 {
+	return XDR_RPCError(&u.Error)
+}
+func (u *ExpectedViewingSnapshot) XdrUnionTagName() string {
+	return "Error"
+}
+func (u *ExpectedViewingSnapshot) XdrUnionBody() XdrType {
+	switch u.Error {
+	case KRPCNone:
+		return XDR_ViewingSnapshot(u.Snapshot())
+	default:
+		return nil
+	}
+}
+func (u *ExpectedViewingSnapshot) XdrUnionBodyName() string {
+	switch u.Error {
+	case KRPCNone:
+		return "Snapshot"
+	default:
+		return ""
+	}
+}
+type XdrType_ExpectedViewingSnapshot = *ExpectedViewingSnapshot
+func (v *ExpectedViewingSnapshot) XdrPointer() interface{} { return v }
+func (ExpectedViewingSnapshot) XdrTypeName() string { return "ExpectedViewingSnapshot" }
+func (v ExpectedViewingSnapshot) XdrValue() interface{} { return v }
+func (v *ExpectedViewingSnapshot) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *ExpectedViewingSnapshot) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
+	switch u.Error {
+	case KRPCNone:
+		x.Marshal(x.Sprintf("%ssnapshot", name), XDR_ViewingSnapshot(u.Snapshot()))
+		return
+	default:
+		return
+	}
+}
+func XDR_ExpectedViewingSnapshot(v *ExpectedViewingSnapshot) *ExpectedViewingSnapshot { return v}
 type _XdrVec_unbounded_ContractAddress []ContractAddress
 func (_XdrVec_unbounded_ContractAddress) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
