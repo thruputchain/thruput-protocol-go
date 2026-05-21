@@ -2718,14 +2718,14 @@ type ApprovalEvent struct {
 
 type StorageCostModelXdr struct {
 	Ext ExtensionPoint
-	Base_data_item_cost Int128_xdr
-	Bytestring_cost_per_byte int32
-	Base_contract_deployment_cost Int128_xdr
-	Contract_deployment_cost_per_byte Int128_xdr
-	Auth_per_key_cost Int128_xdr
-	Rcq_cost_per_entry Int128_xdr
-	Replay_cache_cost_per_entry Int128_xdr
-	Balance_cost Int128_xdr
+	Base_data_item_cost uint64
+	Bytestring_cost_per_byte uint32
+	Base_contract_deployment_cost uint64
+	Contract_deployment_cost_per_byte uint64
+	Auth_per_key_cost uint64
+	Rcq_cost_per_entry uint64
+	Replay_cache_cost_per_entry uint64
+	Balance_cost uint64
 }
 
 /// The type of a storage item.
@@ -26373,14 +26373,14 @@ func (v *StorageCostModelXdr) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
-	x.Marshal(x.Sprintf("%sbase_data_item_cost", name), XDR_Int128_xdr(&v.Base_data_item_cost))
-	x.Marshal(x.Sprintf("%sbytestring_cost_per_byte", name), XDR_int32(&v.Bytestring_cost_per_byte))
-	x.Marshal(x.Sprintf("%sbase_contract_deployment_cost", name), XDR_Int128_xdr(&v.Base_contract_deployment_cost))
-	x.Marshal(x.Sprintf("%scontract_deployment_cost_per_byte", name), XDR_Int128_xdr(&v.Contract_deployment_cost_per_byte))
-	x.Marshal(x.Sprintf("%sauth_per_key_cost", name), XDR_Int128_xdr(&v.Auth_per_key_cost))
-	x.Marshal(x.Sprintf("%srcq_cost_per_entry", name), XDR_Int128_xdr(&v.Rcq_cost_per_entry))
-	x.Marshal(x.Sprintf("%sreplay_cache_cost_per_entry", name), XDR_Int128_xdr(&v.Replay_cache_cost_per_entry))
-	x.Marshal(x.Sprintf("%sbalance_cost", name), XDR_Int128_xdr(&v.Balance_cost))
+	x.Marshal(x.Sprintf("%sbase_data_item_cost", name), XDR_uint64(&v.Base_data_item_cost))
+	x.Marshal(x.Sprintf("%sbytestring_cost_per_byte", name), XDR_uint32(&v.Bytestring_cost_per_byte))
+	x.Marshal(x.Sprintf("%sbase_contract_deployment_cost", name), XDR_uint64(&v.Base_contract_deployment_cost))
+	x.Marshal(x.Sprintf("%scontract_deployment_cost_per_byte", name), XDR_uint64(&v.Contract_deployment_cost_per_byte))
+	x.Marshal(x.Sprintf("%sauth_per_key_cost", name), XDR_uint64(&v.Auth_per_key_cost))
+	x.Marshal(x.Sprintf("%srcq_cost_per_entry", name), XDR_uint64(&v.Rcq_cost_per_entry))
+	x.Marshal(x.Sprintf("%sreplay_cache_cost_per_entry", name), XDR_uint64(&v.Replay_cache_cost_per_entry))
+	x.Marshal(x.Sprintf("%sbalance_cost", name), XDR_uint64(&v.Balance_cost))
 }
 func XDR_StorageCostModelXdr(v *StorageCostModelXdr) *StorageCostModelXdr { return v }
 var _XdrNames_StorageItemType = map[int32]string{
