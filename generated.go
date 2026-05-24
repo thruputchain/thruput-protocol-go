@@ -2893,7 +2893,7 @@ type ReplayCacheMetadata struct {
 // #[doc(hidden)]
 type ReplayCacheData struct {
 	// Sorted list of nonces for a particular height of a ReplayCache.
-	Nonces []int64 // bound KReplayCacheNoncesMaxLen
+	Nonces []uint64 // bound KReplayCacheNoncesMaxLen
 }
 
 /// Flags that can be set on a storage delta to modify its behavior.
@@ -27446,20 +27446,20 @@ func (v *ReplayCacheMetadata) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sheights", name), (*_XdrVec_8000_ReplayCacheHeightCount)(&v.Heights))
 }
 func XDR_ReplayCacheMetadata(v *ReplayCacheMetadata) *ReplayCacheMetadata { return v }
-type _XdrVec_8000_int64 []int64
-func (_XdrVec_8000_int64) XdrBound() uint32 {
+type _XdrVec_8000_uint64 []uint64
+func (_XdrVec_8000_uint64) XdrBound() uint32 {
 	const bound uint32 = 8000 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_8000_int64) XdrCheckLen(length uint32) {
+func (_XdrVec_8000_uint64) XdrCheckLen(length uint32) {
 	if length > uint32(8000) {
-		XdrPanic("_XdrVec_8000_int64 length %d exceeds bound 8000", length)
+		XdrPanic("_XdrVec_8000_uint64 length %d exceeds bound 8000", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_8000_int64 length %d exceeds max int", length)
+		XdrPanic("_XdrVec_8000_uint64 length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_8000_int64) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_8000_int64) SetVecLen(length uint32) {
+func (v _XdrVec_8000_uint64) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_8000_uint64) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -27476,31 +27476,31 @@ func (v *_XdrVec_8000_int64) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]int64, int(length), newcap)
+	nv := make([]uint64, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_8000_int64) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_8000_uint64) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_int64(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_uint64(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_8000_int64) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_8000_uint64) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 8000 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_8000_int64) XdrTypeName() string { return "int64<>" }
-func (v *_XdrVec_8000_int64) XdrPointer() interface{} { return (*[]int64)(v) }
-func (v _XdrVec_8000_int64) XdrValue() interface{} { return ([]int64)(v) }
-func (v *_XdrVec_8000_int64) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_XdrVec_8000_uint64) XdrTypeName() string { return "uint64<>" }
+func (v *_XdrVec_8000_uint64) XdrPointer() interface{} { return (*[]uint64)(v) }
+func (v _XdrVec_8000_uint64) XdrValue() interface{} { return ([]uint64)(v) }
+func (v *_XdrVec_8000_uint64) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_ReplayCacheData = *ReplayCacheData
 func (v *ReplayCacheData) XdrPointer() interface{} { return v }
 func (ReplayCacheData) XdrTypeName() string { return "ReplayCacheData" }
@@ -27510,7 +27510,7 @@ func (v *ReplayCacheData) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%snonces", name), (*_XdrVec_8000_int64)(&v.Nonces))
+	x.Marshal(x.Sprintf("%snonces", name), (*_XdrVec_8000_uint64)(&v.Nonces))
 }
 func XDR_ReplayCacheData(v *ReplayCacheData) *ReplayCacheData { return v }
 var _XdrNames_StorageDeltaFlags = map[int32]string{
