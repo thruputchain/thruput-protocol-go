@@ -2051,6 +2051,11 @@ type RetrocausalQueueDelta struct {
 	// This version of the retrocausal queue is single-consumer multi-producer.
 	Consume *RetrocausalQueueConsumeDelta
 	Insert RetrocausalQueueInsertDelta
+	// Concurrent entries observed (e.g. via peek) but not consumed.
+	// HogDB validates that each entry was actually inserted by a concurrent
+	// transaction. Unlike current_block_consumed, these do not decrement the
+	// insert balance — they only require that a matching insert exists.
+	Observed_concurrent_entries []QueueEntry
 }
 
 // An internal unique ID describing a block.
@@ -19939,6 +19944,7 @@ func (v *RetrocausalQueueDelta) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sconsume", name), _XdrPtr_RetrocausalQueueConsumeDelta{&v.Consume})
 	x.Marshal(x.Sprintf("%sinsert", name), XDR_RetrocausalQueueInsertDelta(&v.Insert))
+	x.Marshal(x.Sprintf("%sobserved_concurrent_entries", name), (*_XdrVec_unbounded_QueueEntry)(&v.Observed_concurrent_entries))
 }
 func XDR_RetrocausalQueueDelta(v *RetrocausalQueueDelta) *RetrocausalQueueDelta { return v }
 type XdrType_BlockID struct {
