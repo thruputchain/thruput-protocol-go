@@ -1032,7 +1032,7 @@ type EventExecutor1 interface {
 	Eventexecutor_null(context.Context, ) error
 	Eventexecutor_open_block(context.Context, BlockID) (RPCError, error)
 	Eventexecutor_close_block(context.Context, BlockID) (RPCError, error)
-	Eventexecutor_emit_event(context.Context, BlockID, TransactionID, TxEventLog) (RPCError, error)
+	Eventexecutor_emit_event(context.Context, BlockID, TransactionID, TxEventLog, ProposedTransaction) (RPCError, error)
 }
 
 type EventBlockResult struct {
@@ -1171,9 +1171,9 @@ type ExecValidateBatchResult = []ExecResult
 type ExecutorSched1 interface {
 	Executorsched_null(context.Context, ) error
 	Executorsched_ready(context.Context, ) (ExecResult, error)
-	Executorsched_propose_transaction(context.Context, BlockID, Transaction) (ExecProposeResult, error)
+	Executorsched_propose_transaction(context.Context, BlockID, SignedTransaction) (ExecProposeResult, error)
 	Executorsched_validate_transaction(context.Context, BlockID, ProposedTransaction) (ExecResult, error)
-	Executorsched_propose_batch(context.Context, BlockID, TransactionBatch) (ExecProposeBatchResult, error)
+	Executorsched_propose_batch(context.Context, BlockID, SignedTransactionBatch) (ExecProposeBatchResult, error)
 	Executorsched_validate_batch(context.Context, BlockID, ProposedTransactionBatch) (ExecValidateBatchResult, error)
 	Executorsched_open_proposal_block(context.Context, BlockID) (ExecResult, error)
 	Executorsched_open_validation_block(context.Context, BlockID) (ExecResult, error)
@@ -11366,6 +11366,7 @@ type xdrProcArg_Eventexecutor_emit_event struct {
 	a1 *BlockID
 	a2 *TransactionID
 	a3 *TxEventLog
+	a4 *ProposedTransaction
 }
 func (v *xdrProcArg_Eventexecutor_emit_event) XdrPointer() interface{} { return v }
 func (xdrProcArg_Eventexecutor_emit_event) XdrTypeName() string { return "xdrProcArg_Eventexecutor_emit_event" }
@@ -11381,6 +11382,8 @@ func (v *xdrProcArg_Eventexecutor_emit_event) XdrRecurse(x XDR, name string) {
 	XDR_TransactionID(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 	if v.a3 == nil { v.a3 = new(TxEventLog) }
 	XDR_TxEventLog(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
+	if v.a4 == nil { v.a4 = new(ProposedTransaction) }
+	XDR_ProposedTransaction(v.a4).XdrMarshal(x, x.Sprintf("%sa4", name))
 }
 func XDR_xdrProcArg_Eventexecutor_emit_event(v *xdrProcArg_Eventexecutor_emit_event) *xdrProcArg_Eventexecutor_emit_event { return v }
 var _ XdrType = &xdrProcArg_Eventexecutor_emit_event{} // XXX
@@ -11423,7 +11426,7 @@ func (p *xdrSrvProc_Eventexecutor_emit_event) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Eventexecutor_emit_event) Do() {
-	r, err := p.Srv.Eventexecutor_emit_event(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	r, err := p.Srv.Eventexecutor_emit_event(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3, *p.Arg.a4)
 	p.Res = &r
 
 	if err != nil {
@@ -11503,12 +11506,13 @@ func (c EventExecutor1_Client) Eventexecutor_close_block(ctx context.Context, a1
 	}
 	return *proc.Res, nil
 }
-func (c EventExecutor1_Client) Eventexecutor_emit_event(ctx context.Context, a1 BlockID, a2 TransactionID, a3 TxEventLog) (r RPCError, _ error) {
+func (c EventExecutor1_Client) Eventexecutor_emit_event(ctx context.Context, a1 BlockID, a2 TransactionID, a3 TxEventLog, a4 ProposedTransaction) (r RPCError, _ error) {
 	var proc xdrProc_Eventexecutor_emit_event
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	proc.Arg.a3 = &a3
+	proc.Arg.a4 = &a4
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -12430,7 +12434,7 @@ var _ XdrSrvProc = &xdrSrvProc_Executorsched_ready{} // XXX
 
 type xdrProcArg_Executorsched_propose_transaction struct {
 	a1 *BlockID
-	a2 *Transaction
+	a2 *SignedTransaction
 }
 func (v *xdrProcArg_Executorsched_propose_transaction) XdrPointer() interface{} { return v }
 func (xdrProcArg_Executorsched_propose_transaction) XdrTypeName() string { return "xdrProcArg_Executorsched_propose_transaction" }
@@ -12442,8 +12446,8 @@ func (v *xdrProcArg_Executorsched_propose_transaction) XdrRecurse(x XDR, name st
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(Transaction) }
-	XDR_Transaction(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(SignedTransaction) }
+	XDR_SignedTransaction(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Executorsched_propose_transaction(v *xdrProcArg_Executorsched_propose_transaction) *xdrProcArg_Executorsched_propose_transaction { return v }
 var _ XdrType = &xdrProcArg_Executorsched_propose_transaction{} // XXX
@@ -12564,7 +12568,7 @@ var _ XdrSrvProc = &xdrSrvProc_Executorsched_validate_transaction{} // XXX
 
 type xdrProcArg_Executorsched_propose_batch struct {
 	a1 *BlockID
-	a2 *TransactionBatch
+	a2 *SignedTransactionBatch
 }
 func (v *xdrProcArg_Executorsched_propose_batch) XdrPointer() interface{} { return v }
 func (xdrProcArg_Executorsched_propose_batch) XdrTypeName() string { return "xdrProcArg_Executorsched_propose_batch" }
@@ -12576,8 +12580,8 @@ func (v *xdrProcArg_Executorsched_propose_batch) XdrRecurse(x XDR, name string) 
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(TransactionBatch) }
-	XDR_TransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(SignedTransactionBatch) }
+	XDR_SignedTransactionBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Executorsched_propose_batch(v *xdrProcArg_Executorsched_propose_batch) *xdrProcArg_Executorsched_propose_batch { return v }
 var _ XdrType = &xdrProcArg_Executorsched_propose_batch{} // XXX
@@ -12968,7 +12972,7 @@ func (c ExecutorSched1_Client) Executorsched_ready(ctx context.Context, ) (r Exe
 	}
 	return *proc.Res, nil
 }
-func (c ExecutorSched1_Client) Executorsched_propose_transaction(ctx context.Context, a1 BlockID, a2 Transaction) (r ExecProposeResult, _ error) {
+func (c ExecutorSched1_Client) Executorsched_propose_transaction(ctx context.Context, a1 BlockID, a2 SignedTransaction) (r ExecProposeResult, _ error) {
 	var proc xdrProc_Executorsched_propose_transaction
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -12988,7 +12992,7 @@ func (c ExecutorSched1_Client) Executorsched_validate_transaction(ctx context.Co
 	}
 	return *proc.Res, nil
 }
-func (c ExecutorSched1_Client) Executorsched_propose_batch(ctx context.Context, a1 BlockID, a2 TransactionBatch) (r ExecProposeBatchResult, _ error) {
+func (c ExecutorSched1_Client) Executorsched_propose_batch(ctx context.Context, a1 BlockID, a2 SignedTransactionBatch) (r ExecProposeBatchResult, _ error) {
 	var proc xdrProc_Executorsched_propose_batch
 	proc.GetArg()
 	proc.Arg.a1 = &a1
