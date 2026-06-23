@@ -1162,8 +1162,6 @@ type ExecProposeResult struct {
 	_u interface{}
 }
 
-type ProposedTransactionBatch = []ProposedTransaction
-
 type ExecProposeBatchResult = []ExecProposeResult
 
 type ExecValidateBatchResult = []ExecResult
@@ -1805,7 +1803,7 @@ type IndexerBlockExplorer1 interface {
 type TxEventLogBatch = []TxEventLog
 
 type IndexerEvent1 interface {
-	Indexer_event_process_events(context.Context, BlockHeight, TxEventLogBatch) error
+	Indexer_event_process_events(context.Context, BlockHeight, TxEventLogBatch, ProposedTransactionBatch) error
 }
 
 type IndexerCard struct {
@@ -3315,6 +3313,8 @@ type ProposedTransaction struct {
 	/// Validators use this to deterministically replay the same execution path.
 	Nondeterministic_proposal_data NondeterministicProposalData
 }
+
+type ProposedTransactionBatch = []ProposedTransaction
 
 /// Transaction execution statistics available via the GetTransactionStatistics syscall.
 ///
@@ -12150,69 +12150,6 @@ func (u *ExecProposeResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_ExecProposeResult(v *ExecProposeResult) *ExecProposeResult { return v}
-type _XdrVec_unbounded_ProposedTransaction []ProposedTransaction
-func (_XdrVec_unbounded_ProposedTransaction) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_ProposedTransaction) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_ProposedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_ProposedTransaction) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]ProposedTransaction, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_ProposedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_ProposedTransaction) XdrTypeName() string { return "ProposedTransaction<>" }
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrPointer() interface{} { return (*[]ProposedTransaction)(v) }
-func (v _XdrVec_unbounded_ProposedTransaction) XdrValue() interface{} { return ([]ProposedTransaction)(v) }
-func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_ProposedTransactionBatch struct {
-	*_XdrVec_unbounded_ProposedTransaction
-}
-func XDR_ProposedTransactionBatch(v *ProposedTransactionBatch) XdrType_ProposedTransactionBatch {
-	return XdrType_ProposedTransactionBatch{(*_XdrVec_unbounded_ProposedTransaction)(v)}
-}
-func (XdrType_ProposedTransactionBatch) XdrTypeName() string { return "ProposedTransactionBatch" }
-func (v XdrType_ProposedTransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_ProposedTransaction }
 type _XdrVec_unbounded_ExecProposeResult []ExecProposeResult
 func (_XdrVec_unbounded_ExecProposeResult) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -18399,6 +18336,7 @@ func (v XdrType_TxEventLogBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounde
 type xdrProcArg_Indexer_event_process_events struct {
 	a1 *BlockHeight
 	a2 *TxEventLogBatch
+	a3 *ProposedTransactionBatch
 }
 func (v *xdrProcArg_Indexer_event_process_events) XdrPointer() interface{} { return v }
 func (xdrProcArg_Indexer_event_process_events) XdrTypeName() string { return "xdrProcArg_Indexer_event_process_events" }
@@ -18412,6 +18350,8 @@ func (v *xdrProcArg_Indexer_event_process_events) XdrRecurse(x XDR, name string)
 	XDR_BlockHeight(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(TxEventLogBatch) }
 	XDR_TxEventLogBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(ProposedTransactionBatch) }
+	XDR_ProposedTransactionBatch(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Indexer_event_process_events(v *xdrProcArg_Indexer_event_process_events) *xdrProcArg_Indexer_event_process_events { return v }
 var _ XdrType = &xdrProcArg_Indexer_event_process_events{} // XXX
@@ -18454,7 +18394,7 @@ func (p *xdrSrvProc_Indexer_event_process_events) SetContext(ctx context.Context
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Indexer_event_process_events) Do() {
-	err := p.Srv.Indexer_event_process_events(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	err := p.Srv.Indexer_event_process_events(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
 	if err != nil {
 		panic(err)
 	}
@@ -18497,11 +18437,12 @@ func (c IndexerEvent1_Client) WithContext(ctx context.Context) IndexerEvent1 {
 	c.Ctx = ctx
 	return c
 }
-func (c IndexerEvent1_Client) Indexer_event_process_events(ctx context.Context, a1 BlockHeight, a2 TxEventLogBatch) error {
+func (c IndexerEvent1_Client) Indexer_event_process_events(ctx context.Context, a1 BlockHeight, a2 TxEventLogBatch, a3 ProposedTransactionBatch) error {
 	var proc xdrProc_Indexer_event_process_events
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
+	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
@@ -29158,6 +29099,69 @@ func (v *ProposedTransaction) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%snondeterministic_proposal_data", name), XDR_NondeterministicProposalData(&v.Nondeterministic_proposal_data))
 }
 func XDR_ProposedTransaction(v *ProposedTransaction) *ProposedTransaction { return v }
+type _XdrVec_unbounded_ProposedTransaction []ProposedTransaction
+func (_XdrVec_unbounded_ProposedTransaction) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_ProposedTransaction) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_ProposedTransaction length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_ProposedTransaction) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_ProposedTransaction) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]ProposedTransaction, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_ProposedTransaction(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_ProposedTransaction) XdrTypeName() string { return "ProposedTransaction<>" }
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrPointer() interface{} { return (*[]ProposedTransaction)(v) }
+func (v _XdrVec_unbounded_ProposedTransaction) XdrValue() interface{} { return ([]ProposedTransaction)(v) }
+func (v *_XdrVec_unbounded_ProposedTransaction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ProposedTransactionBatch struct {
+	*_XdrVec_unbounded_ProposedTransaction
+}
+func XDR_ProposedTransactionBatch(v *ProposedTransactionBatch) XdrType_ProposedTransactionBatch {
+	return XdrType_ProposedTransactionBatch{(*_XdrVec_unbounded_ProposedTransaction)(v)}
+}
+func (XdrType_ProposedTransactionBatch) XdrTypeName() string { return "ProposedTransactionBatch" }
+func (v XdrType_ProposedTransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_ProposedTransaction }
 var _XdrNames_TransactionStatistic = map[int32]string{
 	int32(GasRemaining): "GasRemaining",
 }
