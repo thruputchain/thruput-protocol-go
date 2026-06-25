@@ -1649,6 +1649,9 @@ type HogConfig struct {
 type TxInfo struct {
 	// The height of the block the tx was executed in.
 	Height BlockHeight
+	// The full transaction body (signed tx + nondeterministic data), as
+	// forwarded by the event server and stored in the indexer.
+	Tx ProposedTransaction
 	Events TxEventLog
 }
 
@@ -17384,6 +17387,7 @@ func (v *TxInfo) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
+	x.Marshal(x.Sprintf("%stx", name), XDR_ProposedTransaction(&v.Tx))
 	x.Marshal(x.Sprintf("%sevents", name), XDR_TxEventLog(&v.Events))
 }
 func XDR_TxInfo(v *TxInfo) *TxInfo { return v }
