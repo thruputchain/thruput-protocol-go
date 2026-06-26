@@ -514,10 +514,14 @@ type Config struct {
 type Upgrade = []byte // bound 128
 
 // #[rust(newtype)]
+type ConsensusValueHash = SHA256Hash
+
+// #[rust(newtype)]
 type ConsensusBasisHash = SHA256Hash
 
 type ConsensusBasis struct {
 	Timestamp TimePoint
+	Proposer ValidatorID
 	Nomination Nomination
 	Upgrades []Upgrade // bound 6
 	Prev_basis_hash ConsensusBasisHash
@@ -526,10 +530,13 @@ type ConsensusBasis struct {
 type OptConsensusBasis = *ConsensusBasis
 
 type ConsensusValue struct {
-	Proposer ValidatorPublicInfo
+	Timestamp TimePoint
+	Proposer ValidatorID
+	Upgrades []Upgrade // bound 6
+	Block_height BlockHeight
+	Prev_value ConsensusValueHash
 	Basis_hash ConsensusBasisHash
 	Prev_basis_hash ConsensusBasisHash
-	Block_height BlockHeight
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
 }
@@ -1951,7 +1958,6 @@ type Protocol = string
 
 // XXX(petar): Nomination should be renamed to Proposal
 type Nomination struct {
-	Proposer ValidatorPublicInfo
 	Block_height BlockHeight
 	//XXX: rename to merkle_hash
 	Block_hash BlockHash
@@ -7477,6 +7483,14 @@ func XDR_Upgrade(v *Upgrade) XdrType_Upgrade {
 }
 func (XdrType_Upgrade) XdrTypeName() string { return "Upgrade" }
 func (v XdrType_Upgrade) XdrUnwrap() XdrType { return v.XdrVecOpaque }
+type XdrType_ConsensusValueHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_ConsensusValueHash(v *ConsensusValueHash) XdrType_ConsensusValueHash {
+	return XdrType_ConsensusValueHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_ConsensusValueHash) XdrTypeName() string { return "ConsensusValueHash" }
+func (v XdrType_ConsensusValueHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type XdrType_ConsensusBasisHash struct {
 	XdrType_SHA256Hash
 }
@@ -7550,6 +7564,7 @@ func (v *ConsensusBasis) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
+	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
 	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
 	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
 	x.Marshal(x.Sprintf("%sprev_basis_hash", name), XDR_ConsensusBasisHash(&v.Prev_basis_hash))
@@ -7643,10 +7658,13 @@ func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
+	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
+	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
+	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
+	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
+	x.Marshal(x.Sprintf("%sprev_value", name), XDR_ConsensusValueHash(&v.Prev_value))
 	x.Marshal(x.Sprintf("%sbasis_hash", name), XDR_ConsensusBasisHash(&v.Basis_hash))
 	x.Marshal(x.Sprintf("%sprev_basis_hash", name), XDR_ConsensusBasisHash(&v.Prev_basis_hash))
-	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
 }
@@ -19358,7 +19376,6 @@ func (v *Nomination) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
