@@ -520,15 +520,15 @@ type ConsensusBasis struct {
 	Timestamp TimePoint
 	Nomination Nomination
 	Upgrades []Upgrade // bound 6
-	Prev_cv_hash ConsensusBasisHash
+	Prev_basis_hash ConsensusBasisHash
 }
 
 type OptConsensusBasis = *ConsensusBasis
 
-type ConsensusValueCue struct {
+type ConsensusValue struct {
 	Proposer ValidatorPublicInfo
-	Cv_hash ConsensusBasisHash
-	Prev_cv_hash ConsensusBasisHash
+	Basis_hash ConsensusBasisHash
+	Prev_basis_hash ConsensusBasisHash
 	Block_height BlockHeight
 	Block_hash BlockHash
 	Prev_block_hash BlockHash
@@ -2031,7 +2031,7 @@ const (
 
 type MissingTransactions struct {
 	Transaction_hashes []SignedTransactionHash
-	Cue ConsensusValueCue
+	Consensus_value ConsensusValue
 }
 
 type MissingTransactionsEnvelope struct {
@@ -2047,7 +2047,7 @@ type RepairedTransactions struct {
 type Repair1 interface {
 	Repair_null(context.Context, ) error
 	Repair_missing_txs(context.Context, MissingTransactionsEnvelope) (RepairedTransactions, error)
-	Repair_missing_basis(context.Context, ConsensusValueCue) (OptConsensusBasis, error)
+	Repair_missing_basis(context.Context, ConsensusValue) (OptConsensusBasis, error)
 	Repair_missing_scp_envelopes(context.Context, SCPSlotIndex) (SCPEnvelopes, error)
 }
 
@@ -7552,7 +7552,7 @@ func (v *ConsensusBasis) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
 	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
 	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
-	x.Marshal(x.Sprintf("%sprev_cv_hash", name), XDR_ConsensusBasisHash(&v.Prev_cv_hash))
+	x.Marshal(x.Sprintf("%sprev_basis_hash", name), XDR_ConsensusBasisHash(&v.Prev_basis_hash))
 }
 func XDR_ConsensusBasis(v *ConsensusBasis) *ConsensusBasis { return v }
 type _XdrPtr_ConsensusBasis struct {
@@ -7634,23 +7634,23 @@ func XDR_OptConsensusBasis(v *OptConsensusBasis) XdrType_OptConsensusBasis {
 }
 func (XdrType_OptConsensusBasis) XdrTypeName() string { return "OptConsensusBasis" }
 func (v XdrType_OptConsensusBasis) XdrUnwrap() XdrType { return v._XdrPtr_ConsensusBasis }
-type XdrType_ConsensusValueCue = *ConsensusValueCue
-func (v *ConsensusValueCue) XdrPointer() interface{} { return v }
-func (ConsensusValueCue) XdrTypeName() string { return "ConsensusValueCue" }
-func (v ConsensusValueCue) XdrValue() interface{} { return v }
-func (v *ConsensusValueCue) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ConsensusValueCue) XdrRecurse(x XDR, name string) {
+type XdrType_ConsensusValue = *ConsensusValue
+func (v *ConsensusValue) XdrPointer() interface{} { return v }
+func (ConsensusValue) XdrTypeName() string { return "ConsensusValue" }
+func (v ConsensusValue) XdrValue() interface{} { return v }
+func (v *ConsensusValue) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorPublicInfo(&v.Proposer))
-	x.Marshal(x.Sprintf("%scv_hash", name), XDR_ConsensusBasisHash(&v.Cv_hash))
-	x.Marshal(x.Sprintf("%sprev_cv_hash", name), XDR_ConsensusBasisHash(&v.Prev_cv_hash))
+	x.Marshal(x.Sprintf("%sbasis_hash", name), XDR_ConsensusBasisHash(&v.Basis_hash))
+	x.Marshal(x.Sprintf("%sprev_basis_hash", name), XDR_ConsensusBasisHash(&v.Prev_basis_hash))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
 	x.Marshal(x.Sprintf("%sprev_block_hash", name), XDR_BlockHash(&v.Prev_block_hash))
 }
-func XDR_ConsensusValueCue(v *ConsensusValueCue) *ConsensusValueCue { return v }
+func XDR_ConsensusValue(v *ConsensusValue) *ConsensusValue { return v }
 type XdrType_ContractBlob = *ContractBlob
 func (v *ContractBlob) XdrPointer() interface{} { return v }
 func (ContractBlob) XdrTypeName() string { return "ContractBlob" }
@@ -19746,7 +19746,7 @@ func (v *MissingTransactions) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Transaction_hashes))
-	x.Marshal(x.Sprintf("%scue", name), XDR_ConsensusValueCue(&v.Cue))
+	x.Marshal(x.Sprintf("%sconsensus_value", name), XDR_ConsensusValue(&v.Consensus_value))
 }
 func XDR_MissingTransactions(v *MissingTransactions) *MissingTransactions { return v }
 type XdrType_MissingTransactionsEnvelope = *MissingTransactionsEnvelope
@@ -19869,7 +19869,7 @@ func (p *xdrSrvProc_Repair_missing_txs) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Repair_missing_txs{} // XXX
 
 type xdrProc_Repair_missing_basis struct {
-	Arg *ConsensusValueCue
+	Arg *ConsensusValue
 	Res *OptConsensusBasis
 }
 func (xdrProc_Repair_missing_basis) Prog() uint32 { return 573820108 }
@@ -19880,9 +19880,9 @@ func (xdrProc_Repair_missing_basis) VersName() string { return "Repair1" }
 func (xdrProc_Repair_missing_basis) ProcName() string { return "repair_missing_basis" }
 func (p *xdrProc_Repair_missing_basis) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(ConsensusValueCue)
+		p.Arg = new(ConsensusValue)
 	}
-	return XDR_ConsensusValueCue(p.Arg)
+	return XDR_ConsensusValue(p.Arg)
 }
 func (p *xdrProc_Repair_missing_basis) GetRes() XdrType {
 	if p.Res == nil {
@@ -20025,7 +20025,7 @@ func (c Repair1_Client) Repair_missing_txs(ctx context.Context, a1 MissingTransa
 	}
 	return *proc.Res, nil
 }
-func (c Repair1_Client) Repair_missing_basis(ctx context.Context, a1 ConsensusValueCue) (r OptConsensusBasis, _ error) {
+func (c Repair1_Client) Repair_missing_basis(ctx context.Context, a1 ConsensusValue) (r OptConsensusBasis, _ error) {
 	var proc xdrProc_Repair_missing_basis
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
