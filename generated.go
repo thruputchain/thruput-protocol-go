@@ -524,6 +524,7 @@ type ConsensusBasis struct {
 	Proposer ValidatorID
 	Nomination Nomination
 	Upgrades []Upgrade // bound 6
+	Prev_value ConsensusValueHash
 	Prev_basis_hash ConsensusBasisHash
 }
 
@@ -7567,6 +7568,7 @@ func (v *ConsensusBasis) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
 	x.Marshal(x.Sprintf("%snomination", name), XDR_Nomination(&v.Nomination))
 	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
+	x.Marshal(x.Sprintf("%sprev_value", name), XDR_ConsensusValueHash(&v.Prev_value))
 	x.Marshal(x.Sprintf("%sprev_basis_hash", name), XDR_ConsensusBasisHash(&v.Prev_basis_hash))
 }
 func XDR_ConsensusBasis(v *ConsensusBasis) *ConsensusBasis { return v }
