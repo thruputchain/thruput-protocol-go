@@ -535,7 +535,7 @@ type ConsensusValue struct {
 	Proposer ValidatorID
 	Upgrades []Upgrade // bound 6
 	Block_height BlockHeight
-	Prev_value ConsensusValueHash
+	Prev_value_hash ConsensusValueHash
 	Basis_hash ConsensusBasisHash
 	Prev_basis_hash ConsensusBasisHash
 	Block_hash BlockHash
@@ -7664,7 +7664,7 @@ func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
 	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
-	x.Marshal(x.Sprintf("%sprev_value", name), XDR_ConsensusValueHash(&v.Prev_value))
+	x.Marshal(x.Sprintf("%sprev_value_hash", name), XDR_ConsensusValueHash(&v.Prev_value_hash))
 	x.Marshal(x.Sprintf("%sbasis_hash", name), XDR_ConsensusBasisHash(&v.Basis_hash))
 	x.Marshal(x.Sprintf("%sprev_basis_hash", name), XDR_ConsensusBasisHash(&v.Prev_basis_hash))
 	x.Marshal(x.Sprintf("%sblock_hash", name), XDR_BlockHash(&v.Block_hash))
