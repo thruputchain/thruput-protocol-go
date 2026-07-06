@@ -2002,7 +2002,7 @@ type MultiplexMessageType int32
 const (
 	MultiplexMessageInvalid MultiplexMessageType = 0
 	MultiplexMessageSubmittedTxs MultiplexMessageType = 1
-	MultiplexMessageProposal MultiplexMessageType = 2
+	MultiplexMessageConsensusBasis MultiplexMessageType = 2
 	MultiplexMessageSCP MultiplexMessageType = 3
 )
 
@@ -2010,8 +2010,8 @@ type MultiplexMessage struct {
 	// The union discriminant Type selects among the following arms:
 	//   MultiplexMessageSubmittedTxs:
 	//      Submitted() *SubmittedTransactions
-	//   MultiplexMessageProposal:
-	//      Proposal() *Proposal
+	//   MultiplexMessageConsensusBasis:
+	//      Basis() *ConsensusBasis
 	//   MultiplexMessageSCP:
 	//      Envelope() *SCPEnvelope
 	//   default:
@@ -19566,13 +19566,13 @@ func (c LoadgenInterfaceV1_Client) Extend_experiment(ctx context.Context, a1 Loa
 var _XdrNames_MultiplexMessageType = map[int32]string{
 	int32(MultiplexMessageInvalid): "MultiplexMessageInvalid",
 	int32(MultiplexMessageSubmittedTxs): "MultiplexMessageSubmittedTxs",
-	int32(MultiplexMessageProposal): "MultiplexMessageProposal",
+	int32(MultiplexMessageConsensusBasis): "MultiplexMessageConsensusBasis",
 	int32(MultiplexMessageSCP): "MultiplexMessageSCP",
 }
 var _XdrValues_MultiplexMessageType = map[string]int32{
 	"MultiplexMessageInvalid": int32(MultiplexMessageInvalid),
 	"MultiplexMessageSubmittedTxs": int32(MultiplexMessageSubmittedTxs),
-	"MultiplexMessageProposal": int32(MultiplexMessageProposal),
+	"MultiplexMessageConsensusBasis": int32(MultiplexMessageConsensusBasis),
 	"MultiplexMessageSCP": int32(MultiplexMessageSCP),
 }
 func (MultiplexMessageType) XdrEnumNames() map[int32]string {
@@ -19627,18 +19627,18 @@ func (u *MultiplexMessage) Submitted() *SubmittedTransactions {
 		return nil
 	}
 }
-func (u *MultiplexMessage) Proposal() *Proposal {
+func (u *MultiplexMessage) Basis() *ConsensusBasis {
 	switch u.Type {
-	case MultiplexMessageProposal:
-		if v, ok := u._u.(*Proposal); ok {
+	case MultiplexMessageConsensusBasis:
+		if v, ok := u._u.(*ConsensusBasis); ok {
 			return v
 		} else {
-			var zero Proposal
+			var zero ConsensusBasis
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("MultiplexMessage.Proposal accessed when Type == %v", u.Type)
+		XdrPanic("MultiplexMessage.Basis accessed when Type == %v", u.Type)
 		return nil
 	}
 }
@@ -19670,8 +19670,8 @@ func (u *MultiplexMessage) XdrUnionBody() XdrType {
 	switch u.Type {
 	case MultiplexMessageSubmittedTxs:
 		return XDR_SubmittedTransactions(u.Submitted())
-	case MultiplexMessageProposal:
-		return XDR_Proposal(u.Proposal())
+	case MultiplexMessageConsensusBasis:
+		return XDR_ConsensusBasis(u.Basis())
 	case MultiplexMessageSCP:
 		return XDR_SCPEnvelope(u.Envelope())
 	default:
@@ -19682,8 +19682,8 @@ func (u *MultiplexMessage) XdrUnionBodyName() string {
 	switch u.Type {
 	case MultiplexMessageSubmittedTxs:
 		return "Submitted"
-	case MultiplexMessageProposal:
-		return "Proposal"
+	case MultiplexMessageConsensusBasis:
+		return "Basis"
 	case MultiplexMessageSCP:
 		return "Envelope"
 	default:
@@ -19704,8 +19704,8 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 	case MultiplexMessageSubmittedTxs:
 		x.Marshal(x.Sprintf("%ssubmitted", name), XDR_SubmittedTransactions(u.Submitted()))
 		return
-	case MultiplexMessageProposal:
-		x.Marshal(x.Sprintf("%sproposal", name), XDR_Proposal(u.Proposal()))
+	case MultiplexMessageConsensusBasis:
+		x.Marshal(x.Sprintf("%sbasis", name), XDR_ConsensusBasis(u.Basis()))
 		return
 	case MultiplexMessageSCP:
 		x.Marshal(x.Sprintf("%senvelope", name), XDR_SCPEnvelope(u.Envelope()))
