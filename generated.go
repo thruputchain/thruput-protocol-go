@@ -2248,7 +2248,6 @@ type BlockID = uint64
 
 type DbTip struct {
 	Id BlockID
-	Proposal_header ProposalHeader
 	Value ConsensusValue
 }
 
@@ -20886,7 +20885,6 @@ func (v *DbTip) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
-	x.Marshal(x.Sprintf("%sproposal_header", name), XDR_ProposalHeader(&v.Proposal_header))
 	x.Marshal(x.Sprintf("%svalue", name), XDR_ConsensusValue(&v.Value))
 }
 func XDR_DbTip(v *DbTip) *DbTip { return v }
