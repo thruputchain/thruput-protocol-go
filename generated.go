@@ -927,7 +927,7 @@ type DbSched1 interface {
 	Dbsched_get_hog_ages(context.Context, ContractAddressBatch) (HogAgeResults, error)
 	Dbsched_write_hog_ages(context.Context, HogAgeBatch) (DbSchedResult, error)
 	Dbsched_create_snapshot(context.Context, BlockID, BlockID, BlockExecutionMode) (DbSchedResult, error)
-	Dbsched_commit_snapshot(context.Context, BlockID, ContextHash, SHA256Hash) (DbBlockResult, error)
+	Dbsched_commit_snapshot(context.Context, BlockID, ProposalHeaderHash, SHA256Hash) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
 	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration, uint64, SHA256Hash, SHA256Hash) (DbSchedResult, error)
@@ -3557,8 +3557,8 @@ type TxsHash = SHA256Hash
 // #[rust(newtype)]
 type EventsHash = SHA256Hash
 
-/// Hash of proposal context
-type ContextHash = SHA256Hash
+/// Hash of proposal header
+type ProposalHeaderHash = SHA256Hash
 
 /// Represents a 256-bit contract address.
 /// In the groundhog storage model, each contract is deployed at a 
@@ -9671,7 +9671,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dbsched_create_snapshot{} // XXX
 
 type xdrProcArg_Dbsched_commit_snapshot struct {
 	a1 *BlockID
-	a2 *ContextHash
+	a2 *ProposalHeaderHash
 	a3 *SHA256Hash
 }
 func (v *xdrProcArg_Dbsched_commit_snapshot) XdrPointer() interface{} { return v }
@@ -9684,8 +9684,8 @@ func (v *xdrProcArg_Dbsched_commit_snapshot) XdrRecurse(x XDR, name string) {
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(ContextHash) }
-	XDR_ContextHash(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(ProposalHeaderHash) }
+	XDR_ProposalHeaderHash(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 	if v.a3 == nil { v.a3 = new(SHA256Hash) }
 	XDR_SHA256Hash(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
@@ -10069,7 +10069,7 @@ func (c DbSched1_Client) Dbsched_create_snapshot(ctx context.Context, a1 BlockID
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_commit_snapshot(ctx context.Context, a1 BlockID, a2 ContextHash, a3 SHA256Hash) (r DbBlockResult, _ error) {
+func (c DbSched1_Client) Dbsched_commit_snapshot(ctx context.Context, a1 BlockID, a2 ProposalHeaderHash, a3 SHA256Hash) (r DbBlockResult, _ error) {
 	var proc xdrProc_Dbsched_commit_snapshot
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -30284,14 +30284,14 @@ func XDR_EventsHash(v *EventsHash) XdrType_EventsHash {
 }
 func (XdrType_EventsHash) XdrTypeName() string { return "EventsHash" }
 func (v XdrType_EventsHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
-type XdrType_ContextHash struct {
+type XdrType_ProposalHeaderHash struct {
 	XdrType_SHA256Hash
 }
-func XDR_ContextHash(v *ContextHash) XdrType_ContextHash {
-	return XdrType_ContextHash{XDR_SHA256Hash(v)}
+func XDR_ProposalHeaderHash(v *ProposalHeaderHash) XdrType_ProposalHeaderHash {
+	return XdrType_ProposalHeaderHash{XDR_SHA256Hash(v)}
 }
-func (XdrType_ContextHash) XdrTypeName() string { return "ContextHash" }
-func (v XdrType_ContextHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+func (XdrType_ProposalHeaderHash) XdrTypeName() string { return "ProposalHeaderHash" }
+func (v XdrType_ProposalHeaderHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type XdrType_ContractAddress struct {
 	*_XdrArray_32_opaque
 }
