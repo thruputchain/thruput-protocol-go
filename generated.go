@@ -498,6 +498,7 @@ type Upgrade = []byte // bound 128
 // #[rust(newtype)]
 type ConsensusValueHash = SHA256Hash
 
+// The XDR encoding of this structure is the value that the consensus protocol agrees upon.
 type ConsensusValue struct {
 	Ext ExtensionPoint
 	Proposer ValidatorID
