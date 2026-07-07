@@ -499,16 +499,21 @@ type Upgrade = []byte // bound 128
 type ConsensusValueHash = SHA256Hash
 
 // The XDR encoding of this structure is the value that the consensus protocol agrees upon.
+// Travels on network.
 type ConsensusValue struct {
 	Ext ExtensionPoint
-	Proposer ValidatorID
-	Upgrades []Upgrade // bound 6
-	Proposal_header ProposalHeader
-	Proposal_hash ProposalHash
 	Prev_value_hash ConsensusValueHash
+	Proposal_header ProposalHeader
+	Proposal_txs_hash ProposalTxsHash
+	Upgrades []Upgrade // bound 6
 }
 
+// This structure is disseminated via broadcast.
+// It associates a consensus value with a proposal.
+// The associated proposal is derivable from the basis.
+// Travels on network.
 type ConsensusBasis struct {
+	Ext ExtensionPoint
 	Value ConsensusValue
 	Proposal_txs ProposalTxs
 }
@@ -899,7 +904,7 @@ type DbAddressAuthDataBatchResult struct {
 type DbBlockResult struct {
 	// The union discriminant Result selects among the following arms:
 	//   DbSchedResultOK:
-	//      Storage_hash() *StorageHash
+	//      Storage_hash() *StorageShortHash
 	//   default:
 	//      void
 	Result DbSchedResult
@@ -927,10 +932,10 @@ type DbSched1 interface {
 	Dbsched_get_hog_ages(context.Context, ContractAddressBatch) (HogAgeResults, error)
 	Dbsched_write_hog_ages(context.Context, HogAgeBatch) (DbSchedResult, error)
 	Dbsched_create_snapshot(context.Context, BlockID, BlockID, BlockExecutionMode) (DbSchedResult, error)
-	Dbsched_commit_snapshot(context.Context, BlockID, ProposalHeaderHash, SHA256Hash) (DbBlockResult, error)
+	Dbsched_commit_snapshot(context.Context, BlockID, ConsensusValue) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
-	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration, uint64, SHA256Hash, SHA256Hash) (DbSchedResult, error)
+	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration, ConsensusValue) (DbSchedResult, error)
 	Dbsched_get_tip(context.Context, ) (DbTipResult, error)
 }
 
@@ -2095,36 +2100,51 @@ const (
 	KNativeContractInitialTokenClaim HogexecPrecompiledNativeContracts = 1
 )
 
-type ProposalHeader struct {
-	Ext ExtensionPoint
-	// A unique identifier for this blockchain. If there are multiple instances of
-	// the blockchain running, each one will have a different [network_id].
-	Network_id uint64
+type ProposalContext struct {
+	// Block proposer. Also used to repair missing block data.
+	Proposer ValidatorID
 	// The time of the block,
 	// given to the executors by the coordinator before computation begins.
-	Timestamp TimePoint
+	Block_timepoint TimePoint
+}
+
+// Captures pre-execution context (timestamp, block height), and
+// post-execution results (transactions hash, stoarge hash, events hash).
+// Travels on network.
+type ProposalHeader struct {
+	Ext ExtensionPoint
+	// The hash of the network name.
+	Network_hash NetworkHash
+	// Block proposer. Also used to repair missing block data.
+	Proposer ValidatorID
+	// The time of the block,
+	// given to the executors by the coordinator before computation begins.
+	Block_timepoint TimePoint
 	// The height of this block.
 	Block_height BlockHeight
 	// The Merkle root hash of the transactions.
 	Txs_hash TxsHash
 	// The hash of the storage contents after this block is applied.
-	Storage_hash StorageHash
+	Storage_hash StorageShortHash
 	// The Merkle root hash of the events.
 	Events_hash EventsHash
 }
 
+// Only inside validator.
 type Proposal struct {
 	Header ProposalHeader
 	Transactions ProposalTxs
 }
 
+// Travels on network.
 type ProposalTxs struct {
+	Ext ExtensionPoint
 	Hash ParallelSignedTransactionHashBatch
 	Nondeterministic_data ParallelNondeterministicProposalDataBatch
 }
 
 // #[rust(newtype)]
-type ProposalHash = SHA256Hash
+type ProposalTxsHash = SHA256Hash
 
 type OptProposal = *Proposal
 
@@ -2248,6 +2268,7 @@ type BlockID = uint64
 
 type DbTip struct {
 	Id BlockID
+	Storage_hash StorageLongHash
 	Value ConsensusValue
 }
 
@@ -2362,16 +2383,15 @@ type ExpectedDBTip struct {
 	_u interface{}
 }
 
-// XXX: block_id and tip is redundant!
 type ViewingSnapshot struct {
-	Block_id BlockID
+	Viewing_block_id BlockID
 	Tip DbTip
 }
 
 type ExpectedViewingSnapshot struct {
 	// The union discriminant Error selects among the following arms:
 	//   KRPCNone:
-	//      Snapshot() *ViewingSnapshot
+	//      Snapshot() *DbTip
 	//   default:
 	//      void
 	Error RPCError
@@ -2593,7 +2613,7 @@ const (
 )
 
 type SchedulerValidationBlock struct {
-	Db_tip DbTip
+	Block_id BlockID
 	Signed_transactions ParallelSignedTransactionBatch
 }
 
@@ -2636,7 +2656,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_intro_coord(context.Context, CoordCard) (CoordinatorRegistrationOutcome, error)
 	Schedulercoord_submit_unvetted(context.Context, ParallelSignedTransactionBatch) error
 	Schedulercoord_submit_vetted(context.Context, ValidatorID, ParallelSignedTransactionBatch) error
-	Schedulercoord_propose_block(context.Context, BlockID, TimePoint) (SchedulerProposalResult, error)
+	Schedulercoord_propose_block(context.Context, BlockID, ProposalContext) (SchedulerProposalResult, error)
 	Schedulercoord_validate_block(context.Context, BlockID, Proposal) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID, ConsensusValue) (SchedulerCommitOutcome, error)
 	Schedcoord_get_tip(context.Context, ) (SchedulerGetTipResult, error)
@@ -3546,9 +3566,15 @@ type ExtensionPoint struct {
 /// Represents a 256-bit SHA-256 hash.
 type SHA256Hash = [32]byte
 
+// #[rust(newtype)]
+type NetworkHash = SHA256Hash
+
 /// Hash of the groundhog database contents.
 /// Format is a 2048-byte LtHash16 hash.
-type StorageHash = [2048]byte
+type StorageLongHash = [2048]byte
+
+// #[rust(newtype)]
+type StorageShortHash = SHA256Hash
 
 // #[rust(newtype)]
 type TxsHash = SHA256Hash
@@ -7664,11 +7690,10 @@ func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
-	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
-	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
-	x.Marshal(x.Sprintf("%sproposal_header", name), XDR_ProposalHeader(&v.Proposal_header))
-	x.Marshal(x.Sprintf("%sproposal_hash", name), XDR_ProposalHash(&v.Proposal_hash))
 	x.Marshal(x.Sprintf("%sprev_value_hash", name), XDR_ConsensusValueHash(&v.Prev_value_hash))
+	x.Marshal(x.Sprintf("%sproposal_header", name), XDR_ProposalHeader(&v.Proposal_header))
+	x.Marshal(x.Sprintf("%sproposal_txs_hash", name), XDR_ProposalTxsHash(&v.Proposal_txs_hash))
+	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
 }
 func XDR_ConsensusValue(v *ConsensusValue) *ConsensusValue { return v }
 type XdrType_ConsensusBasis = *ConsensusBasis
@@ -7680,6 +7705,7 @@ func (v *ConsensusBasis) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
 	x.Marshal(x.Sprintf("%svalue", name), XDR_ConsensusValue(&v.Value))
 	x.Marshal(x.Sprintf("%sproposal_txs", name), XDR_ProposalTxs(&v.Proposal_txs))
 }
@@ -9230,13 +9256,13 @@ func XDR_DbAddressAuthDataBatchResult(v *DbAddressAuthDataBatchResult) *DbAddres
 func (_ DbBlockResult) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *DbBlockResult) Storage_hash() *StorageHash {
+func (u *DbBlockResult) Storage_hash() *StorageShortHash {
 	switch u.Result {
 	case DbSchedResultOK:
-		if v, ok := u._u.(*StorageHash); ok {
+		if v, ok := u._u.(*StorageShortHash); ok {
 			return v
 		} else {
-			var zero StorageHash
+			var zero StorageShortHash
 			u._u = &zero
 			return &zero
 		}
@@ -9257,7 +9283,7 @@ func (u *DbBlockResult) XdrUnionTagName() string {
 func (u *DbBlockResult) XdrUnionBody() XdrType {
 	switch u.Result {
 	case DbSchedResultOK:
-		return XDR_StorageHash(u.Storage_hash())
+		return XDR_StorageShortHash(u.Storage_hash())
 	default:
 		return nil
 	}
@@ -9282,7 +9308,7 @@ func (u *DbBlockResult) XdrRecurse(x XDR, name string) {
 	XDR_DbSchedResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
 	switch u.Result {
 	case DbSchedResultOK:
-		x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageHash(u.Storage_hash()))
+		x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageShortHash(u.Storage_hash()))
 		return
 	default:
 		return
@@ -9670,8 +9696,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dbsched_create_snapshot{} // XXX
 
 type xdrProcArg_Dbsched_commit_snapshot struct {
 	a1 *BlockID
-	a2 *ProposalHeaderHash
-	a3 *SHA256Hash
+	a2 *ConsensusValue
 }
 func (v *xdrProcArg_Dbsched_commit_snapshot) XdrPointer() interface{} { return v }
 func (xdrProcArg_Dbsched_commit_snapshot) XdrTypeName() string { return "xdrProcArg_Dbsched_commit_snapshot" }
@@ -9683,10 +9708,8 @@ func (v *xdrProcArg_Dbsched_commit_snapshot) XdrRecurse(x XDR, name string) {
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(ProposalHeaderHash) }
-	XDR_ProposalHeaderHash(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(SHA256Hash) }
-	XDR_SHA256Hash(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
+	if v.a2 == nil { v.a2 = new(ConsensusValue) }
+	XDR_ConsensusValue(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Dbsched_commit_snapshot(v *xdrProcArg_Dbsched_commit_snapshot) *xdrProcArg_Dbsched_commit_snapshot { return v }
 var _ XdrType = &xdrProcArg_Dbsched_commit_snapshot{} // XXX
@@ -9729,7 +9752,7 @@ func (p *xdrSrvProc_Dbsched_commit_snapshot) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dbsched_commit_snapshot) Do() {
-	r, err := p.Srv.Dbsched_commit_snapshot(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	r, err := p.Srv.Dbsched_commit_snapshot(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -9834,9 +9857,7 @@ var _ XdrSrvProc = &xdrSrvProc_Dbsched_abandon_snapshot{} // XXX
 
 type xdrProcArg_Dbsched_load_genesis_configuration struct {
 	a1 *GenesisConfiguration
-	a2 *uint64
-	a3 *SHA256Hash
-	a4 *SHA256Hash
+	a2 *ConsensusValue
 }
 func (v *xdrProcArg_Dbsched_load_genesis_configuration) XdrPointer() interface{} { return v }
 func (xdrProcArg_Dbsched_load_genesis_configuration) XdrTypeName() string { return "xdrProcArg_Dbsched_load_genesis_configuration" }
@@ -9848,12 +9869,8 @@ func (v *xdrProcArg_Dbsched_load_genesis_configuration) XdrRecurse(x XDR, name s
 	}
 	if v.a1 == nil { v.a1 = new(GenesisConfiguration) }
 	XDR_GenesisConfiguration(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(uint64) }
-	XDR_uint64(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(SHA256Hash) }
-	XDR_SHA256Hash(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
-	if v.a4 == nil { v.a4 = new(SHA256Hash) }
-	XDR_SHA256Hash(v.a4).XdrMarshal(x, x.Sprintf("%sa4", name))
+	if v.a2 == nil { v.a2 = new(ConsensusValue) }
+	XDR_ConsensusValue(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Dbsched_load_genesis_configuration(v *xdrProcArg_Dbsched_load_genesis_configuration) *xdrProcArg_Dbsched_load_genesis_configuration { return v }
 var _ XdrType = &xdrProcArg_Dbsched_load_genesis_configuration{} // XXX
@@ -9896,7 +9913,7 @@ func (p *xdrSrvProc_Dbsched_load_genesis_configuration) SetContext(ctx context.C
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Dbsched_load_genesis_configuration) Do() {
-	r, err := p.Srv.Dbsched_load_genesis_configuration(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3, *p.Arg.a4)
+	r, err := p.Srv.Dbsched_load_genesis_configuration(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -10068,12 +10085,11 @@ func (c DbSched1_Client) Dbsched_create_snapshot(ctx context.Context, a1 BlockID
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_commit_snapshot(ctx context.Context, a1 BlockID, a2 ProposalHeaderHash, a3 SHA256Hash) (r DbBlockResult, _ error) {
+func (c DbSched1_Client) Dbsched_commit_snapshot(ctx context.Context, a1 BlockID, a2 ConsensusValue) (r DbBlockResult, _ error) {
 	var proc xdrProc_Dbsched_commit_snapshot
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -10095,13 +10111,11 @@ func (c DbSched1_Client) Dbsched_abandon_snapshot(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration, a2 uint64, a3 SHA256Hash, a4 SHA256Hash) (r DbSchedResult, _ error) {
+func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration, a2 ConsensusValue) (r DbSchedResult, _ error) {
 	var proc xdrProc_Dbsched_load_genesis_configuration
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	proc.Arg.a3 = &a3
-	proc.Arg.a4 = &a4
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -20041,6 +20055,19 @@ func (v HogexecPrecompiledNativeContracts) XdrValue() interface{} { return v }
 func (v *HogexecPrecompiledNativeContracts) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_HogexecPrecompiledNativeContracts = *HogexecPrecompiledNativeContracts
 func XDR_HogexecPrecompiledNativeContracts(v *HogexecPrecompiledNativeContracts) *HogexecPrecompiledNativeContracts { return v }
+type XdrType_ProposalContext = *ProposalContext
+func (v *ProposalContext) XdrPointer() interface{} { return v }
+func (ProposalContext) XdrTypeName() string { return "ProposalContext" }
+func (v ProposalContext) XdrValue() interface{} { return v }
+func (v *ProposalContext) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ProposalContext) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
+	x.Marshal(x.Sprintf("%sblock_timepoint", name), XDR_TimePoint(&v.Block_timepoint))
+}
+func XDR_ProposalContext(v *ProposalContext) *ProposalContext { return v }
 type XdrType_ProposalHeader = *ProposalHeader
 func (v *ProposalHeader) XdrPointer() interface{} { return v }
 func (ProposalHeader) XdrTypeName() string { return "ProposalHeader" }
@@ -20051,11 +20078,12 @@ func (v *ProposalHeader) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
-	x.Marshal(x.Sprintf("%snetwork_id", name), XDR_uint64(&v.Network_id))
-	x.Marshal(x.Sprintf("%stimestamp", name), XDR_TimePoint(&v.Timestamp))
+	x.Marshal(x.Sprintf("%snetwork_hash", name), XDR_NetworkHash(&v.Network_hash))
+	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
+	x.Marshal(x.Sprintf("%sblock_timepoint", name), XDR_TimePoint(&v.Block_timepoint))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
 	x.Marshal(x.Sprintf("%stxs_hash", name), XDR_TxsHash(&v.Txs_hash))
-	x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageHash(&v.Storage_hash))
+	x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageShortHash(&v.Storage_hash))
 	x.Marshal(x.Sprintf("%sevents_hash", name), XDR_EventsHash(&v.Events_hash))
 }
 func XDR_ProposalHeader(v *ProposalHeader) *ProposalHeader { return v }
@@ -20081,18 +20109,19 @@ func (v *ProposalTxs) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
 	x.Marshal(x.Sprintf("%shash", name), XDR_ParallelSignedTransactionHashBatch(&v.Hash))
 	x.Marshal(x.Sprintf("%snondeterministic_data", name), XDR_ParallelNondeterministicProposalDataBatch(&v.Nondeterministic_data))
 }
 func XDR_ProposalTxs(v *ProposalTxs) *ProposalTxs { return v }
-type XdrType_ProposalHash struct {
+type XdrType_ProposalTxsHash struct {
 	XdrType_SHA256Hash
 }
-func XDR_ProposalHash(v *ProposalHash) XdrType_ProposalHash {
-	return XdrType_ProposalHash{XDR_SHA256Hash(v)}
+func XDR_ProposalTxsHash(v *ProposalTxsHash) XdrType_ProposalTxsHash {
+	return XdrType_ProposalTxsHash{XDR_SHA256Hash(v)}
 }
-func (XdrType_ProposalHash) XdrTypeName() string { return "ProposalHash" }
-func (v XdrType_ProposalHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+func (XdrType_ProposalTxsHash) XdrTypeName() string { return "ProposalTxsHash" }
+func (v XdrType_ProposalTxsHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrPtr_Proposal struct {
 	p **Proposal
 }
@@ -20885,6 +20914,7 @@ func (v *DbTip) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
+	x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageLongHash(&v.Storage_hash))
 	x.Marshal(x.Sprintf("%svalue", name), XDR_ConsensusValue(&v.Value))
 }
 func XDR_DbTip(v *DbTip) *DbTip { return v }
@@ -21443,20 +21473,20 @@ func (v *ViewingSnapshot) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(&v.Block_id))
+	x.Marshal(x.Sprintf("%sviewing_block_id", name), XDR_BlockID(&v.Viewing_block_id))
 	x.Marshal(x.Sprintf("%stip", name), XDR_DbTip(&v.Tip))
 }
 func XDR_ViewingSnapshot(v *ViewingSnapshot) *ViewingSnapshot { return v }
 func (_ ExpectedViewingSnapshot) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *ExpectedViewingSnapshot) Snapshot() *ViewingSnapshot {
+func (u *ExpectedViewingSnapshot) Snapshot() *DbTip {
 	switch u.Error {
 	case KRPCNone:
-		if v, ok := u._u.(*ViewingSnapshot); ok {
+		if v, ok := u._u.(*DbTip); ok {
 			return v
 		} else {
-			var zero ViewingSnapshot
+			var zero DbTip
 			u._u = &zero
 			return &zero
 		}
@@ -21477,7 +21507,7 @@ func (u *ExpectedViewingSnapshot) XdrUnionTagName() string {
 func (u *ExpectedViewingSnapshot) XdrUnionBody() XdrType {
 	switch u.Error {
 	case KRPCNone:
-		return XDR_ViewingSnapshot(u.Snapshot())
+		return XDR_DbTip(u.Snapshot())
 	default:
 		return nil
 	}
@@ -21502,7 +21532,7 @@ func (u *ExpectedViewingSnapshot) XdrRecurse(x XDR, name string) {
 	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
 	switch u.Error {
 	case KRPCNone:
-		x.Marshal(x.Sprintf("%ssnapshot", name), XDR_ViewingSnapshot(u.Snapshot()))
+		x.Marshal(x.Sprintf("%ssnapshot", name), XDR_DbTip(u.Snapshot()))
 		return
 	default:
 		return
@@ -22799,7 +22829,7 @@ func (v *SchedulerValidationBlock) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sdb_tip", name), XDR_DbTip(&v.Db_tip))
+	x.Marshal(x.Sprintf("%sblock_id", name), XDR_BlockID(&v.Block_id))
 	x.Marshal(x.Sprintf("%ssigned_transactions", name), XDR_ParallelSignedTransactionBatch(&v.Signed_transactions))
 }
 func XDR_SchedulerValidationBlock(v *SchedulerValidationBlock) *SchedulerValidationBlock { return v }
@@ -23266,7 +23296,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_submit_vetted{} // XXX
 
 type xdrProcArg_Schedulercoord_propose_block struct {
 	a1 *BlockID
-	a2 *TimePoint
+	a2 *ProposalContext
 }
 func (v *xdrProcArg_Schedulercoord_propose_block) XdrPointer() interface{} { return v }
 func (xdrProcArg_Schedulercoord_propose_block) XdrTypeName() string { return "xdrProcArg_Schedulercoord_propose_block" }
@@ -23278,8 +23308,8 @@ func (v *xdrProcArg_Schedulercoord_propose_block) XdrRecurse(x XDR, name string)
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(TimePoint) }
-	XDR_TimePoint(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(ProposalContext) }
+	XDR_ProposalContext(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
 }
 func XDR_xdrProcArg_Schedulercoord_propose_block(v *xdrProcArg_Schedulercoord_propose_block) *xdrProcArg_Schedulercoord_propose_block { return v }
 var _ XdrType = &xdrProcArg_Schedulercoord_propose_block{} // XXX
@@ -23711,7 +23741,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_submit_vetted(ctx context.Context
 	}
 	return nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_propose_block(ctx context.Context, a1 BlockID, a2 TimePoint) (r SchedulerProposalResult, _ error) {
+func (c SchedulerCoord1_Client) Schedulercoord_propose_block(ctx context.Context, a1 BlockID, a2 ProposalContext) (r SchedulerProposalResult, _ error) {
 	var proc xdrProc_Schedulercoord_propose_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -30244,6 +30274,14 @@ func XDR_SHA256Hash(v *SHA256Hash) XdrType_SHA256Hash {
 }
 func (XdrType_SHA256Hash) XdrTypeName() string { return "SHA256Hash" }
 func (v XdrType_SHA256Hash) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+type XdrType_NetworkHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_NetworkHash(v *NetworkHash) XdrType_NetworkHash {
+	return XdrType_NetworkHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_NetworkHash) XdrTypeName() string { return "NetworkHash" }
+func (v XdrType_NetworkHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrArray_2048_opaque [2048]byte
 func (v *_XdrArray_2048_opaque) GetByteSlice() []byte { return v[:] }
 func (v *_XdrArray_2048_opaque) XdrTypeName() string { return "opaque[]" }
@@ -30258,14 +30296,22 @@ func (_XdrArray_2048_opaque) XdrArraySize() uint32 {
 	const bound uint32 = 2048 // Force error if not const or doesn't fit
 	return bound
 }
-type XdrType_StorageHash struct {
+type XdrType_StorageLongHash struct {
 	*_XdrArray_2048_opaque
 }
-func XDR_StorageHash(v *StorageHash) XdrType_StorageHash {
-	return XdrType_StorageHash{(*_XdrArray_2048_opaque)(v)}
+func XDR_StorageLongHash(v *StorageLongHash) XdrType_StorageLongHash {
+	return XdrType_StorageLongHash{(*_XdrArray_2048_opaque)(v)}
 }
-func (XdrType_StorageHash) XdrTypeName() string { return "StorageHash" }
-func (v XdrType_StorageHash) XdrUnwrap() XdrType { return v._XdrArray_2048_opaque }
+func (XdrType_StorageLongHash) XdrTypeName() string { return "StorageLongHash" }
+func (v XdrType_StorageLongHash) XdrUnwrap() XdrType { return v._XdrArray_2048_opaque }
+type XdrType_StorageShortHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_StorageShortHash(v *StorageShortHash) XdrType_StorageShortHash {
+	return XdrType_StorageShortHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_StorageShortHash) XdrTypeName() string { return "StorageShortHash" }
+func (v XdrType_StorageShortHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type XdrType_TxsHash struct {
 	XdrType_SHA256Hash
 }
