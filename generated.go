@@ -502,7 +502,7 @@ type ConsensusValueHash = SHA256Hash
 // Travels on network.
 type ConsensusValue struct {
 	Ext ExtensionPoint
-	Prev_value_hash ConsensusValueHash
+	Prev_hash ConsensusValueHash
 	Proposal_header ProposalHeader
 	Proposal_txs_hash ProposalTxsHash
 	Upgrades []Upgrade // bound 6
@@ -2268,7 +2268,7 @@ type BlockID = uint64
 
 type DbTip struct {
 	Id BlockID
-	Storage_hash StorageLongHash
+	Storage_long_hash StorageLongHash
 	Value ConsensusValue
 }
 
@@ -2590,7 +2590,7 @@ type SchedulerProposedBlock struct {
 type SchedulerProposalResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   SchedulerProposalOK:
-	//      Nominated_block() *SchedulerProposedBlock
+	//      Proposed_block() *SchedulerProposedBlock
 	//   SchedulerProposalError:
 	//      void
 	Outcome SchedulerProposalOutcome
@@ -2608,7 +2608,7 @@ const (
 	SchedulerValidationUnknownParentBlock SchedulerValidationOutcome = 6
 	// Proposal batch metadata is malformed or fails to decode (e.g.
 	// segment token/byte counts are inconsistent, XDR deserialization
-	// fails, or tx_hashes/tx_nominations counts do not match).
+	// fails, or tx_hashes/tx_nondeterministic counts do not match).
 	SchedulerValidationMalformed SchedulerValidationOutcome = 7
 )
 
@@ -7690,7 +7690,7 @@ func (v *ConsensusValue) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
-	x.Marshal(x.Sprintf("%sprev_value_hash", name), XDR_ConsensusValueHash(&v.Prev_value_hash))
+	x.Marshal(x.Sprintf("%sprev_hash", name), XDR_ConsensusValueHash(&v.Prev_hash))
 	x.Marshal(x.Sprintf("%sproposal_header", name), XDR_ProposalHeader(&v.Proposal_header))
 	x.Marshal(x.Sprintf("%sproposal_txs_hash", name), XDR_ProposalTxsHash(&v.Proposal_txs_hash))
 	x.Marshal(x.Sprintf("%supgrades", name), (*_XdrVec_6_Upgrade)(&v.Upgrades))
@@ -20914,7 +20914,7 @@ func (v *DbTip) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
-	x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageLongHash(&v.Storage_hash))
+	x.Marshal(x.Sprintf("%sstorage_long_hash", name), XDR_StorageLongHash(&v.Storage_long_hash))
 	x.Marshal(x.Sprintf("%svalue", name), XDR_ConsensusValue(&v.Value))
 }
 func XDR_DbTip(v *DbTip) *DbTip { return v }
@@ -22700,7 +22700,7 @@ var _XdrTags_SchedulerProposalResult = map[int32]bool{
 func (_ SchedulerProposalResult) XdrValidTags() map[int32]bool {
 	return _XdrTags_SchedulerProposalResult
 }
-func (u *SchedulerProposalResult) Nominated_block() *SchedulerProposedBlock {
+func (u *SchedulerProposalResult) Proposed_block() *SchedulerProposedBlock {
 	switch u.Outcome {
 	case SchedulerProposalOK:
 		if v, ok := u._u.(*SchedulerProposedBlock); ok {
@@ -22711,7 +22711,7 @@ func (u *SchedulerProposalResult) Nominated_block() *SchedulerProposedBlock {
 			return &zero
 		}
 	default:
-		XdrPanic("SchedulerProposalResult.Nominated_block accessed when Outcome == %v", u.Outcome)
+		XdrPanic("SchedulerProposalResult.Proposed_block accessed when Outcome == %v", u.Outcome)
 		return nil
 	}
 }
@@ -22731,7 +22731,7 @@ func (u *SchedulerProposalResult) XdrUnionTagName() string {
 func (u *SchedulerProposalResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case SchedulerProposalOK:
-		return XDR_SchedulerProposedBlock(u.Nominated_block())
+		return XDR_SchedulerProposedBlock(u.Proposed_block())
 	case SchedulerProposalError:
 		return nil
 	}
@@ -22740,7 +22740,7 @@ func (u *SchedulerProposalResult) XdrUnionBody() XdrType {
 func (u *SchedulerProposalResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case SchedulerProposalOK:
-		return "Nominated_block"
+		return "Proposed_block"
 	case SchedulerProposalError:
 		return ""
 	}
@@ -22758,7 +22758,7 @@ func (u *SchedulerProposalResult) XdrRecurse(x XDR, name string) {
 	XDR_SchedulerProposalOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
 	switch u.Outcome {
 	case SchedulerProposalOK:
-		x.Marshal(x.Sprintf("%snominated_block", name), XDR_SchedulerProposedBlock(u.Nominated_block()))
+		x.Marshal(x.Sprintf("%sproposed_block", name), XDR_SchedulerProposedBlock(u.Proposed_block()))
 		return
 	case SchedulerProposalError:
 		return
