@@ -493,25 +493,43 @@ type Config struct {
 	Storage_config *StorageConfig
 }
 
+/// A serialized protocol upgrade, carried opaquely in `ConsensusValue`.
 type Upgrade = []byte // bound 128
 
-// #[rust(newtype)]
+/// SHA-256 of the XDR-encoded `ConsensusValue`; the canonical block identity.
 type ConsensusValueHash = SHA256Hash
 
-// The XDR encoding of this structure is the value that the consensus protocol agrees upon.
-// Travels on network.
+/// The block commitment externalized by consensus.
+///
+/// `ConsensusValue` is the small value that systems use to identify
+/// a finalized Groundhog block without the full transaction payload.
+/// Its XDR hash is the block identity (`ConsensusValueHash`), so every
+/// field is consensus-critical.
+///
+/// Travels on network.
 type ConsensusValue struct {
 	Ext ExtensionPoint
+	/// Hash of the parent block's `ConsensusValue`, linking the chain.
 	Prev_hash ConsensusValueHash
+	/// The executed header of the proposed block.
 	Proposal_header ProposalHeader
+	/// Commits to the block's transaction payload, which is kept out of the
+	/// value for compactness and travels separately in `ConsensusBasis`.
 	Proposal_txs_hash ProposalTxsHash
+	/// Protocol upgrades selected by consensus to take effect at this block.
 	Upgrades []Upgrade // bound 6
 }
 
-// This structure is disseminated via broadcast.
-// It associates a consensus value with a proposal.
-// The associated proposal is derivable from the basis.
-// Travels on network.
+/// The validation payload for a consensus value.
+///
+/// `ConsensusBasis` pairs a `ConsensusValue` with the transaction payload it
+/// commits to but does not contain, letting a node reconstruct the `Proposal`
+/// as `{ header: value.proposal_header, transactions: proposal_txs }` and
+/// validate it. Gossiped and used during catchup.
+///
+/// Consensus agrees only on `value`; the basis has no consensus identity of its own.
+///
+/// Travels on network.
 type ConsensusBasis struct {
 	Ext ExtensionPoint
 	Value ConsensusValue
@@ -2100,55 +2118,80 @@ const (
 	KNativeContractInitialTokenClaim HogexecPrecompiledNativeContracts = 1
 )
 
+/// Inputs fixed before executing a candidate block.
+///
+/// Supplied by the coordinator when it asks the scheduler to build a proposal;
+/// the parent block is identified by the surrounding RPC. Both fields are
+/// copied into the resulting `ProposalHeader`.
 type ProposalContext struct {
-	// Block proposer. Also used to repair missing block data.
+	/// Block proposer. Nodes missing block data fetch it from the proposer.
 	Proposer ValidatorID
-	// The time of the block,
-	// given to the executors by the coordinator before computation begins.
+	/// The block's timepoint, fixed by the coordinator before execution begins.
 	Block_timepoint TimePoint
 }
 
-// Captures pre-execution context (timestamp, block height), and
-// post-execution results (transactions hash, stoarge hash, events hash).
-// Travels on network.
+/// Header of a proposed block.
+///
+/// The consensus-facing summary of block execution: the fixed inputs of the
+/// proposal together with the deterministic outputs of executing its
+/// transactions. `ConsensusValue` embeds this header directly, so every field
+/// is part of the block identity.
+///
+/// Travels on network.
 type ProposalHeader struct {
 	Ext ExtensionPoint
-	// The hash of the network name.
+	/// The hash of the network name, separating this network's blocks from
+	/// those of other networks.
 	Network_hash NetworkHash
-	// Block proposer. Also used to repair missing block data.
+	/// Block proposer. Nodes missing block data fetch it from the proposer.
 	Proposer ValidatorID
-	// The time of the block,
-	// given to the executors by the coordinator before computation begins.
+	/// The block's timepoint, fixed by the coordinator before execution begins.
 	Block_timepoint TimePoint
-	// The height of this block.
+	/// The height of this block.
 	Block_height BlockHeight
-	// The Merkle root hash of the transactions.
+	/// The Merkle root hash of the transactions.
 	Txs_hash TxsHash
-	// The hash of the storage contents after this block is applied.
+	/// The hash of the storage contents after this block is applied.
 	Storage_hash StorageShortHash
-	// The Merkle root hash of the events.
+	/// The Merkle root hash of the events.
 	Events_hash EventsHash
 }
 
-// Only inside validator.
+/// A candidate block: header plus the transaction metadata needed to
+/// re-execute it.
+///
+/// Does not travel on network: nodes reconstruct it from a `ConsensusValue`
+/// and its `ProposalTxs`.
 type Proposal struct {
 	Header ProposalHeader
 	Transactions ProposalTxs
 }
 
-// Travels on network.
+/// Transaction-side payload for a proposal.
+///
+/// This is the payload a `ConsensusValue` commits to through
+/// `ProposalTxsHash`. The signed transaction bodies travel separately, since
+/// nodes usually already hold them from transaction dissemination.
+///
+/// Travels on network.
 type ProposalTxs struct {
 	Ext ExtensionPoint
+	/// Hashes of the block's signed transactions, in execution order.
 	Hash ParallelSignedTransactionHashBatch
+	/// Nondeterministic choices captured by the proposer, replayed by
+	/// validators so re-execution reproduces the header outputs exactly.
 	Nondeterministic_data ParallelNondeterministicProposalDataBatch
 }
 
-// #[rust(newtype)]
+/// SHA-256 of the XDR-encoded `ProposalTxs`.
 type ProposalTxsHash = SHA256Hash
 
 type OptProposal = *Proposal
 
-// Used by SCP to seed pseudorandomness in leader election.
+/// Summary of the previous finalized proposal, used by SCP leader selection.
+///
+/// Intentionally carries only the `ConsensusValueHash`: leader-election
+/// pseudorandomness must not depend on transaction-payload availability.
 type PrevProposalSummary struct {
 	Value_hash ConsensusValueHash
 }
