@@ -916,10 +916,15 @@ type DbAddressAuthDataBatchResult struct {
 	_u interface{}
 }
 
+type DbBlockOk struct {
+	Storage_hash StorageShortHash
+	Storage_long_hash StorageLongHash
+}
+
 type DbBlockResult struct {
 	// The union discriminant Result selects among the following arms:
 	//   DbSchedResultOK:
-	//      Storage_hash() *StorageShortHash
+	//      Block() *DbBlockOk
 	//   default:
 	//      void
 	Result DbSchedResult
@@ -2494,6 +2499,7 @@ type SchedulerCommitOutcome int32
 const (
 	SchedulerCommitOK SchedulerCommitOutcome = 0
 	SchedulerCommitBlockNotFound SchedulerCommitOutcome = 1
+	SchedulerCommitInvalidConsensusValue SchedulerCommitOutcome = 2
 )
 
 type SchedulerGetTipOutcome int32
@@ -9288,21 +9294,34 @@ func (u *DbAddressAuthDataBatchResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_DbAddressAuthDataBatchResult(v *DbAddressAuthDataBatchResult) *DbAddressAuthDataBatchResult { return v}
+type XdrType_DbBlockOk = *DbBlockOk
+func (v *DbBlockOk) XdrPointer() interface{} { return v }
+func (DbBlockOk) XdrTypeName() string { return "DbBlockOk" }
+func (v DbBlockOk) XdrValue() interface{} { return v }
+func (v *DbBlockOk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DbBlockOk) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageShortHash(&v.Storage_hash))
+	x.Marshal(x.Sprintf("%sstorage_long_hash", name), XDR_StorageLongHash(&v.Storage_long_hash))
+}
+func XDR_DbBlockOk(v *DbBlockOk) *DbBlockOk { return v }
 func (_ DbBlockResult) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *DbBlockResult) Storage_hash() *StorageShortHash {
+func (u *DbBlockResult) Block() *DbBlockOk {
 	switch u.Result {
 	case DbSchedResultOK:
-		if v, ok := u._u.(*StorageShortHash); ok {
+		if v, ok := u._u.(*DbBlockOk); ok {
 			return v
 		} else {
-			var zero StorageShortHash
+			var zero DbBlockOk
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("DbBlockResult.Storage_hash accessed when Result == %v", u.Result)
+		XdrPanic("DbBlockResult.Block accessed when Result == %v", u.Result)
 		return nil
 	}
 }
@@ -9318,7 +9337,7 @@ func (u *DbBlockResult) XdrUnionTagName() string {
 func (u *DbBlockResult) XdrUnionBody() XdrType {
 	switch u.Result {
 	case DbSchedResultOK:
-		return XDR_StorageShortHash(u.Storage_hash())
+		return XDR_DbBlockOk(u.Block())
 	default:
 		return nil
 	}
@@ -9326,7 +9345,7 @@ func (u *DbBlockResult) XdrUnionBody() XdrType {
 func (u *DbBlockResult) XdrUnionBodyName() string {
 	switch u.Result {
 	case DbSchedResultOK:
-		return "Storage_hash"
+		return "Block"
 	default:
 		return ""
 	}
@@ -9343,7 +9362,7 @@ func (u *DbBlockResult) XdrRecurse(x XDR, name string) {
 	XDR_DbSchedResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
 	switch u.Result {
 	case DbSchedResultOK:
-		x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageShortHash(u.Storage_hash()))
+		x.Marshal(x.Sprintf("%sblock", name), XDR_DbBlockOk(u.Block()))
 		return
 	default:
 		return
@@ -21944,10 +21963,12 @@ func XDR_SchedulerValidationResult(v *SchedulerValidationResult) *SchedulerValid
 var _XdrNames_SchedulerCommitOutcome = map[int32]string{
 	int32(SchedulerCommitOK): "SchedulerCommitOK",
 	int32(SchedulerCommitBlockNotFound): "SchedulerCommitBlockNotFound",
+	int32(SchedulerCommitInvalidConsensusValue): "SchedulerCommitInvalidConsensusValue",
 }
 var _XdrValues_SchedulerCommitOutcome = map[string]int32{
 	"SchedulerCommitOK": int32(SchedulerCommitOK),
 	"SchedulerCommitBlockNotFound": int32(SchedulerCommitBlockNotFound),
+	"SchedulerCommitInvalidConsensusValue": int32(SchedulerCommitInvalidConsensusValue),
 }
 func (SchedulerCommitOutcome) XdrEnumNames() map[int32]string {
 	return _XdrNames_SchedulerCommitOutcome
