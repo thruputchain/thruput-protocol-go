@@ -818,6 +818,16 @@ type DbConflictResult struct {
 	_u interface{}
 }
 
+/// Best-effort diagnostic for a transaction that failed nondeterministically
+/// during two-phase commit at proposal time: the executing block height of
+/// the failed attempt plus the first conflicting storage op hogdb reported.
+/// Fixed-size by construction; the wire and caches carry exactly one
+/// diagnostic per failure to bound memory end to end.
+type TxFailureDiagnostic struct {
+	Attempt_height BlockHeight
+	Conflict DbConflictDiagnostic
+}
+
 /// Input: a batch of items to read, identified by (address, key).
 type AddressAndKeyBatch = []AddressAndKey
 
@@ -1093,6 +1103,7 @@ type EventExecutor1 interface {
 	Eventexecutor_null(context.Context, ) error
 	Eventexecutor_open_block(context.Context, BlockID) (RPCError, error)
 	Eventexecutor_close_block(context.Context, BlockID) (RPCError, error)
+	Eventexecutor_report_tx_failure(context.Context, SignedTransactionHash, TxFailureDiagnostic) (RPCError, error)
 	Eventexecutor_emit_event(context.Context, BlockID, TransactionID, TxEventLog, ProposedTransaction) (RPCError, error)
 }
 
@@ -1759,12 +1770,21 @@ type TxInfoOutcome int32
 const (
 	TxInfoFound TxInfoOutcome = 0
 	TxInfoNotFound TxInfoOutcome = 1
+	/// No committed record, but the transaction failed nondeterministically
+	/// within the last few blocks and the indexer still holds the diagnostic.
+	/// Best-effort and advisory: reports are dropped freely under load, only
+	/// the proposing node's indexers hear them, and a later retry of the same
+	/// tx may still commit (at which point TxInfoFound wins). Absence of this
+	/// outcome proves nothing.
+	TxInfoRecentFailure TxInfoOutcome = 2
 )
 
 type TxInfoResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   TxInfoFound:
 	//      Info() *TxInfo
+	//   TxInfoRecentFailure:
+	//      Recent_failure() *TxFailureDiagnostic
 	//   default:
 	//      void
 	Outcome TxInfoOutcome
@@ -1936,6 +1956,7 @@ type TxEventLogBatch = []TxEventLog
 
 type IndexerEvent1 interface {
 	Indexer_event_process_events(context.Context, BlockHeight, TxEventLogBatch, ProposedTransactionBatch) error
+	Indexer_event_report_tx_failure(context.Context, SignedTransactionHash, TxFailureDiagnostic) error
 }
 
 type IndexerCard struct {
@@ -8447,6 +8468,19 @@ func (u *DbConflictResult) XdrRecurse(x XDR, name string) {
 	XdrPanic("invalid Level (%v) in DbConflictResult", u.Level)
 }
 func XDR_DbConflictResult(v *DbConflictResult) *DbConflictResult { return v}
+type XdrType_TxFailureDiagnostic = *TxFailureDiagnostic
+func (v *TxFailureDiagnostic) XdrPointer() interface{} { return v }
+func (TxFailureDiagnostic) XdrTypeName() string { return "TxFailureDiagnostic" }
+func (v TxFailureDiagnostic) XdrValue() interface{} { return v }
+func (v *TxFailureDiagnostic) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *TxFailureDiagnostic) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sattempt_height", name), XDR_BlockHeight(&v.Attempt_height))
+	x.Marshal(x.Sprintf("%sconflict", name), XDR_DbConflictDiagnostic(&v.Conflict))
+}
+func XDR_TxFailureDiagnostic(v *TxFailureDiagnostic) *TxFailureDiagnostic { return v }
 type _XdrVec_unbounded_AddressAndKey []AddressAndKey
 func (_XdrVec_unbounded_AddressAndKey) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -11664,6 +11698,73 @@ func (p *xdrSrvProc_Eventexecutor_close_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Eventexecutor_close_block{} // XXX
 
+type xdrProcArg_Eventexecutor_report_tx_failure struct {
+	a1 *SignedTransactionHash
+	a2 *TxFailureDiagnostic
+}
+func (v *xdrProcArg_Eventexecutor_report_tx_failure) XdrPointer() interface{} { return v }
+func (xdrProcArg_Eventexecutor_report_tx_failure) XdrTypeName() string { return "xdrProcArg_Eventexecutor_report_tx_failure" }
+func (v xdrProcArg_Eventexecutor_report_tx_failure) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Eventexecutor_report_tx_failure) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Eventexecutor_report_tx_failure) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(SignedTransactionHash) }
+	XDR_SignedTransactionHash(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(TxFailureDiagnostic) }
+	XDR_TxFailureDiagnostic(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Eventexecutor_report_tx_failure(v *xdrProcArg_Eventexecutor_report_tx_failure) *xdrProcArg_Eventexecutor_report_tx_failure { return v }
+var _ XdrType = &xdrProcArg_Eventexecutor_report_tx_failure{} // XXX
+
+type xdrProc_Eventexecutor_report_tx_failure struct {
+	Arg *xdrProcArg_Eventexecutor_report_tx_failure
+	Res *RPCError
+}
+func (xdrProc_Eventexecutor_report_tx_failure) Prog() uint32 { return 2326270500 }
+func (xdrProc_Eventexecutor_report_tx_failure) Vers() uint32 { return 1 }
+func (xdrProc_Eventexecutor_report_tx_failure) Proc() uint32 { return 33 }
+func (xdrProc_Eventexecutor_report_tx_failure) ProgName() string { return "EventExecutor" }
+func (xdrProc_Eventexecutor_report_tx_failure) VersName() string { return "EventExecutor1" }
+func (xdrProc_Eventexecutor_report_tx_failure) ProcName() string { return "eventexecutor_report_tx_failure" }
+func (p *xdrProc_Eventexecutor_report_tx_failure) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Eventexecutor_report_tx_failure)
+	}
+	return XDR_xdrProcArg_Eventexecutor_report_tx_failure(p.Arg)
+}
+func (p *xdrProc_Eventexecutor_report_tx_failure) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(RPCError)
+	}
+	return XDR_RPCError(p.Res)
+}
+var _ XdrProc = &xdrProc_Eventexecutor_report_tx_failure{} // XXX
+
+type xdrSrvProc_Eventexecutor_report_tx_failure struct {
+	xdrProc_Eventexecutor_report_tx_failure
+	Srv EventExecutor1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Eventexecutor_report_tx_failure) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) EventExecutor1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Eventexecutor_report_tx_failure) Do() {
+	r, err := p.Srv.Eventexecutor_report_tx_failure(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Eventexecutor_report_tx_failure{} // XXX
+
 type xdrProcArg_Eventexecutor_emit_event struct {
 	a1 *BlockID
 	a2 *TransactionID
@@ -11746,6 +11847,8 @@ func init() {
 			return &xdrProc_Eventexecutor_open_block{}
 		case 32:
 			return &xdrProc_Eventexecutor_close_block{}
+		case 33:
+			return &xdrProc_Eventexecutor_report_tx_failure{}
 		case 30:
 			return &xdrProc_Eventexecutor_emit_event{}
 		}
@@ -11768,6 +11871,8 @@ func (s EventExecutor1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Eventexecutor_open_block{ Srv: s.Srv }
 	case 32:  // eventexecutor_close_block
 		return &xdrSrvProc_Eventexecutor_close_block{ Srv: s.Srv }
+	case 33:  // eventexecutor_report_tx_failure
+		return &xdrSrvProc_Eventexecutor_report_tx_failure{ Srv: s.Srv }
 	case 30:  // eventexecutor_emit_event
 		return &xdrSrvProc_Eventexecutor_emit_event{ Srv: s.Srv }
 	default:
@@ -11803,6 +11908,16 @@ func (c EventExecutor1_Client) Eventexecutor_open_block(ctx context.Context, a1 
 func (c EventExecutor1_Client) Eventexecutor_close_block(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
 	var proc xdrProc_Eventexecutor_close_block
 	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c EventExecutor1_Client) Eventexecutor_report_tx_failure(ctx context.Context, a1 SignedTransactionHash, a2 TxFailureDiagnostic) (r RPCError, _ error) {
+	var proc xdrProc_Eventexecutor_report_tx_failure
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -17739,10 +17854,12 @@ func XDR_TxInfo(v *TxInfo) *TxInfo { return v }
 var _XdrNames_TxInfoOutcome = map[int32]string{
 	int32(TxInfoFound): "TxInfoFound",
 	int32(TxInfoNotFound): "TxInfoNotFound",
+	int32(TxInfoRecentFailure): "TxInfoRecentFailure",
 }
 var _XdrValues_TxInfoOutcome = map[string]int32{
 	"TxInfoFound": int32(TxInfoFound),
 	"TxInfoNotFound": int32(TxInfoNotFound),
+	"TxInfoRecentFailure": int32(TxInfoRecentFailure),
 }
 func (TxInfoOutcome) XdrEnumNames() map[int32]string {
 	return _XdrNames_TxInfoOutcome
@@ -17796,6 +17913,21 @@ func (u *TxInfoResult) Info() *TxInfo {
 		return nil
 	}
 }
+func (u *TxInfoResult) Recent_failure() *TxFailureDiagnostic {
+	switch u.Outcome {
+	case TxInfoRecentFailure:
+		if v, ok := u._u.(*TxFailureDiagnostic); ok {
+			return v
+		} else {
+			var zero TxFailureDiagnostic
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("TxInfoResult.Recent_failure accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
 func (u TxInfoResult) XdrValid() bool {
 	return true
 }
@@ -17809,6 +17941,8 @@ func (u *TxInfoResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case TxInfoFound:
 		return XDR_TxInfo(u.Info())
+	case TxInfoRecentFailure:
+		return XDR_TxFailureDiagnostic(u.Recent_failure())
 	default:
 		return nil
 	}
@@ -17817,6 +17951,8 @@ func (u *TxInfoResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case TxInfoFound:
 		return "Info"
+	case TxInfoRecentFailure:
+		return "Recent_failure"
 	default:
 		return ""
 	}
@@ -17834,6 +17970,9 @@ func (u *TxInfoResult) XdrRecurse(x XDR, name string) {
 	switch u.Outcome {
 	case TxInfoFound:
 		x.Marshal(x.Sprintf("%sinfo", name), XDR_TxInfo(u.Info()))
+		return
+	case TxInfoRecentFailure:
+		x.Marshal(x.Sprintf("%srecent_failure", name), XDR_TxFailureDiagnostic(u.Recent_failure()))
 		return
 	default:
 		return
@@ -18844,11 +18983,78 @@ func (p *xdrSrvProc_Indexer_event_process_events) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Indexer_event_process_events{} // XXX
 
+type xdrProcArg_Indexer_event_report_tx_failure struct {
+	a1 *SignedTransactionHash
+	a2 *TxFailureDiagnostic
+}
+func (v *xdrProcArg_Indexer_event_report_tx_failure) XdrPointer() interface{} { return v }
+func (xdrProcArg_Indexer_event_report_tx_failure) XdrTypeName() string { return "xdrProcArg_Indexer_event_report_tx_failure" }
+func (v xdrProcArg_Indexer_event_report_tx_failure) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Indexer_event_report_tx_failure) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Indexer_event_report_tx_failure) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(SignedTransactionHash) }
+	XDR_SignedTransactionHash(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(TxFailureDiagnostic) }
+	XDR_TxFailureDiagnostic(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Indexer_event_report_tx_failure(v *xdrProcArg_Indexer_event_report_tx_failure) *xdrProcArg_Indexer_event_report_tx_failure { return v }
+var _ XdrType = &xdrProcArg_Indexer_event_report_tx_failure{} // XXX
+
+type xdrProc_Indexer_event_report_tx_failure struct {
+	Arg *xdrProcArg_Indexer_event_report_tx_failure
+	Res *XdrVoid
+}
+func (xdrProc_Indexer_event_report_tx_failure) Prog() uint32 { return 1126279851 }
+func (xdrProc_Indexer_event_report_tx_failure) Vers() uint32 { return 1 }
+func (xdrProc_Indexer_event_report_tx_failure) Proc() uint32 { return 1 }
+func (xdrProc_Indexer_event_report_tx_failure) ProgName() string { return "IndexerEvent" }
+func (xdrProc_Indexer_event_report_tx_failure) VersName() string { return "IndexerEvent1" }
+func (xdrProc_Indexer_event_report_tx_failure) ProcName() string { return "indexer_event_report_tx_failure" }
+func (p *xdrProc_Indexer_event_report_tx_failure) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Indexer_event_report_tx_failure)
+	}
+	return XDR_xdrProcArg_Indexer_event_report_tx_failure(p.Arg)
+}
+func (p *xdrProc_Indexer_event_report_tx_failure) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Res)
+}
+var _ XdrProc = &xdrProc_Indexer_event_report_tx_failure{} // XXX
+
+type xdrSrvProc_Indexer_event_report_tx_failure struct {
+	xdrProc_Indexer_event_report_tx_failure
+	Srv IndexerEvent1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Indexer_event_report_tx_failure) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) IndexerEvent1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Indexer_event_report_tx_failure) Do() {
+	err := p.Srv.Indexer_event_report_tx_failure(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Indexer_event_report_tx_failure{} // XXX
+
 func init() {
 	XdrCatalog[1126279851<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
 			return &xdrProc_Indexer_event_process_events{}
+		case 1:
+			return &xdrProc_Indexer_event_report_tx_failure{}
 		}
 		return nil
 	}
@@ -18865,6 +19071,8 @@ func (s IndexerEvent1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // indexer_event_process_events
 		return &xdrSrvProc_Indexer_event_process_events{ Srv: s.Srv }
+	case 1:  // indexer_event_report_tx_failure
+		return &xdrSrvProc_Indexer_event_report_tx_failure{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -18886,6 +19094,16 @@ func (c IndexerEvent1_Client) Indexer_event_process_events(ctx context.Context, 
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
 	proc.Arg.a3 = &a3
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return err
+	}
+	return nil
+}
+func (c IndexerEvent1_Client) Indexer_event_report_tx_failure(ctx context.Context, a1 SignedTransactionHash, a2 TxFailureDiagnostic) error {
+	var proc xdrProc_Indexer_event_report_tx_failure
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
