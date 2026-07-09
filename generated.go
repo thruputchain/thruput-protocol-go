@@ -2524,7 +2524,7 @@ type SchedulerCoord1 interface {
 	Schedulercoord_submit_unvetted(context.Context, ParallelSignedTransactionBatch) error
 	Schedulercoord_submit_vetted(context.Context, ValidatorID, ParallelSignedTransactionBatch) error
 	Schedulercoord_propose_block(context.Context, BlockID, ProposalContext) (SchedulerProposalResult, error)
-	Schedulercoord_validate_block(context.Context, BlockID, Proposal) (SchedulerValidationResult, error)
+	Schedulercoord_validate_block(context.Context, BlockID, ConsensusValue, ProposalTxs) (SchedulerValidationResult, error)
 	Schedulercoord_commit_block(context.Context, BlockID, ConsensusValue) (SchedulerCommitOutcome, error)
 	Schedcoord_get_tip(context.Context, ) (SchedulerGetTipResult, error)
 	Schedcoord_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
@@ -22391,7 +22391,8 @@ var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_propose_block{} // XXX
 
 type xdrProcArg_Schedulercoord_validate_block struct {
 	a1 *BlockID
-	a2 *Proposal
+	a2 *ConsensusValue
+	a3 *ProposalTxs
 }
 func (v *xdrProcArg_Schedulercoord_validate_block) XdrPointer() interface{} { return v }
 func (xdrProcArg_Schedulercoord_validate_block) XdrTypeName() string { return "xdrProcArg_Schedulercoord_validate_block" }
@@ -22403,8 +22404,10 @@ func (v *xdrProcArg_Schedulercoord_validate_block) XdrRecurse(x XDR, name string
 	}
 	if v.a1 == nil { v.a1 = new(BlockID) }
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(Proposal) }
-	XDR_Proposal(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a2 == nil { v.a2 = new(ConsensusValue) }
+	XDR_ConsensusValue(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(ProposalTxs) }
+	XDR_ProposalTxs(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Schedulercoord_validate_block(v *xdrProcArg_Schedulercoord_validate_block) *xdrProcArg_Schedulercoord_validate_block { return v }
 var _ XdrType = &xdrProcArg_Schedulercoord_validate_block{} // XXX
@@ -22447,7 +22450,7 @@ func (p *xdrSrvProc_Schedulercoord_validate_block) SetContext(ctx context.Contex
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Schedulercoord_validate_block) Do() {
-	r, err := p.Srv.Schedulercoord_validate_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Schedulercoord_validate_block(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
 	p.Res = &r
 
 	if err != nil {
@@ -22779,11 +22782,12 @@ func (c SchedulerCoord1_Client) Schedulercoord_propose_block(ctx context.Context
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedulercoord_validate_block(ctx context.Context, a1 BlockID, a2 Proposal) (r SchedulerValidationResult, _ error) {
+func (c SchedulerCoord1_Client) Schedulercoord_validate_block(ctx context.Context, a1 BlockID, a2 ConsensusValue, a3 ProposalTxs) (r SchedulerValidationResult, _ error) {
 	var proc xdrProc_Schedulercoord_validate_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
+	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
