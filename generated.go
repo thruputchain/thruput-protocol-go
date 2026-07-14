@@ -3234,6 +3234,12 @@ const (
 	KSyscallErrorCodeStorageKeyNotExist SyscallErrorCode = 8
 	/// No entry in the retrocausal queue to consume
 	KSyscallErrorCodeNoRetrocausalQueueEntry SyscallErrorCode = 9
+	/// The transaction has reached its per-transaction limit on concurrent
+	/// retrocausal-queue reads (kMaxConcurrentRcqReadsPerTx). This is a resource
+	/// limit, not a malformed call, and does not by itself fail the transaction;
+	/// a contract may use it as a stop condition (e.g. drain a queue until it
+	/// returns this).
+	KSyscallErrorCodeRetrocausalQueueReadLimitReached SyscallErrorCode = 10
 )
 
 type Data = []byte
@@ -29138,6 +29144,7 @@ var _XdrNames_SyscallErrorCode = map[int32]string{
 	int32(KSyscallErrorCodeInvalidSyscallInput): "kSyscallErrorCodeInvalidSyscallInput",
 	int32(KSyscallErrorCodeStorageKeyNotExist): "kSyscallErrorCodeStorageKeyNotExist",
 	int32(KSyscallErrorCodeNoRetrocausalQueueEntry): "kSyscallErrorCodeNoRetrocausalQueueEntry",
+	int32(KSyscallErrorCodeRetrocausalQueueReadLimitReached): "kSyscallErrorCodeRetrocausalQueueReadLimitReached",
 }
 var _XdrValues_SyscallErrorCode = map[string]int32{
 	"kSyscallErrorCodeNone": int32(KSyscallErrorCodeNone),
@@ -29150,6 +29157,7 @@ var _XdrValues_SyscallErrorCode = map[string]int32{
 	"kSyscallErrorCodeInvalidSyscallInput": int32(KSyscallErrorCodeInvalidSyscallInput),
 	"kSyscallErrorCodeStorageKeyNotExist": int32(KSyscallErrorCodeStorageKeyNotExist),
 	"kSyscallErrorCodeNoRetrocausalQueueEntry": int32(KSyscallErrorCodeNoRetrocausalQueueEntry),
+	"kSyscallErrorCodeRetrocausalQueueReadLimitReached": int32(KSyscallErrorCodeRetrocausalQueueReadLimitReached),
 }
 func (SyscallErrorCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_SyscallErrorCode
