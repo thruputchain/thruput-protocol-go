@@ -1968,8 +1968,20 @@ type IndexerCard struct {
 	Address_for_event ServerAddress
 }
 
+type EventIndexerIntroOutcome int32
+const (
+	EventIntroSuccess EventIndexerIntroOutcome = 0
+	// The indexer advertised a protocol string the event server does not speak.
+	EventIntroMismatchedProtocol EventIndexerIntroOutcome = 1
+	// The event server could not dial the indexer's advertised address_for_event
+	// (e.g. a bind/advertise mismatch or a refused connection). The registration
+	// is rejected rather than silently accepted, so the indexer does not mark
+	// itself healthy while the event server has no client for it.
+	EventIntroConnectFailed EventIndexerIntroOutcome = 2
+)
+
 type EventIndexer1 interface {
-	Event_indexer_intro(context.Context, IndexerCard) error
+	Event_indexer_intro(context.Context, IndexerCard) (EventIndexerIntroOutcome, error)
 }
 
 /// kCoordinatorMaxBytesTxsMessage is the maximum size of a dissemination
@@ -19138,10 +19150,54 @@ func (v *IndexerCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%saddress_for_event", name), XDR_ServerAddress(&v.Address_for_event))
 }
 func XDR_IndexerCard(v *IndexerCard) *IndexerCard { return v }
+var _XdrNames_EventIndexerIntroOutcome = map[int32]string{
+	int32(EventIntroSuccess): "EventIntroSuccess",
+	int32(EventIntroMismatchedProtocol): "EventIntroMismatchedProtocol",
+	int32(EventIntroConnectFailed): "EventIntroConnectFailed",
+}
+var _XdrValues_EventIndexerIntroOutcome = map[string]int32{
+	"EventIntroSuccess": int32(EventIntroSuccess),
+	"EventIntroMismatchedProtocol": int32(EventIntroMismatchedProtocol),
+	"EventIntroConnectFailed": int32(EventIntroConnectFailed),
+}
+func (EventIndexerIntroOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_EventIndexerIntroOutcome
+}
+func (v EventIndexerIntroOutcome) String() string {
+	if s, ok := _XdrNames_EventIndexerIntroOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("EventIndexerIntroOutcome#%d", v)
+}
+func (v *EventIndexerIntroOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_EventIndexerIntroOutcome[stok]; ok {
+			*v = EventIndexerIntroOutcome(val)
+			return nil
+		} else if stok == "EventIndexerIntroOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid EventIndexerIntroOutcome.", stok))
+	}
+}
+func (v EventIndexerIntroOutcome) GetU32() uint32 { return uint32(v) }
+func (v *EventIndexerIntroOutcome) SetU32(n uint32) { *v = EventIndexerIntroOutcome(n) }
+func (v *EventIndexerIntroOutcome) XdrPointer() interface{} { return v }
+func (EventIndexerIntroOutcome) XdrTypeName() string { return "EventIndexerIntroOutcome" }
+func (v EventIndexerIntroOutcome) XdrValue() interface{} { return v }
+func (v *EventIndexerIntroOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_EventIndexerIntroOutcome = *EventIndexerIntroOutcome
+func XDR_EventIndexerIntroOutcome(v *EventIndexerIntroOutcome) *EventIndexerIntroOutcome { return v }
 
 type xdrProc_Event_indexer_intro struct {
 	Arg *IndexerCard
-	Res *XdrVoid
+	Res *EventIndexerIntroOutcome
 }
 func (xdrProc_Event_indexer_intro) Prog() uint32 { return 1126279852 }
 func (xdrProc_Event_indexer_intro) Vers() uint32 { return 1 }
@@ -19157,9 +19213,9 @@ func (p *xdrProc_Event_indexer_intro) GetArg() XdrType {
 }
 func (p *xdrProc_Event_indexer_intro) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(EventIndexerIntroOutcome)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_EventIndexerIntroOutcome(p.Res)
 }
 var _ XdrProc = &xdrProc_Event_indexer_intro{} // XXX
 
@@ -19177,7 +19233,9 @@ func (p *xdrSrvProc_Event_indexer_intro) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Event_indexer_intro) Do() {
-	err := p.Srv.Event_indexer_intro(p.Ctx, *p.Arg)
+	r, err := p.Srv.Event_indexer_intro(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -19220,13 +19278,13 @@ func (c EventIndexer1_Client) WithContext(ctx context.Context) EventIndexer1 {
 	c.Ctx = ctx
 	return c
 }
-func (c EventIndexer1_Client) Event_indexer_intro(ctx context.Context, a1 IndexerCard) error {
+func (c EventIndexer1_Client) Event_indexer_intro(ctx context.Context, a1 IndexerCard) (r EventIndexerIntroOutcome, _ error) {
 	var proc xdrProc_Event_indexer_intro
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 var _XdrNames_ExperimentType = map[int32]string{
 	int32(KExperimentTypeERC20Payments): "kExperimentTypeERC20Payments",
