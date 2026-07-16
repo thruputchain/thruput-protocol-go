@@ -1,3 +1,5 @@
 module github.com/groundhogchain/protocol-go
 
 go 1.24.0
+
+require github.com/xdrpp/goxdr v0.1.3
