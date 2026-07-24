@@ -1795,6 +1795,22 @@ type TxInfoResult struct {
 	_u interface{}
 }
 
+type BlockLookupOutcome int32
+const (
+	BlockFound BlockLookupOutcome = 0
+	BlockNotFound BlockLookupOutcome = 1
+)
+
+type BlockLookupResult struct {
+	// The union discriminant Outcome selects among the following arms:
+	//   BlockFound:
+	//      Value() *ConsensusValue
+	//   default:
+	//      void
+	Outcome BlockLookupOutcome
+	_u interface{}
+}
+
 type IdentifiedEventBatch = []IdentifiedEvent
 
 type TxInfoBatch = []TxInfo
@@ -1911,8 +1927,8 @@ type TransactionPage struct {
 }
 
 /// Lightweight reference to a transaction: its hash plus the block it
-/// executed in.  Returned by `get_transactions_by_address`; hydrate the
-/// full body via `get_transaction_info`.
+/// executed in. Returned by transaction-ref queries; hydrate the full body
+/// via `get_transaction_info`.
 type TransactionRef struct {
 	Tx_hash SignedTransactionHash
 	Height BlockHeight
@@ -1934,7 +1950,22 @@ type AddressTransactionQuery struct {
 	Limit uint32
 }
 
-/// `get_transactions_by_address` response: transaction refs in `order`.
+/// `get_transactions_by_block` request. Returns transactions committed at
+/// exactly `height`, ordered lexicographically by their 32 unsigned hash bytes.
+type BlockTransactionQuery struct {
+	Height BlockHeight
+	Order IterationOrder
+	/// Empty on the initial call. Non-empty to continue at the same height;
+	/// `order` is ignored when a cursor is supplied because the cursor carries it.
+	/// Malformed, stale, or height-mismatched cursors produce an empty page with
+	/// an empty cursor.
+	Cursor PaginationCursor
+	/// Clamped server-side to [1, 200]; 0 means server default (50).
+	Limit uint32
+}
+
+/// Transaction refs in the query's order. Every successful response reports
+/// the indexer's current bounds, including empty responses.
 type TransactionRefPage struct {
 	Refs TransactionRefBatch
 	Cursor PaginationCursor
@@ -1951,9 +1982,11 @@ const (
 type IndexerBlockExplorer1 interface {
 	Indexer_block_explorer_intro(context.Context, ProtocolCommit) (IndexerBlockExplorerIntroOutcome, error)
 	Get_transaction_info(context.Context, SignedTransactionHash) (TxInfoResult, error)
+	Get_block_by_height(context.Context, BlockHeight) (BlockLookupResult, error)
 	Get_events(context.Context, EventQuery) (EventPage, error)
 	Get_transactions(context.Context, TransactionQuery) (TransactionPage, error)
 	Get_transactions_by_address(context.Context, AddressTransactionQuery) (TransactionRefPage, error)
+	Get_transactions_by_block(context.Context, BlockTransactionQuery) (TransactionRefPage, error)
 }
 
 type TxEventLogBatch = []TxEventLog
@@ -18014,6 +18047,110 @@ func (u *TxInfoResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_TxInfoResult(v *TxInfoResult) *TxInfoResult { return v}
+var _XdrNames_BlockLookupOutcome = map[int32]string{
+	int32(BlockFound): "BlockFound",
+	int32(BlockNotFound): "BlockNotFound",
+}
+var _XdrValues_BlockLookupOutcome = map[string]int32{
+	"BlockFound": int32(BlockFound),
+	"BlockNotFound": int32(BlockNotFound),
+}
+func (BlockLookupOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_BlockLookupOutcome
+}
+func (v BlockLookupOutcome) String() string {
+	if s, ok := _XdrNames_BlockLookupOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("BlockLookupOutcome#%d", v)
+}
+func (v *BlockLookupOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_BlockLookupOutcome[stok]; ok {
+			*v = BlockLookupOutcome(val)
+			return nil
+		} else if stok == "BlockLookupOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid BlockLookupOutcome.", stok))
+	}
+}
+func (v BlockLookupOutcome) GetU32() uint32 { return uint32(v) }
+func (v *BlockLookupOutcome) SetU32(n uint32) { *v = BlockLookupOutcome(n) }
+func (v *BlockLookupOutcome) XdrPointer() interface{} { return v }
+func (BlockLookupOutcome) XdrTypeName() string { return "BlockLookupOutcome" }
+func (v BlockLookupOutcome) XdrValue() interface{} { return v }
+func (v *BlockLookupOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_BlockLookupOutcome = *BlockLookupOutcome
+func XDR_BlockLookupOutcome(v *BlockLookupOutcome) *BlockLookupOutcome { return v }
+func (_ BlockLookupResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *BlockLookupResult) Value() *ConsensusValue {
+	switch u.Outcome {
+	case BlockFound:
+		if v, ok := u._u.(*ConsensusValue); ok {
+			return v
+		} else {
+			var zero ConsensusValue
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("BlockLookupResult.Value accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u BlockLookupResult) XdrValid() bool {
+	return true
+}
+func (u *BlockLookupResult) XdrUnionTag() XdrNum32 {
+	return XDR_BlockLookupOutcome(&u.Outcome)
+}
+func (u *BlockLookupResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *BlockLookupResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case BlockFound:
+		return XDR_ConsensusValue(u.Value())
+	default:
+		return nil
+	}
+}
+func (u *BlockLookupResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case BlockFound:
+		return "Value"
+	default:
+		return ""
+	}
+}
+type XdrType_BlockLookupResult = *BlockLookupResult
+func (v *BlockLookupResult) XdrPointer() interface{} { return v }
+func (BlockLookupResult) XdrTypeName() string { return "BlockLookupResult" }
+func (v BlockLookupResult) XdrValue() interface{} { return v }
+func (v *BlockLookupResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *BlockLookupResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_BlockLookupOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case BlockFound:
+		x.Marshal(x.Sprintf("%svalue", name), XDR_ConsensusValue(u.Value()))
+		return
+	default:
+		return
+	}
+}
+func XDR_BlockLookupResult(v *BlockLookupResult) *BlockLookupResult { return v}
 type _XdrVec_unbounded_IdentifiedEvent []IdentifiedEvent
 func (_XdrVec_unbounded_IdentifiedEvent) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -18501,6 +18638,21 @@ func (v *AddressTransactionQuery) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%slimit", name), XDR_uint32(&v.Limit))
 }
 func XDR_AddressTransactionQuery(v *AddressTransactionQuery) *AddressTransactionQuery { return v }
+type XdrType_BlockTransactionQuery = *BlockTransactionQuery
+func (v *BlockTransactionQuery) XdrPointer() interface{} { return v }
+func (BlockTransactionQuery) XdrTypeName() string { return "BlockTransactionQuery" }
+func (v BlockTransactionQuery) XdrValue() interface{} { return v }
+func (v *BlockTransactionQuery) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BlockTransactionQuery) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
+	x.Marshal(x.Sprintf("%sorder", name), XDR_IterationOrder(&v.Order))
+	x.Marshal(x.Sprintf("%scursor", name), XDR_PaginationCursor(&v.Cursor))
+	x.Marshal(x.Sprintf("%slimit", name), XDR_uint32(&v.Limit))
+}
+func XDR_BlockTransactionQuery(v *BlockTransactionQuery) *BlockTransactionQuery { return v }
 type XdrType_TransactionRefPage = *TransactionRefPage
 func (v *TransactionRefPage) XdrPointer() interface{} { return v }
 func (TransactionRefPage) XdrTypeName() string { return "TransactionRefPage" }
@@ -18653,6 +18805,53 @@ func (p *xdrSrvProc_Get_transaction_info) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_transaction_info{} // XXX
 
+type xdrProc_Get_block_by_height struct {
+	Arg *BlockHeight
+	Res *BlockLookupResult
+}
+func (xdrProc_Get_block_by_height) Prog() uint32 { return 1126279850 }
+func (xdrProc_Get_block_by_height) Vers() uint32 { return 1 }
+func (xdrProc_Get_block_by_height) Proc() uint32 { return 2 }
+func (xdrProc_Get_block_by_height) ProgName() string { return "IndexerBlockExplorer" }
+func (xdrProc_Get_block_by_height) VersName() string { return "IndexerBlockExplorer1" }
+func (xdrProc_Get_block_by_height) ProcName() string { return "get_block_by_height" }
+func (p *xdrProc_Get_block_by_height) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(BlockHeight)
+	}
+	return XDR_BlockHeight(p.Arg)
+}
+func (p *xdrProc_Get_block_by_height) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(BlockLookupResult)
+	}
+	return XDR_BlockLookupResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Get_block_by_height{} // XXX
+
+type xdrSrvProc_Get_block_by_height struct {
+	xdrProc_Get_block_by_height
+	Srv IndexerBlockExplorer1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Get_block_by_height) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) IndexerBlockExplorer1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Get_block_by_height) Do() {
+	r, err := p.Srv.Get_block_by_height(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Get_block_by_height{} // XXX
+
 type xdrProc_Get_events struct {
 	Arg *EventQuery
 	Res *EventPage
@@ -18794,6 +18993,53 @@ func (p *xdrSrvProc_Get_transactions_by_address) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Get_transactions_by_address{} // XXX
 
+type xdrProc_Get_transactions_by_block struct {
+	Arg *BlockTransactionQuery
+	Res *TransactionRefPage
+}
+func (xdrProc_Get_transactions_by_block) Prog() uint32 { return 1126279850 }
+func (xdrProc_Get_transactions_by_block) Vers() uint32 { return 1 }
+func (xdrProc_Get_transactions_by_block) Proc() uint32 { return 6 }
+func (xdrProc_Get_transactions_by_block) ProgName() string { return "IndexerBlockExplorer" }
+func (xdrProc_Get_transactions_by_block) VersName() string { return "IndexerBlockExplorer1" }
+func (xdrProc_Get_transactions_by_block) ProcName() string { return "get_transactions_by_block" }
+func (p *xdrProc_Get_transactions_by_block) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(BlockTransactionQuery)
+	}
+	return XDR_BlockTransactionQuery(p.Arg)
+}
+func (p *xdrProc_Get_transactions_by_block) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(TransactionRefPage)
+	}
+	return XDR_TransactionRefPage(p.Res)
+}
+var _ XdrProc = &xdrProc_Get_transactions_by_block{} // XXX
+
+type xdrSrvProc_Get_transactions_by_block struct {
+	xdrProc_Get_transactions_by_block
+	Srv IndexerBlockExplorer1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Get_transactions_by_block) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) IndexerBlockExplorer1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Get_transactions_by_block) Do() {
+	r, err := p.Srv.Get_transactions_by_block(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Get_transactions_by_block{} // XXX
+
 func init() {
 	XdrCatalog[1126279850<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -18801,12 +19047,16 @@ func init() {
 			return &xdrProc_Indexer_block_explorer_intro{}
 		case 1:
 			return &xdrProc_Get_transaction_info{}
+		case 2:
+			return &xdrProc_Get_block_by_height{}
 		case 3:
 			return &xdrProc_Get_events{}
 		case 4:
 			return &xdrProc_Get_transactions{}
 		case 5:
 			return &xdrProc_Get_transactions_by_address{}
+		case 6:
+			return &xdrProc_Get_transactions_by_block{}
 		}
 		return nil
 	}
@@ -18825,12 +19075,16 @@ func (s IndexerBlockExplorer1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Indexer_block_explorer_intro{ Srv: s.Srv }
 	case 1:  // get_transaction_info
 		return &xdrSrvProc_Get_transaction_info{ Srv: s.Srv }
+	case 2:  // get_block_by_height
+		return &xdrSrvProc_Get_block_by_height{ Srv: s.Srv }
 	case 3:  // get_events
 		return &xdrSrvProc_Get_events{ Srv: s.Srv }
 	case 4:  // get_transactions
 		return &xdrSrvProc_Get_transactions{ Srv: s.Srv }
 	case 5:  // get_transactions_by_address
 		return &xdrSrvProc_Get_transactions_by_address{ Srv: s.Srv }
+	case 6:  // get_transactions_by_block
+		return &xdrSrvProc_Get_transactions_by_block{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -18862,6 +19116,14 @@ func (c IndexerBlockExplorer1_Client) Get_transaction_info(ctx context.Context, 
 	}
 	return *proc.Res, nil
 }
+func (c IndexerBlockExplorer1_Client) Get_block_by_height(ctx context.Context, a1 BlockHeight) (r BlockLookupResult, _ error) {
+	var proc xdrProc_Get_block_by_height
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
 func (c IndexerBlockExplorer1_Client) Get_events(ctx context.Context, a1 EventQuery) (r EventPage, _ error) {
 	var proc xdrProc_Get_events
 	proc.Arg = &a1
@@ -18880,6 +19142,14 @@ func (c IndexerBlockExplorer1_Client) Get_transactions(ctx context.Context, a1 T
 }
 func (c IndexerBlockExplorer1_Client) Get_transactions_by_address(ctx context.Context, a1 AddressTransactionQuery) (r TransactionRefPage, _ error) {
 	var proc xdrProc_Get_transactions_by_address
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c IndexerBlockExplorer1_Client) Get_transactions_by_block(ctx context.Context, a1 BlockTransactionQuery) (r TransactionRefPage, _ error) {
+	var proc xdrProc_Get_transactions_by_block
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
