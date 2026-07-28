@@ -2,6 +2,16 @@
 
 set -e
 
+CHECK_GENERATED=0
+if [ "${1:-}" = "--check" ]; then
+    CHECK_GENERATED=1
+    shift
+fi
+if [ "$#" -ne 0 ]; then
+    echo "usage: $0 [--check]" >&2
+    exit 2
+fi
+
 # Files to exclude from XDR generation (space-separated list of filenames, e.g., "file1.x file2.x")
 EXCLUDE_FILES="transaction_trace.x ffi_enums.x invoke_flag.x invoke_args.x executor_to_db_rpc.x groundhog_contract_spec.x view.x view_gateway.x"
 
@@ -55,3 +65,14 @@ EOF
 go mod tidy
 GOWORK=off go generate
 go build
+
+if [ "$CHECK_GENERATED" -eq 1 ]; then
+    generation_status=$(git status --porcelain --untracked-files=all)
+    if [ -n "$generation_status" ]; then
+        echo "Generated files are out of date:" >&2
+        printf '%s\n' "$generation_status" >&2
+        echo "Tracked diff summary:" >&2
+        git diff --stat -- >&2
+        exit 1
+    fi
+fi
