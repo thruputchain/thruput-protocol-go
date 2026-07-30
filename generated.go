@@ -1132,6 +1132,7 @@ type EventSched2 interface {
 	Eventsched2_open_block(context.Context, BlockID) (RPCError, error)
 	Eventsched2_close_block(context.Context, BlockID, BlockHeight, ProposalTxs) (EventBlockResult, error)
 	Eventsched2_commit_block(context.Context, BlockID, ConsensusValue) (RPCError, error)
+	Eventsched2_confirm_committed_block(context.Context, ConsensusValue) (RPCError, error)
 	Eventsched2_abandon_block(context.Context, BlockID) (RPCError, error)
 }
 
@@ -12840,6 +12841,53 @@ func (p *xdrSrvProc_Eventsched2_commit_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Eventsched2_commit_block{} // XXX
 
+type xdrProc_Eventsched2_confirm_committed_block struct {
+	Arg *ConsensusValue
+	Res *RPCError
+}
+func (xdrProc_Eventsched2_confirm_committed_block) Prog() uint32 { return 2326270502 }
+func (xdrProc_Eventsched2_confirm_committed_block) Vers() uint32 { return 2 }
+func (xdrProc_Eventsched2_confirm_committed_block) Proc() uint32 { return 32 }
+func (xdrProc_Eventsched2_confirm_committed_block) ProgName() string { return "EventSched" }
+func (xdrProc_Eventsched2_confirm_committed_block) VersName() string { return "EventSched2" }
+func (xdrProc_Eventsched2_confirm_committed_block) ProcName() string { return "eventsched2_confirm_committed_block" }
+func (p *xdrProc_Eventsched2_confirm_committed_block) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(ConsensusValue)
+	}
+	return XDR_ConsensusValue(p.Arg)
+}
+func (p *xdrProc_Eventsched2_confirm_committed_block) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(RPCError)
+	}
+	return XDR_RPCError(p.Res)
+}
+var _ XdrProc = &xdrProc_Eventsched2_confirm_committed_block{} // XXX
+
+type xdrSrvProc_Eventsched2_confirm_committed_block struct {
+	xdrProc_Eventsched2_confirm_committed_block
+	Srv EventSched2
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Eventsched2_confirm_committed_block) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) EventSched2
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Eventsched2_confirm_committed_block) Do() {
+	r, err := p.Srv.Eventsched2_confirm_committed_block(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Eventsched2_confirm_committed_block{} // XXX
+
 type xdrProc_Eventsched2_abandon_block struct {
 	Arg *BlockID
 	Res *RPCError
@@ -12898,6 +12946,8 @@ func init() {
 			return &xdrProc_Eventsched2_close_block{}
 		case 31:
 			return &xdrProc_Eventsched2_commit_block{}
+		case 32:
+			return &xdrProc_Eventsched2_confirm_committed_block{}
 		case 40:
 			return &xdrProc_Eventsched2_abandon_block{}
 		}
@@ -12922,6 +12972,8 @@ func (s EventSched2_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Eventsched2_close_block{ Srv: s.Srv }
 	case 31:  // eventsched2_commit_block
 		return &xdrSrvProc_Eventsched2_commit_block{ Srv: s.Srv }
+	case 32:  // eventsched2_confirm_committed_block
+		return &xdrSrvProc_Eventsched2_confirm_committed_block{ Srv: s.Srv }
 	case 40:  // eventsched2_abandon_block
 		return &xdrSrvProc_Eventsched2_abandon_block{ Srv: s.Srv }
 	default:
@@ -12970,6 +13022,14 @@ func (c EventSched2_Client) Eventsched2_commit_block(ctx context.Context, a1 Blo
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c EventSched2_Client) Eventsched2_confirm_committed_block(ctx context.Context, a1 ConsensusValue) (r RPCError, _ error) {
+	var proc xdrProc_Eventsched2_confirm_committed_block
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
