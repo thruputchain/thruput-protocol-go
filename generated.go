@@ -1122,18 +1122,10 @@ type EventBlockResult struct {
 type EventSched1 interface {
 	Eventsched_null(context.Context, ) error
 	Eventsched_open_block(context.Context, BlockID) (RPCError, error)
-	Eventsched_close_block(context.Context, BlockID, BlockHeight) (EventBlockResult, error)
-	Eventsched_commit_block(context.Context, BlockID) (RPCError, error)
+	Eventsched_close_block(context.Context, BlockID, BlockHeight, ProposalTxs) (EventBlockResult, error)
+	Eventsched_commit_block(context.Context, BlockID, ConsensusValue) (RPCError, error)
+	Eventsched_confirm_committed_block(context.Context, ConsensusValue) (RPCError, error)
 	Eventsched_abandon_block(context.Context, BlockID) (RPCError, error)
-}
-
-type EventSched2 interface {
-	Eventsched2_null(context.Context, ) error
-	Eventsched2_open_block(context.Context, BlockID) (RPCError, error)
-	Eventsched2_close_block(context.Context, BlockID, BlockHeight, ProposalTxs) (EventBlockResult, error)
-	Eventsched2_commit_block(context.Context, BlockID, ConsensusValue) (RPCError, error)
-	Eventsched2_confirm_committed_block(context.Context, ConsensusValue) (RPCError, error)
-	Eventsched2_abandon_block(context.Context, BlockID) (RPCError, error)
 }
 
 /// Maximum length in bytes for a serialized event.
@@ -2101,26 +2093,15 @@ type IndexerBlockApplyResult struct {
 }
 
 type IndexerEvent1 interface {
-	Indexer_event_process_events(context.Context, BlockHeight, TxEventLogBatch, ProposedTransactionBatch) error
-	Indexer_event_report_tx_failure(context.Context, SignedTransactionHash, TxFailureDiagnostic) error
-}
-
-type IndexerEvent2 interface {
 	Indexer_event_get_progress(context.Context, ) (IndexerProgress, error)
 	Indexer_event_initialize_epoch(context.Context, IndexerOutboxOrigin) (IndexerEpochResult, error)
 	Indexer_event_apply_committed_block(context.Context, IndexerOutboxOrigin, IndexerCommittedBlock) (IndexerBlockApplyResult, error)
-	Indexer_event_report_tx_failure_v2(context.Context, SignedTransactionHash, TxFailureDiagnostic) error
+	Indexer_event_report_tx_failure(context.Context, SignedTransactionHash, TxFailureDiagnostic) error
 }
 
+/// Registration is bound to one indexer process generation and the durable
+/// progress observed immediately before registration.
 type IndexerCard struct {
-	Protocol ProtocolCommit
-	Address_for_event ServerAddress
-}
-
-/// V2 registration is bound to one indexer process generation and the durable
-/// progress observed immediately before registration. A later successful
-/// registration replaces the event service's single receiver slot.
-type IndexerCardV2 struct {
 	Protocol ProtocolCommit
 	Generation UPID
 	// Absent for the first durable indexer session. A new session may replace
@@ -2130,18 +2111,6 @@ type IndexerCardV2 struct {
 	Address_for_event ServerAddress
 	Progress IndexerProgress
 }
-
-type EventIndexerIntroOutcome int32
-const (
-	EventIntroSuccess EventIndexerIntroOutcome = 0
-	// The indexer advertised a protocol string the event server does not speak.
-	EventIntroMismatchedProtocol EventIndexerIntroOutcome = 1
-	// The event server could not dial the indexer's advertised address_for_event
-	// (e.g. a bind/advertise mismatch or a refused connection). The registration
-	// is rejected rather than silently accepted, so the indexer does not mark
-	// itself healthy while the event server has no client for it.
-	EventIntroConnectFailed EventIndexerIntroOutcome = 2
-)
 
 type EventIndexerRegistrationOutcome int32
 const (
@@ -2157,11 +2126,7 @@ const (
 )
 
 type EventIndexer1 interface {
-	Event_indexer_intro(context.Context, IndexerCard) (EventIndexerIntroOutcome, error)
-}
-
-type EventIndexer2 interface {
-	Event_indexer_register(context.Context, IndexerCardV2) (EventIndexerRegistrationOutcome, error)
+	Event_indexer_register(context.Context, IndexerCard) (EventIndexerRegistrationOutcome, error)
 	Event_indexer_probe(context.Context, UPID) (EventIndexerRegistrationOutcome, error)
 }
 
@@ -3006,12 +2971,8 @@ type EventActivationResult struct {
 }
 
 type SchedEvent1 interface {
-	Schedevent_intro_event(context.Context, EventCard) (RPCError, error)
-}
-
-type SchedEvent2 interface {
-	Schedevent2_prepare_event(context.Context, EventCard) (EventPrepareResult, error)
-	Schedevent2_activate_event(context.Context, EventRegistrationSnapshot) (EventActivationResult, error)
+	Schedevent_prepare_event(context.Context, EventCard) (EventPrepareResult, error)
+	Schedevent_activate_event(context.Context, EventRegistrationSnapshot) (EventActivationResult, error)
 }
 
 // Uniquely describes an executor instance.
@@ -12361,6 +12322,7 @@ var _ XdrSrvProc = &xdrSrvProc_Eventsched_open_block{} // XXX
 type xdrProcArg_Eventsched_close_block struct {
 	a1 *BlockID
 	a2 *BlockHeight
+	a3 *ProposalTxs
 }
 func (v *xdrProcArg_Eventsched_close_block) XdrPointer() interface{} { return v }
 func (xdrProcArg_Eventsched_close_block) XdrTypeName() string { return "xdrProcArg_Eventsched_close_block" }
@@ -12374,6 +12336,8 @@ func (v *xdrProcArg_Eventsched_close_block) XdrRecurse(x XDR, name string) {
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(BlockHeight) }
 	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	if v.a3 == nil { v.a3 = new(ProposalTxs) }
+	XDR_ProposalTxs(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Eventsched_close_block(v *xdrProcArg_Eventsched_close_block) *xdrProcArg_Eventsched_close_block { return v }
 var _ XdrType = &xdrProcArg_Eventsched_close_block{} // XXX
@@ -12416,7 +12380,7 @@ func (p *xdrSrvProc_Eventsched_close_block) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Eventsched_close_block) Do() {
-	r, err := p.Srv.Eventsched_close_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	r, err := p.Srv.Eventsched_close_block(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
 	p.Res = &r
 
 	if err != nil {
@@ -12425,8 +12389,28 @@ func (p *xdrSrvProc_Eventsched_close_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Eventsched_close_block{} // XXX
 
+type xdrProcArg_Eventsched_commit_block struct {
+	a1 *BlockID
+	a2 *ConsensusValue
+}
+func (v *xdrProcArg_Eventsched_commit_block) XdrPointer() interface{} { return v }
+func (xdrProcArg_Eventsched_commit_block) XdrTypeName() string { return "xdrProcArg_Eventsched_commit_block" }
+func (v xdrProcArg_Eventsched_commit_block) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Eventsched_commit_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Eventsched_commit_block) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(ConsensusValue) }
+	XDR_ConsensusValue(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Eventsched_commit_block(v *xdrProcArg_Eventsched_commit_block) *xdrProcArg_Eventsched_commit_block { return v }
+var _ XdrType = &xdrProcArg_Eventsched_commit_block{} // XXX
+
 type xdrProc_Eventsched_commit_block struct {
-	Arg *BlockID
+	Arg *xdrProcArg_Eventsched_commit_block
 	Res *RPCError
 }
 func (xdrProc_Eventsched_commit_block) Prog() uint32 { return 2326270502 }
@@ -12437,9 +12421,9 @@ func (xdrProc_Eventsched_commit_block) VersName() string { return "EventSched1" 
 func (xdrProc_Eventsched_commit_block) ProcName() string { return "eventsched_commit_block" }
 func (p *xdrProc_Eventsched_commit_block) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(BlockID)
+		p.Arg = new(xdrProcArg_Eventsched_commit_block)
 	}
-	return XDR_BlockID(p.Arg)
+	return XDR_xdrProcArg_Eventsched_commit_block(p.Arg)
 }
 func (p *xdrProc_Eventsched_commit_block) GetRes() XdrType {
 	if p.Res == nil {
@@ -12463,7 +12447,7 @@ func (p *xdrSrvProc_Eventsched_commit_block) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Eventsched_commit_block) Do() {
-	r, err := p.Srv.Eventsched_commit_block(p.Ctx, *p.Arg)
+	r, err := p.Srv.Eventsched_commit_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -12471,6 +12455,53 @@ func (p *xdrSrvProc_Eventsched_commit_block) Do() {
 	}
 }
 var _ XdrSrvProc = &xdrSrvProc_Eventsched_commit_block{} // XXX
+
+type xdrProc_Eventsched_confirm_committed_block struct {
+	Arg *ConsensusValue
+	Res *RPCError
+}
+func (xdrProc_Eventsched_confirm_committed_block) Prog() uint32 { return 2326270502 }
+func (xdrProc_Eventsched_confirm_committed_block) Vers() uint32 { return 1 }
+func (xdrProc_Eventsched_confirm_committed_block) Proc() uint32 { return 32 }
+func (xdrProc_Eventsched_confirm_committed_block) ProgName() string { return "EventSched" }
+func (xdrProc_Eventsched_confirm_committed_block) VersName() string { return "EventSched1" }
+func (xdrProc_Eventsched_confirm_committed_block) ProcName() string { return "eventsched_confirm_committed_block" }
+func (p *xdrProc_Eventsched_confirm_committed_block) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(ConsensusValue)
+	}
+	return XDR_ConsensusValue(p.Arg)
+}
+func (p *xdrProc_Eventsched_confirm_committed_block) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(RPCError)
+	}
+	return XDR_RPCError(p.Res)
+}
+var _ XdrProc = &xdrProc_Eventsched_confirm_committed_block{} // XXX
+
+type xdrSrvProc_Eventsched_confirm_committed_block struct {
+	xdrProc_Eventsched_confirm_committed_block
+	Srv EventSched1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Eventsched_confirm_committed_block) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) EventSched1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Eventsched_confirm_committed_block) Do() {
+	r, err := p.Srv.Eventsched_confirm_committed_block(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Eventsched_confirm_committed_block{} // XXX
 
 type xdrProc_Eventsched_abandon_block struct {
 	Arg *BlockID
@@ -12530,6 +12561,8 @@ func init() {
 			return &xdrProc_Eventsched_close_block{}
 		case 31:
 			return &xdrProc_Eventsched_commit_block{}
+		case 32:
+			return &xdrProc_Eventsched_confirm_committed_block{}
 		case 40:
 			return &xdrProc_Eventsched_abandon_block{}
 		}
@@ -12554,6 +12587,8 @@ func (s EventSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Eventsched_close_block{ Srv: s.Srv }
 	case 31:  // eventsched_commit_block
 		return &xdrSrvProc_Eventsched_commit_block{ Srv: s.Srv }
+	case 32:  // eventsched_confirm_committed_block
+		return &xdrSrvProc_Eventsched_confirm_committed_block{ Srv: s.Srv }
 	case 40:  // eventsched_abandon_block
 		return &xdrSrvProc_Eventsched_abandon_block{ Srv: s.Srv }
 	default:
@@ -12586,429 +12621,8 @@ func (c EventSched1_Client) Eventsched_open_block(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight) (r EventBlockResult, _ error) {
+func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight, a3 ProposalTxs) (r EventBlockResult, _ error) {
 	var proc xdrProc_Eventsched_close_block
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c EventSched1_Client) Eventsched_commit_block(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched_commit_block
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c EventSched1_Client) Eventsched_abandon_block(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched_abandon_block
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-
-type xdrProc_Eventsched2_null struct {
-	Arg *XdrVoid
-	Res *XdrVoid
-}
-func (xdrProc_Eventsched2_null) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched2_null) Vers() uint32 { return 2 }
-func (xdrProc_Eventsched2_null) Proc() uint32 { return 0 }
-func (xdrProc_Eventsched2_null) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched2_null) VersName() string { return "EventSched2" }
-func (xdrProc_Eventsched2_null) ProcName() string { return "eventsched2_null" }
-func (p *xdrProc_Eventsched2_null) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Arg)
-}
-func (p *xdrProc_Eventsched2_null) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched2_null{} // XXX
-
-type xdrSrvProc_Eventsched2_null struct {
-	xdrProc_Eventsched2_null
-	Srv EventSched2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched2_null) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched2_null) Do() {
-	err := p.Srv.Eventsched2_null(p.Ctx, )
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched2_null{} // XXX
-
-type xdrProc_Eventsched2_open_block struct {
-	Arg *BlockID
-	Res *RPCError
-}
-func (xdrProc_Eventsched2_open_block) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched2_open_block) Vers() uint32 { return 2 }
-func (xdrProc_Eventsched2_open_block) Proc() uint32 { return 10 }
-func (xdrProc_Eventsched2_open_block) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched2_open_block) VersName() string { return "EventSched2" }
-func (xdrProc_Eventsched2_open_block) ProcName() string { return "eventsched2_open_block" }
-func (p *xdrProc_Eventsched2_open_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(BlockID)
-	}
-	return XDR_BlockID(p.Arg)
-}
-func (p *xdrProc_Eventsched2_open_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched2_open_block{} // XXX
-
-type xdrSrvProc_Eventsched2_open_block struct {
-	xdrProc_Eventsched2_open_block
-	Srv EventSched2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched2_open_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched2_open_block) Do() {
-	r, err := p.Srv.Eventsched2_open_block(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched2_open_block{} // XXX
-
-type xdrProcArg_Eventsched2_close_block struct {
-	a1 *BlockID
-	a2 *BlockHeight
-	a3 *ProposalTxs
-}
-func (v *xdrProcArg_Eventsched2_close_block) XdrPointer() interface{} { return v }
-func (xdrProcArg_Eventsched2_close_block) XdrTypeName() string { return "xdrProcArg_Eventsched2_close_block" }
-func (v xdrProcArg_Eventsched2_close_block) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Eventsched2_close_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Eventsched2_close_block) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockID) }
-	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(BlockHeight) }
-	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(ProposalTxs) }
-	XDR_ProposalTxs(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
-}
-func XDR_xdrProcArg_Eventsched2_close_block(v *xdrProcArg_Eventsched2_close_block) *xdrProcArg_Eventsched2_close_block { return v }
-var _ XdrType = &xdrProcArg_Eventsched2_close_block{} // XXX
-
-type xdrProc_Eventsched2_close_block struct {
-	Arg *xdrProcArg_Eventsched2_close_block
-	Res *EventBlockResult
-}
-func (xdrProc_Eventsched2_close_block) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched2_close_block) Vers() uint32 { return 2 }
-func (xdrProc_Eventsched2_close_block) Proc() uint32 { return 30 }
-func (xdrProc_Eventsched2_close_block) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched2_close_block) VersName() string { return "EventSched2" }
-func (xdrProc_Eventsched2_close_block) ProcName() string { return "eventsched2_close_block" }
-func (p *xdrProc_Eventsched2_close_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Eventsched2_close_block)
-	}
-	return XDR_xdrProcArg_Eventsched2_close_block(p.Arg)
-}
-func (p *xdrProc_Eventsched2_close_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(EventBlockResult)
-	}
-	return XDR_EventBlockResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched2_close_block{} // XXX
-
-type xdrSrvProc_Eventsched2_close_block struct {
-	xdrProc_Eventsched2_close_block
-	Srv EventSched2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched2_close_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched2_close_block) Do() {
-	r, err := p.Srv.Eventsched2_close_block(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched2_close_block{} // XXX
-
-type xdrProcArg_Eventsched2_commit_block struct {
-	a1 *BlockID
-	a2 *ConsensusValue
-}
-func (v *xdrProcArg_Eventsched2_commit_block) XdrPointer() interface{} { return v }
-func (xdrProcArg_Eventsched2_commit_block) XdrTypeName() string { return "xdrProcArg_Eventsched2_commit_block" }
-func (v xdrProcArg_Eventsched2_commit_block) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Eventsched2_commit_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Eventsched2_commit_block) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockID) }
-	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(ConsensusValue) }
-	XDR_ConsensusValue(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Eventsched2_commit_block(v *xdrProcArg_Eventsched2_commit_block) *xdrProcArg_Eventsched2_commit_block { return v }
-var _ XdrType = &xdrProcArg_Eventsched2_commit_block{} // XXX
-
-type xdrProc_Eventsched2_commit_block struct {
-	Arg *xdrProcArg_Eventsched2_commit_block
-	Res *RPCError
-}
-func (xdrProc_Eventsched2_commit_block) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched2_commit_block) Vers() uint32 { return 2 }
-func (xdrProc_Eventsched2_commit_block) Proc() uint32 { return 31 }
-func (xdrProc_Eventsched2_commit_block) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched2_commit_block) VersName() string { return "EventSched2" }
-func (xdrProc_Eventsched2_commit_block) ProcName() string { return "eventsched2_commit_block" }
-func (p *xdrProc_Eventsched2_commit_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Eventsched2_commit_block)
-	}
-	return XDR_xdrProcArg_Eventsched2_commit_block(p.Arg)
-}
-func (p *xdrProc_Eventsched2_commit_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched2_commit_block{} // XXX
-
-type xdrSrvProc_Eventsched2_commit_block struct {
-	xdrProc_Eventsched2_commit_block
-	Srv EventSched2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched2_commit_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched2_commit_block) Do() {
-	r, err := p.Srv.Eventsched2_commit_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched2_commit_block{} // XXX
-
-type xdrProc_Eventsched2_confirm_committed_block struct {
-	Arg *ConsensusValue
-	Res *RPCError
-}
-func (xdrProc_Eventsched2_confirm_committed_block) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched2_confirm_committed_block) Vers() uint32 { return 2 }
-func (xdrProc_Eventsched2_confirm_committed_block) Proc() uint32 { return 32 }
-func (xdrProc_Eventsched2_confirm_committed_block) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched2_confirm_committed_block) VersName() string { return "EventSched2" }
-func (xdrProc_Eventsched2_confirm_committed_block) ProcName() string { return "eventsched2_confirm_committed_block" }
-func (p *xdrProc_Eventsched2_confirm_committed_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(ConsensusValue)
-	}
-	return XDR_ConsensusValue(p.Arg)
-}
-func (p *xdrProc_Eventsched2_confirm_committed_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched2_confirm_committed_block{} // XXX
-
-type xdrSrvProc_Eventsched2_confirm_committed_block struct {
-	xdrProc_Eventsched2_confirm_committed_block
-	Srv EventSched2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched2_confirm_committed_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched2_confirm_committed_block) Do() {
-	r, err := p.Srv.Eventsched2_confirm_committed_block(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched2_confirm_committed_block{} // XXX
-
-type xdrProc_Eventsched2_abandon_block struct {
-	Arg *BlockID
-	Res *RPCError
-}
-func (xdrProc_Eventsched2_abandon_block) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched2_abandon_block) Vers() uint32 { return 2 }
-func (xdrProc_Eventsched2_abandon_block) Proc() uint32 { return 40 }
-func (xdrProc_Eventsched2_abandon_block) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched2_abandon_block) VersName() string { return "EventSched2" }
-func (xdrProc_Eventsched2_abandon_block) ProcName() string { return "eventsched2_abandon_block" }
-func (p *xdrProc_Eventsched2_abandon_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(BlockID)
-	}
-	return XDR_BlockID(p.Arg)
-}
-func (p *xdrProc_Eventsched2_abandon_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched2_abandon_block{} // XXX
-
-type xdrSrvProc_Eventsched2_abandon_block struct {
-	xdrProc_Eventsched2_abandon_block
-	Srv EventSched2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched2_abandon_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched2_abandon_block) Do() {
-	r, err := p.Srv.Eventsched2_abandon_block(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched2_abandon_block{} // XXX
-
-func init() {
-	XdrCatalog[2326270502<<32|2] = func(p uint32) XdrProc {
-		switch(p) {
-		case 0:
-			return &xdrProc_Eventsched2_null{}
-		case 10:
-			return &xdrProc_Eventsched2_open_block{}
-		case 30:
-			return &xdrProc_Eventsched2_close_block{}
-		case 31:
-			return &xdrProc_Eventsched2_commit_block{}
-		case 32:
-			return &xdrProc_Eventsched2_confirm_committed_block{}
-		case 40:
-			return &xdrProc_Eventsched2_abandon_block{}
-		}
-		return nil
-	}
-}
-
-type EventSched2_Server struct {
-	Srv EventSched2
-}
-func (EventSched2_Server) Prog() uint32 { return 2326270502 }
-func (EventSched2_Server) Vers() uint32 { return 2 }
-func (EventSched2_Server) ProgName() string { return "EventSched" }
-func (EventSched2_Server) VersName() string { return "EventSched2" }
-func (s EventSched2_Server) GetProc(p uint32) XdrSrvProc {
-	switch p {
-	case 0:  // eventsched2_null
-		return &xdrSrvProc_Eventsched2_null{ Srv: s.Srv }
-	case 10:  // eventsched2_open_block
-		return &xdrSrvProc_Eventsched2_open_block{ Srv: s.Srv }
-	case 30:  // eventsched2_close_block
-		return &xdrSrvProc_Eventsched2_close_block{ Srv: s.Srv }
-	case 31:  // eventsched2_commit_block
-		return &xdrSrvProc_Eventsched2_commit_block{ Srv: s.Srv }
-	case 32:  // eventsched2_confirm_committed_block
-		return &xdrSrvProc_Eventsched2_confirm_committed_block{ Srv: s.Srv }
-	case 40:  // eventsched2_abandon_block
-		return &xdrSrvProc_Eventsched2_abandon_block{ Srv: s.Srv }
-	default:
-		return nil
-	}
-}
-var _ XdrSrv = EventSched2_Server{} // XXX
-
-type EventSched2_Client struct {
-	Send XdrSendCall
-	Ctx context.Context
-}
-var _ EventSched2 = EventSched2_Client{} // XXX
-func (c EventSched2_Client) WithContext(ctx context.Context) EventSched2 {
-	c.Ctx = ctx
-	return c
-}
-func (c EventSched2_Client) Eventsched2_null(ctx context.Context, ) error {
-	var proc xdrProc_Eventsched2_null
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
-	}
-	return nil
-}
-func (c EventSched2_Client) Eventsched2_open_block(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched2_open_block
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c EventSched2_Client) Eventsched2_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight, a3 ProposalTxs) (r EventBlockResult, _ error) {
-	var proc xdrProc_Eventsched2_close_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
@@ -13018,8 +12632,8 @@ func (c EventSched2_Client) Eventsched2_close_block(ctx context.Context, a1 Bloc
 	}
 	return *proc.Res, nil
 }
-func (c EventSched2_Client) Eventsched2_commit_block(ctx context.Context, a1 BlockID, a2 ConsensusValue) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched2_commit_block
+func (c EventSched1_Client) Eventsched_commit_block(ctx context.Context, a1 BlockID, a2 ConsensusValue) (r RPCError, _ error) {
+	var proc xdrProc_Eventsched_commit_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
@@ -13028,16 +12642,16 @@ func (c EventSched2_Client) Eventsched2_commit_block(ctx context.Context, a1 Blo
 	}
 	return *proc.Res, nil
 }
-func (c EventSched2_Client) Eventsched2_confirm_committed_block(ctx context.Context, a1 ConsensusValue) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched2_confirm_committed_block
+func (c EventSched1_Client) Eventsched_confirm_committed_block(ctx context.Context, a1 ConsensusValue) (r RPCError, _ error) {
+	var proc xdrProc_Eventsched_confirm_committed_block
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
 	return *proc.Res, nil
 }
-func (c EventSched2_Client) Eventsched2_abandon_block(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched2_abandon_block
+func (c EventSched1_Client) Eventsched_abandon_block(ctx context.Context, a1 BlockID) (r RPCError, _ error) {
+	var proc xdrProc_Eventsched_abandon_block
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
@@ -20323,59 +19937,36 @@ func (u *IndexerBlockApplyResult) XdrRecurse(x XDR, name string) {
 }
 func XDR_IndexerBlockApplyResult(v *IndexerBlockApplyResult) *IndexerBlockApplyResult { return v}
 
-type xdrProcArg_Indexer_event_process_events struct {
-	a1 *BlockHeight
-	a2 *TxEventLogBatch
-	a3 *ProposedTransactionBatch
+type xdrProc_Indexer_event_get_progress struct {
+	Arg *XdrVoid
+	Res *IndexerProgress
 }
-func (v *xdrProcArg_Indexer_event_process_events) XdrPointer() interface{} { return v }
-func (xdrProcArg_Indexer_event_process_events) XdrTypeName() string { return "xdrProcArg_Indexer_event_process_events" }
-func (v xdrProcArg_Indexer_event_process_events) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Indexer_event_process_events) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Indexer_event_process_events) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockHeight) }
-	XDR_BlockHeight(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(TxEventLogBatch) }
-	XDR_TxEventLogBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(ProposedTransactionBatch) }
-	XDR_ProposedTransactionBatch(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
-}
-func XDR_xdrProcArg_Indexer_event_process_events(v *xdrProcArg_Indexer_event_process_events) *xdrProcArg_Indexer_event_process_events { return v }
-var _ XdrType = &xdrProcArg_Indexer_event_process_events{} // XXX
-
-type xdrProc_Indexer_event_process_events struct {
-	Arg *xdrProcArg_Indexer_event_process_events
-	Res *XdrVoid
-}
-func (xdrProc_Indexer_event_process_events) Prog() uint32 { return 1126279851 }
-func (xdrProc_Indexer_event_process_events) Vers() uint32 { return 1 }
-func (xdrProc_Indexer_event_process_events) Proc() uint32 { return 0 }
-func (xdrProc_Indexer_event_process_events) ProgName() string { return "IndexerEvent" }
-func (xdrProc_Indexer_event_process_events) VersName() string { return "IndexerEvent1" }
-func (xdrProc_Indexer_event_process_events) ProcName() string { return "indexer_event_process_events" }
-func (p *xdrProc_Indexer_event_process_events) GetArg() XdrType {
+func (xdrProc_Indexer_event_get_progress) Prog() uint32 { return 1126279851 }
+func (xdrProc_Indexer_event_get_progress) Vers() uint32 { return 1 }
+func (xdrProc_Indexer_event_get_progress) Proc() uint32 { return 10 }
+func (xdrProc_Indexer_event_get_progress) ProgName() string { return "IndexerEvent" }
+func (xdrProc_Indexer_event_get_progress) VersName() string { return "IndexerEvent1" }
+func (xdrProc_Indexer_event_get_progress) ProcName() string { return "indexer_event_get_progress" }
+func (p *xdrProc_Indexer_event_get_progress) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Indexer_event_process_events)
+		p.Arg = new(XdrVoid)
 	}
-	return XDR_xdrProcArg_Indexer_event_process_events(p.Arg)
+	return XDR_XdrVoid(p.Arg)
 }
-func (p *xdrProc_Indexer_event_process_events) GetRes() XdrType {
+func (p *xdrProc_Indexer_event_get_progress) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(IndexerProgress)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_IndexerProgress(p.Res)
 }
-var _ XdrProc = &xdrProc_Indexer_event_process_events{} // XXX
+var _ XdrProc = &xdrProc_Indexer_event_get_progress{} // XXX
 
-type xdrSrvProc_Indexer_event_process_events struct {
-	xdrProc_Indexer_event_process_events
+type xdrSrvProc_Indexer_event_get_progress struct {
+	xdrProc_Indexer_event_get_progress
 	Srv IndexerEvent1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Indexer_event_process_events) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Indexer_event_get_progress) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) IndexerEvent1
 	}); ok {
@@ -20383,13 +19974,129 @@ func (p *xdrSrvProc_Indexer_event_process_events) SetContext(ctx context.Context
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Indexer_event_process_events) Do() {
-	err := p.Srv.Indexer_event_process_events(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+func (p *xdrSrvProc_Indexer_event_get_progress) Do() {
+	r, err := p.Srv.Indexer_event_get_progress(p.Ctx, )
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Indexer_event_process_events{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Indexer_event_get_progress{} // XXX
+
+type xdrProc_Indexer_event_initialize_epoch struct {
+	Arg *IndexerOutboxOrigin
+	Res *IndexerEpochResult
+}
+func (xdrProc_Indexer_event_initialize_epoch) Prog() uint32 { return 1126279851 }
+func (xdrProc_Indexer_event_initialize_epoch) Vers() uint32 { return 1 }
+func (xdrProc_Indexer_event_initialize_epoch) Proc() uint32 { return 11 }
+func (xdrProc_Indexer_event_initialize_epoch) ProgName() string { return "IndexerEvent" }
+func (xdrProc_Indexer_event_initialize_epoch) VersName() string { return "IndexerEvent1" }
+func (xdrProc_Indexer_event_initialize_epoch) ProcName() string { return "indexer_event_initialize_epoch" }
+func (p *xdrProc_Indexer_event_initialize_epoch) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(IndexerOutboxOrigin)
+	}
+	return XDR_IndexerOutboxOrigin(p.Arg)
+}
+func (p *xdrProc_Indexer_event_initialize_epoch) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(IndexerEpochResult)
+	}
+	return XDR_IndexerEpochResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Indexer_event_initialize_epoch{} // XXX
+
+type xdrSrvProc_Indexer_event_initialize_epoch struct {
+	xdrProc_Indexer_event_initialize_epoch
+	Srv IndexerEvent1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Indexer_event_initialize_epoch) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) IndexerEvent1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Indexer_event_initialize_epoch) Do() {
+	r, err := p.Srv.Indexer_event_initialize_epoch(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Indexer_event_initialize_epoch{} // XXX
+
+type xdrProcArg_Indexer_event_apply_committed_block struct {
+	a1 *IndexerOutboxOrigin
+	a2 *IndexerCommittedBlock
+}
+func (v *xdrProcArg_Indexer_event_apply_committed_block) XdrPointer() interface{} { return v }
+func (xdrProcArg_Indexer_event_apply_committed_block) XdrTypeName() string { return "xdrProcArg_Indexer_event_apply_committed_block" }
+func (v xdrProcArg_Indexer_event_apply_committed_block) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Indexer_event_apply_committed_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Indexer_event_apply_committed_block) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(IndexerOutboxOrigin) }
+	XDR_IndexerOutboxOrigin(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(IndexerCommittedBlock) }
+	XDR_IndexerCommittedBlock(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Indexer_event_apply_committed_block(v *xdrProcArg_Indexer_event_apply_committed_block) *xdrProcArg_Indexer_event_apply_committed_block { return v }
+var _ XdrType = &xdrProcArg_Indexer_event_apply_committed_block{} // XXX
+
+type xdrProc_Indexer_event_apply_committed_block struct {
+	Arg *xdrProcArg_Indexer_event_apply_committed_block
+	Res *IndexerBlockApplyResult
+}
+func (xdrProc_Indexer_event_apply_committed_block) Prog() uint32 { return 1126279851 }
+func (xdrProc_Indexer_event_apply_committed_block) Vers() uint32 { return 1 }
+func (xdrProc_Indexer_event_apply_committed_block) Proc() uint32 { return 12 }
+func (xdrProc_Indexer_event_apply_committed_block) ProgName() string { return "IndexerEvent" }
+func (xdrProc_Indexer_event_apply_committed_block) VersName() string { return "IndexerEvent1" }
+func (xdrProc_Indexer_event_apply_committed_block) ProcName() string { return "indexer_event_apply_committed_block" }
+func (p *xdrProc_Indexer_event_apply_committed_block) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(xdrProcArg_Indexer_event_apply_committed_block)
+	}
+	return XDR_xdrProcArg_Indexer_event_apply_committed_block(p.Arg)
+}
+func (p *xdrProc_Indexer_event_apply_committed_block) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(IndexerBlockApplyResult)
+	}
+	return XDR_IndexerBlockApplyResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Indexer_event_apply_committed_block{} // XXX
+
+type xdrSrvProc_Indexer_event_apply_committed_block struct {
+	xdrProc_Indexer_event_apply_committed_block
+	Srv IndexerEvent1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Indexer_event_apply_committed_block) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) IndexerEvent1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Indexer_event_apply_committed_block) Do() {
+	r, err := p.Srv.Indexer_event_apply_committed_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Indexer_event_apply_committed_block{} // XXX
 
 type xdrProcArg_Indexer_event_report_tx_failure struct {
 	a1 *SignedTransactionHash
@@ -20417,7 +20124,7 @@ type xdrProc_Indexer_event_report_tx_failure struct {
 }
 func (xdrProc_Indexer_event_report_tx_failure) Prog() uint32 { return 1126279851 }
 func (xdrProc_Indexer_event_report_tx_failure) Vers() uint32 { return 1 }
-func (xdrProc_Indexer_event_report_tx_failure) Proc() uint32 { return 1 }
+func (xdrProc_Indexer_event_report_tx_failure) Proc() uint32 { return 13 }
 func (xdrProc_Indexer_event_report_tx_failure) ProgName() string { return "IndexerEvent" }
 func (xdrProc_Indexer_event_report_tx_failure) VersName() string { return "IndexerEvent1" }
 func (xdrProc_Indexer_event_report_tx_failure) ProcName() string { return "indexer_event_report_tx_failure" }
@@ -20459,9 +20166,13 @@ var _ XdrSrvProc = &xdrSrvProc_Indexer_event_report_tx_failure{} // XXX
 func init() {
 	XdrCatalog[1126279851<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
-		case 0:
-			return &xdrProc_Indexer_event_process_events{}
-		case 1:
+		case 10:
+			return &xdrProc_Indexer_event_get_progress{}
+		case 11:
+			return &xdrProc_Indexer_event_initialize_epoch{}
+		case 12:
+			return &xdrProc_Indexer_event_apply_committed_block{}
+		case 13:
 			return &xdrProc_Indexer_event_report_tx_failure{}
 		}
 		return nil
@@ -20477,9 +20188,13 @@ func (IndexerEvent1_Server) ProgName() string { return "IndexerEvent" }
 func (IndexerEvent1_Server) VersName() string { return "IndexerEvent1" }
 func (s IndexerEvent1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
-	case 0:  // indexer_event_process_events
-		return &xdrSrvProc_Indexer_event_process_events{ Srv: s.Srv }
-	case 1:  // indexer_event_report_tx_failure
+	case 10:  // indexer_event_get_progress
+		return &xdrSrvProc_Indexer_event_get_progress{ Srv: s.Srv }
+	case 11:  // indexer_event_initialize_epoch
+		return &xdrSrvProc_Indexer_event_initialize_epoch{ Srv: s.Srv }
+	case 12:  // indexer_event_apply_committed_block
+		return &xdrSrvProc_Indexer_event_apply_committed_block{ Srv: s.Srv }
+	case 13:  // indexer_event_report_tx_failure
 		return &xdrSrvProc_Indexer_event_report_tx_failure{ Srv: s.Srv }
 	default:
 		return nil
@@ -20496,16 +20211,30 @@ func (c IndexerEvent1_Client) WithContext(ctx context.Context) IndexerEvent1 {
 	c.Ctx = ctx
 	return c
 }
-func (c IndexerEvent1_Client) Indexer_event_process_events(ctx context.Context, a1 BlockHeight, a2 TxEventLogBatch, a3 ProposedTransactionBatch) error {
-	var proc xdrProc_Indexer_event_process_events
+func (c IndexerEvent1_Client) Indexer_event_get_progress(ctx context.Context, ) (r IndexerProgress, _ error) {
+	var proc xdrProc_Indexer_event_get_progress
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c IndexerEvent1_Client) Indexer_event_initialize_epoch(ctx context.Context, a1 IndexerOutboxOrigin) (r IndexerEpochResult, _ error) {
+	var proc xdrProc_Indexer_event_initialize_epoch
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c IndexerEvent1_Client) Indexer_event_apply_committed_block(ctx context.Context, a1 IndexerOutboxOrigin, a2 IndexerCommittedBlock) (r IndexerBlockApplyResult, _ error) {
+	var proc xdrProc_Indexer_event_apply_committed_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c IndexerEvent1_Client) Indexer_event_report_tx_failure(ctx context.Context, a1 SignedTransactionHash, a2 TxFailureDiagnostic) error {
 	var proc xdrProc_Indexer_event_report_tx_failure
@@ -20517,329 +20246,6 @@ func (c IndexerEvent1_Client) Indexer_event_report_tx_failure(ctx context.Contex
 	}
 	return nil
 }
-
-type xdrProc_Indexer_event_get_progress struct {
-	Arg *XdrVoid
-	Res *IndexerProgress
-}
-func (xdrProc_Indexer_event_get_progress) Prog() uint32 { return 1126279851 }
-func (xdrProc_Indexer_event_get_progress) Vers() uint32 { return 2 }
-func (xdrProc_Indexer_event_get_progress) Proc() uint32 { return 10 }
-func (xdrProc_Indexer_event_get_progress) ProgName() string { return "IndexerEvent" }
-func (xdrProc_Indexer_event_get_progress) VersName() string { return "IndexerEvent2" }
-func (xdrProc_Indexer_event_get_progress) ProcName() string { return "indexer_event_get_progress" }
-func (p *xdrProc_Indexer_event_get_progress) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Arg)
-}
-func (p *xdrProc_Indexer_event_get_progress) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(IndexerProgress)
-	}
-	return XDR_IndexerProgress(p.Res)
-}
-var _ XdrProc = &xdrProc_Indexer_event_get_progress{} // XXX
-
-type xdrSrvProc_Indexer_event_get_progress struct {
-	xdrProc_Indexer_event_get_progress
-	Srv IndexerEvent2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Indexer_event_get_progress) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) IndexerEvent2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Indexer_event_get_progress) Do() {
-	r, err := p.Srv.Indexer_event_get_progress(p.Ctx, )
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Indexer_event_get_progress{} // XXX
-
-type xdrProc_Indexer_event_initialize_epoch struct {
-	Arg *IndexerOutboxOrigin
-	Res *IndexerEpochResult
-}
-func (xdrProc_Indexer_event_initialize_epoch) Prog() uint32 { return 1126279851 }
-func (xdrProc_Indexer_event_initialize_epoch) Vers() uint32 { return 2 }
-func (xdrProc_Indexer_event_initialize_epoch) Proc() uint32 { return 11 }
-func (xdrProc_Indexer_event_initialize_epoch) ProgName() string { return "IndexerEvent" }
-func (xdrProc_Indexer_event_initialize_epoch) VersName() string { return "IndexerEvent2" }
-func (xdrProc_Indexer_event_initialize_epoch) ProcName() string { return "indexer_event_initialize_epoch" }
-func (p *xdrProc_Indexer_event_initialize_epoch) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(IndexerOutboxOrigin)
-	}
-	return XDR_IndexerOutboxOrigin(p.Arg)
-}
-func (p *xdrProc_Indexer_event_initialize_epoch) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(IndexerEpochResult)
-	}
-	return XDR_IndexerEpochResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Indexer_event_initialize_epoch{} // XXX
-
-type xdrSrvProc_Indexer_event_initialize_epoch struct {
-	xdrProc_Indexer_event_initialize_epoch
-	Srv IndexerEvent2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Indexer_event_initialize_epoch) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) IndexerEvent2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Indexer_event_initialize_epoch) Do() {
-	r, err := p.Srv.Indexer_event_initialize_epoch(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Indexer_event_initialize_epoch{} // XXX
-
-type xdrProcArg_Indexer_event_apply_committed_block struct {
-	a1 *IndexerOutboxOrigin
-	a2 *IndexerCommittedBlock
-}
-func (v *xdrProcArg_Indexer_event_apply_committed_block) XdrPointer() interface{} { return v }
-func (xdrProcArg_Indexer_event_apply_committed_block) XdrTypeName() string { return "xdrProcArg_Indexer_event_apply_committed_block" }
-func (v xdrProcArg_Indexer_event_apply_committed_block) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Indexer_event_apply_committed_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Indexer_event_apply_committed_block) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(IndexerOutboxOrigin) }
-	XDR_IndexerOutboxOrigin(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(IndexerCommittedBlock) }
-	XDR_IndexerCommittedBlock(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Indexer_event_apply_committed_block(v *xdrProcArg_Indexer_event_apply_committed_block) *xdrProcArg_Indexer_event_apply_committed_block { return v }
-var _ XdrType = &xdrProcArg_Indexer_event_apply_committed_block{} // XXX
-
-type xdrProc_Indexer_event_apply_committed_block struct {
-	Arg *xdrProcArg_Indexer_event_apply_committed_block
-	Res *IndexerBlockApplyResult
-}
-func (xdrProc_Indexer_event_apply_committed_block) Prog() uint32 { return 1126279851 }
-func (xdrProc_Indexer_event_apply_committed_block) Vers() uint32 { return 2 }
-func (xdrProc_Indexer_event_apply_committed_block) Proc() uint32 { return 12 }
-func (xdrProc_Indexer_event_apply_committed_block) ProgName() string { return "IndexerEvent" }
-func (xdrProc_Indexer_event_apply_committed_block) VersName() string { return "IndexerEvent2" }
-func (xdrProc_Indexer_event_apply_committed_block) ProcName() string { return "indexer_event_apply_committed_block" }
-func (p *xdrProc_Indexer_event_apply_committed_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Indexer_event_apply_committed_block)
-	}
-	return XDR_xdrProcArg_Indexer_event_apply_committed_block(p.Arg)
-}
-func (p *xdrProc_Indexer_event_apply_committed_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(IndexerBlockApplyResult)
-	}
-	return XDR_IndexerBlockApplyResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Indexer_event_apply_committed_block{} // XXX
-
-type xdrSrvProc_Indexer_event_apply_committed_block struct {
-	xdrProc_Indexer_event_apply_committed_block
-	Srv IndexerEvent2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Indexer_event_apply_committed_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) IndexerEvent2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Indexer_event_apply_committed_block) Do() {
-	r, err := p.Srv.Indexer_event_apply_committed_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Indexer_event_apply_committed_block{} // XXX
-
-type xdrProcArg_Indexer_event_report_tx_failure_v2 struct {
-	a1 *SignedTransactionHash
-	a2 *TxFailureDiagnostic
-}
-func (v *xdrProcArg_Indexer_event_report_tx_failure_v2) XdrPointer() interface{} { return v }
-func (xdrProcArg_Indexer_event_report_tx_failure_v2) XdrTypeName() string { return "xdrProcArg_Indexer_event_report_tx_failure_v2" }
-func (v xdrProcArg_Indexer_event_report_tx_failure_v2) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Indexer_event_report_tx_failure_v2) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Indexer_event_report_tx_failure_v2) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(SignedTransactionHash) }
-	XDR_SignedTransactionHash(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(TxFailureDiagnostic) }
-	XDR_TxFailureDiagnostic(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Indexer_event_report_tx_failure_v2(v *xdrProcArg_Indexer_event_report_tx_failure_v2) *xdrProcArg_Indexer_event_report_tx_failure_v2 { return v }
-var _ XdrType = &xdrProcArg_Indexer_event_report_tx_failure_v2{} // XXX
-
-type xdrProc_Indexer_event_report_tx_failure_v2 struct {
-	Arg *xdrProcArg_Indexer_event_report_tx_failure_v2
-	Res *XdrVoid
-}
-func (xdrProc_Indexer_event_report_tx_failure_v2) Prog() uint32 { return 1126279851 }
-func (xdrProc_Indexer_event_report_tx_failure_v2) Vers() uint32 { return 2 }
-func (xdrProc_Indexer_event_report_tx_failure_v2) Proc() uint32 { return 13 }
-func (xdrProc_Indexer_event_report_tx_failure_v2) ProgName() string { return "IndexerEvent" }
-func (xdrProc_Indexer_event_report_tx_failure_v2) VersName() string { return "IndexerEvent2" }
-func (xdrProc_Indexer_event_report_tx_failure_v2) ProcName() string { return "indexer_event_report_tx_failure_v2" }
-func (p *xdrProc_Indexer_event_report_tx_failure_v2) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Indexer_event_report_tx_failure_v2)
-	}
-	return XDR_xdrProcArg_Indexer_event_report_tx_failure_v2(p.Arg)
-}
-func (p *xdrProc_Indexer_event_report_tx_failure_v2) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(XdrVoid)
-	}
-	return XDR_XdrVoid(p.Res)
-}
-var _ XdrProc = &xdrProc_Indexer_event_report_tx_failure_v2{} // XXX
-
-type xdrSrvProc_Indexer_event_report_tx_failure_v2 struct {
-	xdrProc_Indexer_event_report_tx_failure_v2
-	Srv IndexerEvent2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Indexer_event_report_tx_failure_v2) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) IndexerEvent2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Indexer_event_report_tx_failure_v2) Do() {
-	err := p.Srv.Indexer_event_report_tx_failure_v2(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Indexer_event_report_tx_failure_v2{} // XXX
-
-func init() {
-	XdrCatalog[1126279851<<32|2] = func(p uint32) XdrProc {
-		switch(p) {
-		case 10:
-			return &xdrProc_Indexer_event_get_progress{}
-		case 11:
-			return &xdrProc_Indexer_event_initialize_epoch{}
-		case 12:
-			return &xdrProc_Indexer_event_apply_committed_block{}
-		case 13:
-			return &xdrProc_Indexer_event_report_tx_failure_v2{}
-		}
-		return nil
-	}
-}
-
-type IndexerEvent2_Server struct {
-	Srv IndexerEvent2
-}
-func (IndexerEvent2_Server) Prog() uint32 { return 1126279851 }
-func (IndexerEvent2_Server) Vers() uint32 { return 2 }
-func (IndexerEvent2_Server) ProgName() string { return "IndexerEvent" }
-func (IndexerEvent2_Server) VersName() string { return "IndexerEvent2" }
-func (s IndexerEvent2_Server) GetProc(p uint32) XdrSrvProc {
-	switch p {
-	case 10:  // indexer_event_get_progress
-		return &xdrSrvProc_Indexer_event_get_progress{ Srv: s.Srv }
-	case 11:  // indexer_event_initialize_epoch
-		return &xdrSrvProc_Indexer_event_initialize_epoch{ Srv: s.Srv }
-	case 12:  // indexer_event_apply_committed_block
-		return &xdrSrvProc_Indexer_event_apply_committed_block{ Srv: s.Srv }
-	case 13:  // indexer_event_report_tx_failure_v2
-		return &xdrSrvProc_Indexer_event_report_tx_failure_v2{ Srv: s.Srv }
-	default:
-		return nil
-	}
-}
-var _ XdrSrv = IndexerEvent2_Server{} // XXX
-
-type IndexerEvent2_Client struct {
-	Send XdrSendCall
-	Ctx context.Context
-}
-var _ IndexerEvent2 = IndexerEvent2_Client{} // XXX
-func (c IndexerEvent2_Client) WithContext(ctx context.Context) IndexerEvent2 {
-	c.Ctx = ctx
-	return c
-}
-func (c IndexerEvent2_Client) Indexer_event_get_progress(ctx context.Context, ) (r IndexerProgress, _ error) {
-	var proc xdrProc_Indexer_event_get_progress
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c IndexerEvent2_Client) Indexer_event_initialize_epoch(ctx context.Context, a1 IndexerOutboxOrigin) (r IndexerEpochResult, _ error) {
-	var proc xdrProc_Indexer_event_initialize_epoch
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c IndexerEvent2_Client) Indexer_event_apply_committed_block(ctx context.Context, a1 IndexerOutboxOrigin, a2 IndexerCommittedBlock) (r IndexerBlockApplyResult, _ error) {
-	var proc xdrProc_Indexer_event_apply_committed_block
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c IndexerEvent2_Client) Indexer_event_report_tx_failure_v2(ctx context.Context, a1 SignedTransactionHash, a2 TxFailureDiagnostic) error {
-	var proc xdrProc_Indexer_event_report_tx_failure_v2
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
-	}
-	return nil
-}
-type XdrType_IndexerCard = *IndexerCard
-func (v *IndexerCard) XdrPointer() interface{} { return v }
-func (IndexerCard) XdrTypeName() string { return "IndexerCard" }
-func (v IndexerCard) XdrValue() interface{} { return v }
-func (v *IndexerCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *IndexerCard) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sprotocol", name), XDR_ProtocolCommit(&v.Protocol))
-	x.Marshal(x.Sprintf("%saddress_for_event", name), XDR_ServerAddress(&v.Address_for_event))
-}
-func XDR_IndexerCard(v *IndexerCard) *IndexerCard { return v }
 type _XdrPtr_UPID struct {
 	p **UPID
 }
@@ -20911,12 +20317,12 @@ func (v _XdrPtr_UPID) XdrRecurse(x XDR, name string) {
 func (_XdrPtr_UPID) XdrTypeName() string { return "UPID*" }
 func (v _XdrPtr_UPID) XdrPointer() interface{} { return v.p }
 func (v _XdrPtr_UPID) XdrValue() interface{} { return *v.p }
-type XdrType_IndexerCardV2 = *IndexerCardV2
-func (v *IndexerCardV2) XdrPointer() interface{} { return v }
-func (IndexerCardV2) XdrTypeName() string { return "IndexerCardV2" }
-func (v IndexerCardV2) XdrValue() interface{} { return v }
-func (v *IndexerCardV2) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *IndexerCardV2) XdrRecurse(x XDR, name string) {
+type XdrType_IndexerCard = *IndexerCard
+func (v *IndexerCard) XdrPointer() interface{} { return v }
+func (IndexerCard) XdrTypeName() string { return "IndexerCard" }
+func (v IndexerCard) XdrValue() interface{} { return v }
+func (v *IndexerCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *IndexerCard) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
@@ -20926,51 +20332,7 @@ func (v *IndexerCardV2) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%saddress_for_event", name), XDR_ServerAddress(&v.Address_for_event))
 	x.Marshal(x.Sprintf("%sprogress", name), XDR_IndexerProgress(&v.Progress))
 }
-func XDR_IndexerCardV2(v *IndexerCardV2) *IndexerCardV2 { return v }
-var _XdrNames_EventIndexerIntroOutcome = map[int32]string{
-	int32(EventIntroSuccess): "EventIntroSuccess",
-	int32(EventIntroMismatchedProtocol): "EventIntroMismatchedProtocol",
-	int32(EventIntroConnectFailed): "EventIntroConnectFailed",
-}
-var _XdrValues_EventIndexerIntroOutcome = map[string]int32{
-	"EventIntroSuccess": int32(EventIntroSuccess),
-	"EventIntroMismatchedProtocol": int32(EventIntroMismatchedProtocol),
-	"EventIntroConnectFailed": int32(EventIntroConnectFailed),
-}
-func (EventIndexerIntroOutcome) XdrEnumNames() map[int32]string {
-	return _XdrNames_EventIndexerIntroOutcome
-}
-func (v EventIndexerIntroOutcome) String() string {
-	if s, ok := _XdrNames_EventIndexerIntroOutcome[int32(v)]; ok {
-		return s
-	}
-	return fmt.Sprintf("EventIndexerIntroOutcome#%d", v)
-}
-func (v *EventIndexerIntroOutcome) Scan(ss fmt.ScanState, _ rune) error {
-	if tok, err := ss.Token(true, XdrSymChar); err != nil {
-		return err
-	} else {
-		stok := string(tok)
-		if val, ok := _XdrValues_EventIndexerIntroOutcome[stok]; ok {
-			*v = EventIndexerIntroOutcome(val)
-			return nil
-		} else if stok == "EventIndexerIntroOutcome" {
-			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
-				n == 1 && err == nil {
-				return nil
-			}
-		}
-		return XdrError(fmt.Sprintf("%s is not a valid EventIndexerIntroOutcome.", stok))
-	}
-}
-func (v EventIndexerIntroOutcome) GetU32() uint32 { return uint32(v) }
-func (v *EventIndexerIntroOutcome) SetU32(n uint32) { *v = EventIndexerIntroOutcome(n) }
-func (v *EventIndexerIntroOutcome) XdrPointer() interface{} { return v }
-func (EventIndexerIntroOutcome) XdrTypeName() string { return "EventIndexerIntroOutcome" }
-func (v EventIndexerIntroOutcome) XdrValue() interface{} { return v }
-func (v *EventIndexerIntroOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_EventIndexerIntroOutcome = *EventIndexerIntroOutcome
-func XDR_EventIndexerIntroOutcome(v *EventIndexerIntroOutcome) *EventIndexerIntroOutcome { return v }
+func XDR_IndexerCard(v *IndexerCard) *IndexerCard { return v }
 var _XdrNames_EventIndexerRegistrationOutcome = map[int32]string{
 	int32(EventRegistrationAccepted): "EventRegistrationAccepted",
 	int32(EventRegistrationMismatchedProtocol): "EventRegistrationMismatchedProtocol",
@@ -21024,113 +20386,21 @@ func (v *EventIndexerRegistrationOutcome) XdrMarshal(x XDR, name string) { x.Mar
 type XdrType_EventIndexerRegistrationOutcome = *EventIndexerRegistrationOutcome
 func XDR_EventIndexerRegistrationOutcome(v *EventIndexerRegistrationOutcome) *EventIndexerRegistrationOutcome { return v }
 
-type xdrProc_Event_indexer_intro struct {
+type xdrProc_Event_indexer_register struct {
 	Arg *IndexerCard
-	Res *EventIndexerIntroOutcome
+	Res *EventIndexerRegistrationOutcome
 }
-func (xdrProc_Event_indexer_intro) Prog() uint32 { return 1126279852 }
-func (xdrProc_Event_indexer_intro) Vers() uint32 { return 1 }
-func (xdrProc_Event_indexer_intro) Proc() uint32 { return 0 }
-func (xdrProc_Event_indexer_intro) ProgName() string { return "EventIndexer" }
-func (xdrProc_Event_indexer_intro) VersName() string { return "EventIndexer1" }
-func (xdrProc_Event_indexer_intro) ProcName() string { return "event_indexer_intro" }
-func (p *xdrProc_Event_indexer_intro) GetArg() XdrType {
+func (xdrProc_Event_indexer_register) Prog() uint32 { return 1126279852 }
+func (xdrProc_Event_indexer_register) Vers() uint32 { return 1 }
+func (xdrProc_Event_indexer_register) Proc() uint32 { return 10 }
+func (xdrProc_Event_indexer_register) ProgName() string { return "EventIndexer" }
+func (xdrProc_Event_indexer_register) VersName() string { return "EventIndexer1" }
+func (xdrProc_Event_indexer_register) ProcName() string { return "event_indexer_register" }
+func (p *xdrProc_Event_indexer_register) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(IndexerCard)
 	}
 	return XDR_IndexerCard(p.Arg)
-}
-func (p *xdrProc_Event_indexer_intro) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(EventIndexerIntroOutcome)
-	}
-	return XDR_EventIndexerIntroOutcome(p.Res)
-}
-var _ XdrProc = &xdrProc_Event_indexer_intro{} // XXX
-
-type xdrSrvProc_Event_indexer_intro struct {
-	xdrProc_Event_indexer_intro
-	Srv EventIndexer1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Event_indexer_intro) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventIndexer1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Event_indexer_intro) Do() {
-	r, err := p.Srv.Event_indexer_intro(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Event_indexer_intro{} // XXX
-
-func init() {
-	XdrCatalog[1126279852<<32|1] = func(p uint32) XdrProc {
-		switch(p) {
-		case 0:
-			return &xdrProc_Event_indexer_intro{}
-		}
-		return nil
-	}
-}
-
-type EventIndexer1_Server struct {
-	Srv EventIndexer1
-}
-func (EventIndexer1_Server) Prog() uint32 { return 1126279852 }
-func (EventIndexer1_Server) Vers() uint32 { return 1 }
-func (EventIndexer1_Server) ProgName() string { return "EventIndexer" }
-func (EventIndexer1_Server) VersName() string { return "EventIndexer1" }
-func (s EventIndexer1_Server) GetProc(p uint32) XdrSrvProc {
-	switch p {
-	case 0:  // event_indexer_intro
-		return &xdrSrvProc_Event_indexer_intro{ Srv: s.Srv }
-	default:
-		return nil
-	}
-}
-var _ XdrSrv = EventIndexer1_Server{} // XXX
-
-type EventIndexer1_Client struct {
-	Send XdrSendCall
-	Ctx context.Context
-}
-var _ EventIndexer1 = EventIndexer1_Client{} // XXX
-func (c EventIndexer1_Client) WithContext(ctx context.Context) EventIndexer1 {
-	c.Ctx = ctx
-	return c
-}
-func (c EventIndexer1_Client) Event_indexer_intro(ctx context.Context, a1 IndexerCard) (r EventIndexerIntroOutcome, _ error) {
-	var proc xdrProc_Event_indexer_intro
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-
-type xdrProc_Event_indexer_register struct {
-	Arg *IndexerCardV2
-	Res *EventIndexerRegistrationOutcome
-}
-func (xdrProc_Event_indexer_register) Prog() uint32 { return 1126279852 }
-func (xdrProc_Event_indexer_register) Vers() uint32 { return 2 }
-func (xdrProc_Event_indexer_register) Proc() uint32 { return 10 }
-func (xdrProc_Event_indexer_register) ProgName() string { return "EventIndexer" }
-func (xdrProc_Event_indexer_register) VersName() string { return "EventIndexer2" }
-func (xdrProc_Event_indexer_register) ProcName() string { return "event_indexer_register" }
-func (p *xdrProc_Event_indexer_register) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(IndexerCardV2)
-	}
-	return XDR_IndexerCardV2(p.Arg)
 }
 func (p *xdrProc_Event_indexer_register) GetRes() XdrType {
 	if p.Res == nil {
@@ -21142,12 +20412,12 @@ var _ XdrProc = &xdrProc_Event_indexer_register{} // XXX
 
 type xdrSrvProc_Event_indexer_register struct {
 	xdrProc_Event_indexer_register
-	Srv EventIndexer2
+	Srv EventIndexer1
 	Ctx context.Context
 }
 func (p *xdrSrvProc_Event_indexer_register) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventIndexer2
+		WithContext(context.Context) EventIndexer1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
@@ -21168,10 +20438,10 @@ type xdrProc_Event_indexer_probe struct {
 	Res *EventIndexerRegistrationOutcome
 }
 func (xdrProc_Event_indexer_probe) Prog() uint32 { return 1126279852 }
-func (xdrProc_Event_indexer_probe) Vers() uint32 { return 2 }
+func (xdrProc_Event_indexer_probe) Vers() uint32 { return 1 }
 func (xdrProc_Event_indexer_probe) Proc() uint32 { return 11 }
 func (xdrProc_Event_indexer_probe) ProgName() string { return "EventIndexer" }
-func (xdrProc_Event_indexer_probe) VersName() string { return "EventIndexer2" }
+func (xdrProc_Event_indexer_probe) VersName() string { return "EventIndexer1" }
 func (xdrProc_Event_indexer_probe) ProcName() string { return "event_indexer_probe" }
 func (p *xdrProc_Event_indexer_probe) GetArg() XdrType {
 	if p.Arg == nil {
@@ -21189,12 +20459,12 @@ var _ XdrProc = &xdrProc_Event_indexer_probe{} // XXX
 
 type xdrSrvProc_Event_indexer_probe struct {
 	xdrProc_Event_indexer_probe
-	Srv EventIndexer2
+	Srv EventIndexer1
 	Ctx context.Context
 }
 func (p *xdrSrvProc_Event_indexer_probe) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventIndexer2
+		WithContext(context.Context) EventIndexer1
 	}); ok {
 		p.Srv = wc.WithContext(ctx)
 	}
@@ -21211,7 +20481,7 @@ func (p *xdrSrvProc_Event_indexer_probe) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Event_indexer_probe{} // XXX
 
 func init() {
-	XdrCatalog[1126279852<<32|2] = func(p uint32) XdrProc {
+	XdrCatalog[1126279852<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 10:
 			return &xdrProc_Event_indexer_register{}
@@ -21222,14 +20492,14 @@ func init() {
 	}
 }
 
-type EventIndexer2_Server struct {
-	Srv EventIndexer2
+type EventIndexer1_Server struct {
+	Srv EventIndexer1
 }
-func (EventIndexer2_Server) Prog() uint32 { return 1126279852 }
-func (EventIndexer2_Server) Vers() uint32 { return 2 }
-func (EventIndexer2_Server) ProgName() string { return "EventIndexer" }
-func (EventIndexer2_Server) VersName() string { return "EventIndexer2" }
-func (s EventIndexer2_Server) GetProc(p uint32) XdrSrvProc {
+func (EventIndexer1_Server) Prog() uint32 { return 1126279852 }
+func (EventIndexer1_Server) Vers() uint32 { return 1 }
+func (EventIndexer1_Server) ProgName() string { return "EventIndexer" }
+func (EventIndexer1_Server) VersName() string { return "EventIndexer1" }
+func (s EventIndexer1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 10:  // event_indexer_register
 		return &xdrSrvProc_Event_indexer_register{ Srv: s.Srv }
@@ -21239,18 +20509,18 @@ func (s EventIndexer2_Server) GetProc(p uint32) XdrSrvProc {
 		return nil
 	}
 }
-var _ XdrSrv = EventIndexer2_Server{} // XXX
+var _ XdrSrv = EventIndexer1_Server{} // XXX
 
-type EventIndexer2_Client struct {
+type EventIndexer1_Client struct {
 	Send XdrSendCall
 	Ctx context.Context
 }
-var _ EventIndexer2 = EventIndexer2_Client{} // XXX
-func (c EventIndexer2_Client) WithContext(ctx context.Context) EventIndexer2 {
+var _ EventIndexer1 = EventIndexer1_Client{} // XXX
+func (c EventIndexer1_Client) WithContext(ctx context.Context) EventIndexer1 {
 	c.Ctx = ctx
 	return c
 }
-func (c EventIndexer2_Client) Event_indexer_register(ctx context.Context, a1 IndexerCardV2) (r EventIndexerRegistrationOutcome, _ error) {
+func (c EventIndexer1_Client) Event_indexer_register(ctx context.Context, a1 IndexerCard) (r EventIndexerRegistrationOutcome, _ error) {
 	var proc xdrProc_Event_indexer_register
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -21258,7 +20528,7 @@ func (c EventIndexer2_Client) Event_indexer_register(ctx context.Context, a1 Ind
 	}
 	return *proc.Res, nil
 }
-func (c EventIndexer2_Client) Event_indexer_probe(ctx context.Context, a1 UPID) (r EventIndexerRegistrationOutcome, _ error) {
+func (c EventIndexer1_Client) Event_indexer_probe(ctx context.Context, a1 UPID) (r EventIndexerRegistrationOutcome, _ error) {
 	var proc xdrProc_Event_indexer_probe
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -26584,36 +25854,36 @@ func (u *EventActivationResult) XdrRecurse(x XDR, name string) {
 }
 func XDR_EventActivationResult(v *EventActivationResult) *EventActivationResult { return v}
 
-type xdrProc_Schedevent_intro_event struct {
+type xdrProc_Schedevent_prepare_event struct {
 	Arg *EventCard
-	Res *RPCError
+	Res *EventPrepareResult
 }
-func (xdrProc_Schedevent_intro_event) Prog() uint32 { return 2129107352 }
-func (xdrProc_Schedevent_intro_event) Vers() uint32 { return 1 }
-func (xdrProc_Schedevent_intro_event) Proc() uint32 { return 1 }
-func (xdrProc_Schedevent_intro_event) ProgName() string { return "SchedEvent" }
-func (xdrProc_Schedevent_intro_event) VersName() string { return "SchedEvent1" }
-func (xdrProc_Schedevent_intro_event) ProcName() string { return "schedevent_intro_event" }
-func (p *xdrProc_Schedevent_intro_event) GetArg() XdrType {
+func (xdrProc_Schedevent_prepare_event) Prog() uint32 { return 2129107352 }
+func (xdrProc_Schedevent_prepare_event) Vers() uint32 { return 1 }
+func (xdrProc_Schedevent_prepare_event) Proc() uint32 { return 1 }
+func (xdrProc_Schedevent_prepare_event) ProgName() string { return "SchedEvent" }
+func (xdrProc_Schedevent_prepare_event) VersName() string { return "SchedEvent1" }
+func (xdrProc_Schedevent_prepare_event) ProcName() string { return "schedevent_prepare_event" }
+func (p *xdrProc_Schedevent_prepare_event) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(EventCard)
 	}
 	return XDR_EventCard(p.Arg)
 }
-func (p *xdrProc_Schedevent_intro_event) GetRes() XdrType {
+func (p *xdrProc_Schedevent_prepare_event) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(RPCError)
+		p.Res = new(EventPrepareResult)
 	}
-	return XDR_RPCError(p.Res)
+	return XDR_EventPrepareResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Schedevent_intro_event{} // XXX
+var _ XdrProc = &xdrProc_Schedevent_prepare_event{} // XXX
 
-type xdrSrvProc_Schedevent_intro_event struct {
-	xdrProc_Schedevent_intro_event
+type xdrSrvProc_Schedevent_prepare_event struct {
+	xdrProc_Schedevent_prepare_event
 	Srv SchedEvent1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Schedevent_intro_event) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Schedevent_prepare_event) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) SchedEvent1
 	}); ok {
@@ -26621,21 +25891,70 @@ func (p *xdrSrvProc_Schedevent_intro_event) SetContext(ctx context.Context) {
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Schedevent_intro_event) Do() {
-	r, err := p.Srv.Schedevent_intro_event(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Schedevent_prepare_event) Do() {
+	r, err := p.Srv.Schedevent_prepare_event(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Schedevent_intro_event{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Schedevent_prepare_event{} // XXX
+
+type xdrProc_Schedevent_activate_event struct {
+	Arg *EventRegistrationSnapshot
+	Res *EventActivationResult
+}
+func (xdrProc_Schedevent_activate_event) Prog() uint32 { return 2129107352 }
+func (xdrProc_Schedevent_activate_event) Vers() uint32 { return 1 }
+func (xdrProc_Schedevent_activate_event) Proc() uint32 { return 2 }
+func (xdrProc_Schedevent_activate_event) ProgName() string { return "SchedEvent" }
+func (xdrProc_Schedevent_activate_event) VersName() string { return "SchedEvent1" }
+func (xdrProc_Schedevent_activate_event) ProcName() string { return "schedevent_activate_event" }
+func (p *xdrProc_Schedevent_activate_event) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(EventRegistrationSnapshot)
+	}
+	return XDR_EventRegistrationSnapshot(p.Arg)
+}
+func (p *xdrProc_Schedevent_activate_event) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(EventActivationResult)
+	}
+	return XDR_EventActivationResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedevent_activate_event{} // XXX
+
+type xdrSrvProc_Schedevent_activate_event struct {
+	xdrProc_Schedevent_activate_event
+	Srv SchedEvent1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedevent_activate_event) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedEvent1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedevent_activate_event) Do() {
+	r, err := p.Srv.Schedevent_activate_event(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedevent_activate_event{} // XXX
 
 func init() {
 	XdrCatalog[2129107352<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 1:
-			return &xdrProc_Schedevent_intro_event{}
+			return &xdrProc_Schedevent_prepare_event{}
+		case 2:
+			return &xdrProc_Schedevent_activate_event{}
 		}
 		return nil
 	}
@@ -26650,8 +25969,10 @@ func (SchedEvent1_Server) ProgName() string { return "SchedEvent" }
 func (SchedEvent1_Server) VersName() string { return "SchedEvent1" }
 func (s SchedEvent1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
-	case 1:  // schedevent_intro_event
-		return &xdrSrvProc_Schedevent_intro_event{ Srv: s.Srv }
+	case 1:  // schedevent_prepare_event
+		return &xdrSrvProc_Schedevent_prepare_event{ Srv: s.Srv }
+	case 2:  // schedevent_activate_event
+		return &xdrSrvProc_Schedevent_activate_event{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -26667,159 +25988,16 @@ func (c SchedEvent1_Client) WithContext(ctx context.Context) SchedEvent1 {
 	c.Ctx = ctx
 	return c
 }
-func (c SchedEvent1_Client) Schedevent_intro_event(ctx context.Context, a1 EventCard) (r RPCError, _ error) {
-	var proc xdrProc_Schedevent_intro_event
+func (c SchedEvent1_Client) Schedevent_prepare_event(ctx context.Context, a1 EventCard) (r EventPrepareResult, _ error) {
+	var proc xdrProc_Schedevent_prepare_event
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
 	return *proc.Res, nil
 }
-
-type xdrProc_Schedevent2_prepare_event struct {
-	Arg *EventCard
-	Res *EventPrepareResult
-}
-func (xdrProc_Schedevent2_prepare_event) Prog() uint32 { return 2129107352 }
-func (xdrProc_Schedevent2_prepare_event) Vers() uint32 { return 2 }
-func (xdrProc_Schedevent2_prepare_event) Proc() uint32 { return 1 }
-func (xdrProc_Schedevent2_prepare_event) ProgName() string { return "SchedEvent" }
-func (xdrProc_Schedevent2_prepare_event) VersName() string { return "SchedEvent2" }
-func (xdrProc_Schedevent2_prepare_event) ProcName() string { return "schedevent2_prepare_event" }
-func (p *xdrProc_Schedevent2_prepare_event) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(EventCard)
-	}
-	return XDR_EventCard(p.Arg)
-}
-func (p *xdrProc_Schedevent2_prepare_event) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(EventPrepareResult)
-	}
-	return XDR_EventPrepareResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Schedevent2_prepare_event{} // XXX
-
-type xdrSrvProc_Schedevent2_prepare_event struct {
-	xdrProc_Schedevent2_prepare_event
-	Srv SchedEvent2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Schedevent2_prepare_event) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SchedEvent2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Schedevent2_prepare_event) Do() {
-	r, err := p.Srv.Schedevent2_prepare_event(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Schedevent2_prepare_event{} // XXX
-
-type xdrProc_Schedevent2_activate_event struct {
-	Arg *EventRegistrationSnapshot
-	Res *EventActivationResult
-}
-func (xdrProc_Schedevent2_activate_event) Prog() uint32 { return 2129107352 }
-func (xdrProc_Schedevent2_activate_event) Vers() uint32 { return 2 }
-func (xdrProc_Schedevent2_activate_event) Proc() uint32 { return 2 }
-func (xdrProc_Schedevent2_activate_event) ProgName() string { return "SchedEvent" }
-func (xdrProc_Schedevent2_activate_event) VersName() string { return "SchedEvent2" }
-func (xdrProc_Schedevent2_activate_event) ProcName() string { return "schedevent2_activate_event" }
-func (p *xdrProc_Schedevent2_activate_event) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(EventRegistrationSnapshot)
-	}
-	return XDR_EventRegistrationSnapshot(p.Arg)
-}
-func (p *xdrProc_Schedevent2_activate_event) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(EventActivationResult)
-	}
-	return XDR_EventActivationResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Schedevent2_activate_event{} // XXX
-
-type xdrSrvProc_Schedevent2_activate_event struct {
-	xdrProc_Schedevent2_activate_event
-	Srv SchedEvent2
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Schedevent2_activate_event) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SchedEvent2
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Schedevent2_activate_event) Do() {
-	r, err := p.Srv.Schedevent2_activate_event(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Schedevent2_activate_event{} // XXX
-
-func init() {
-	XdrCatalog[2129107352<<32|2] = func(p uint32) XdrProc {
-		switch(p) {
-		case 1:
-			return &xdrProc_Schedevent2_prepare_event{}
-		case 2:
-			return &xdrProc_Schedevent2_activate_event{}
-		}
-		return nil
-	}
-}
-
-type SchedEvent2_Server struct {
-	Srv SchedEvent2
-}
-func (SchedEvent2_Server) Prog() uint32 { return 2129107352 }
-func (SchedEvent2_Server) Vers() uint32 { return 2 }
-func (SchedEvent2_Server) ProgName() string { return "SchedEvent" }
-func (SchedEvent2_Server) VersName() string { return "SchedEvent2" }
-func (s SchedEvent2_Server) GetProc(p uint32) XdrSrvProc {
-	switch p {
-	case 1:  // schedevent2_prepare_event
-		return &xdrSrvProc_Schedevent2_prepare_event{ Srv: s.Srv }
-	case 2:  // schedevent2_activate_event
-		return &xdrSrvProc_Schedevent2_activate_event{ Srv: s.Srv }
-	default:
-		return nil
-	}
-}
-var _ XdrSrv = SchedEvent2_Server{} // XXX
-
-type SchedEvent2_Client struct {
-	Send XdrSendCall
-	Ctx context.Context
-}
-var _ SchedEvent2 = SchedEvent2_Client{} // XXX
-func (c SchedEvent2_Client) WithContext(ctx context.Context) SchedEvent2 {
-	c.Ctx = ctx
-	return c
-}
-func (c SchedEvent2_Client) Schedevent2_prepare_event(ctx context.Context, a1 EventCard) (r EventPrepareResult, _ error) {
-	var proc xdrProc_Schedevent2_prepare_event
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c SchedEvent2_Client) Schedevent2_activate_event(ctx context.Context, a1 EventRegistrationSnapshot) (r EventActivationResult, _ error) {
-	var proc xdrProc_Schedevent2_activate_event
+func (c SchedEvent1_Client) Schedevent_activate_event(ctx context.Context, a1 EventRegistrationSnapshot) (r EventActivationResult, _ error) {
+	var proc xdrProc_Schedevent_activate_event
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
