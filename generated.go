@@ -2162,6 +2162,7 @@ type EventIndexer1 interface {
 
 type EventIndexer2 interface {
 	Event_indexer_register(context.Context, IndexerCardV2) (EventIndexerRegistrationOutcome, error)
+	Event_indexer_probe(context.Context, UPID) (EventIndexerRegistrationOutcome, error)
 }
 
 /// kCoordinatorMaxBytesTxsMessage is the maximum size of a dissemination
@@ -21162,11 +21163,60 @@ func (p *xdrSrvProc_Event_indexer_register) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Event_indexer_register{} // XXX
 
+type xdrProc_Event_indexer_probe struct {
+	Arg *UPID
+	Res *EventIndexerRegistrationOutcome
+}
+func (xdrProc_Event_indexer_probe) Prog() uint32 { return 1126279852 }
+func (xdrProc_Event_indexer_probe) Vers() uint32 { return 2 }
+func (xdrProc_Event_indexer_probe) Proc() uint32 { return 11 }
+func (xdrProc_Event_indexer_probe) ProgName() string { return "EventIndexer" }
+func (xdrProc_Event_indexer_probe) VersName() string { return "EventIndexer2" }
+func (xdrProc_Event_indexer_probe) ProcName() string { return "event_indexer_probe" }
+func (p *xdrProc_Event_indexer_probe) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(UPID)
+	}
+	return XDR_UPID(p.Arg)
+}
+func (p *xdrProc_Event_indexer_probe) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(EventIndexerRegistrationOutcome)
+	}
+	return XDR_EventIndexerRegistrationOutcome(p.Res)
+}
+var _ XdrProc = &xdrProc_Event_indexer_probe{} // XXX
+
+type xdrSrvProc_Event_indexer_probe struct {
+	xdrProc_Event_indexer_probe
+	Srv EventIndexer2
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Event_indexer_probe) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) EventIndexer2
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Event_indexer_probe) Do() {
+	r, err := p.Srv.Event_indexer_probe(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Event_indexer_probe{} // XXX
+
 func init() {
 	XdrCatalog[1126279852<<32|2] = func(p uint32) XdrProc {
 		switch(p) {
 		case 10:
 			return &xdrProc_Event_indexer_register{}
+		case 11:
+			return &xdrProc_Event_indexer_probe{}
 		}
 		return nil
 	}
@@ -21183,6 +21233,8 @@ func (s EventIndexer2_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 10:  // event_indexer_register
 		return &xdrSrvProc_Event_indexer_register{ Srv: s.Srv }
+	case 11:  // event_indexer_probe
+		return &xdrSrvProc_Event_indexer_probe{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -21200,6 +21252,14 @@ func (c EventIndexer2_Client) WithContext(ctx context.Context) EventIndexer2 {
 }
 func (c EventIndexer2_Client) Event_indexer_register(ctx context.Context, a1 IndexerCardV2) (r EventIndexerRegistrationOutcome, _ error) {
 	var proc xdrProc_Event_indexer_register
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c EventIndexer2_Client) Event_indexer_probe(ctx context.Context, a1 UPID) (r EventIndexerRegistrationOutcome, _ error) {
+	var proc xdrProc_Event_indexer_probe
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err

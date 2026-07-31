@@ -1,6 +1,6 @@
 package proto
 
-const ProtocolGitCommit string = "8331a3a50b8807fdc59b41a1ddda25f71dd6531a"
+const ProtocolGitCommit string = "f2d5fe44b474520300e09559ae61efffd28109be"
 
 func HogProtocol() string {
 	return "hogp/" + ProtocolGitCommit[:12]
