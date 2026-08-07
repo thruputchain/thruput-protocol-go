@@ -2211,6 +2211,7 @@ type HogexecPrecompiledNativeContracts int32
 const (
 	KNativeContractHogToken HogexecPrecompiledNativeContracts = 0
 	KNativeContractInitialTokenClaim HogexecPrecompiledNativeContracts = 1
+	KNativeContractDefaultWallet HogexecPrecompiledNativeContracts = 2
 )
 
 // #[rust(ConstWriteXDR)]
@@ -20625,10 +20626,12 @@ func (v XdrType_ParallelNondeterministicProposalDataBatch) XdrUnwrap() XdrType {
 var _XdrNames_HogexecPrecompiledNativeContracts = map[int32]string{
 	int32(KNativeContractHogToken): "kNativeContractHogToken",
 	int32(KNativeContractInitialTokenClaim): "kNativeContractInitialTokenClaim",
+	int32(KNativeContractDefaultWallet): "kNativeContractDefaultWallet",
 }
 var _XdrValues_HogexecPrecompiledNativeContracts = map[string]int32{
 	"kNativeContractHogToken": int32(KNativeContractHogToken),
 	"kNativeContractInitialTokenClaim": int32(KNativeContractInitialTokenClaim),
+	"kNativeContractDefaultWallet": int32(KNativeContractDefaultWallet),
 }
 func (HogexecPrecompiledNativeContracts) XdrEnumNames() map[int32]string {
 	return _XdrNames_HogexecPrecompiledNativeContracts
