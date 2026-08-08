@@ -1270,6 +1270,10 @@ type InitialConfigurationList = []InitialConfigurationEntry
 type GenesisConfiguration struct {
 	Initial_config InitialConfigurationList
 	Storage_cost_model StorageCostModelXdr
+	/// The contract resolved for root invocations of undeployed addresses.
+	/// Carried into the DbTip at genesis. GenesisConfigurationBuilder
+	/// defaults this to the native default_wallet precompile's record.
+	Default_wallet DeployedContractHash
 }
 
 // These translated into the contract addresses that are initialized
@@ -2380,6 +2384,12 @@ type DbTip struct {
 	Id BlockID
 	Storage_long_hash StorageLongHash
 	Value ConsensusValue
+	/// The chain-configured contract resolved for a root invocation of an
+	/// address with no deployed contract (see
+	/// SystemCallHandler::resolve_runtime). Set at genesis from
+	/// GenesisConfiguration::default_wallet; carried forward verbatim by
+	/// every subsequent commit.
+	Default_wallet DeployedContractHash
 }
 
 // Internal unique ID describing a transaction.
@@ -13585,6 +13595,7 @@ func (v *GenesisConfiguration) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sinitial_config", name), XDR_InitialConfigurationList(&v.Initial_config))
 	x.Marshal(x.Sprintf("%sstorage_cost_model", name), XDR_StorageCostModelXdr(&v.Storage_cost_model))
+	x.Marshal(x.Sprintf("%sdefault_wallet", name), XDR_DeployedContractHash(&v.Default_wallet))
 }
 func XDR_GenesisConfiguration(v *GenesisConfiguration) *GenesisConfiguration { return v }
 var _XdrNames_GenesisContractAddresses = map[int32]string{
@@ -21509,6 +21520,7 @@ func (v *DbTip) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sid", name), XDR_BlockID(&v.Id))
 	x.Marshal(x.Sprintf("%sstorage_long_hash", name), XDR_StorageLongHash(&v.Storage_long_hash))
 	x.Marshal(x.Sprintf("%svalue", name), XDR_ConsensusValue(&v.Value))
+	x.Marshal(x.Sprintf("%sdefault_wallet", name), XDR_DeployedContractHash(&v.Default_wallet))
 }
 func XDR_DbTip(v *DbTip) *DbTip { return v }
 type XdrType_TransactionID struct {
