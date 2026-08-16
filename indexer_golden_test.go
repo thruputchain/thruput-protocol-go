@@ -60,9 +60,9 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	payload.Tx_bodies = []ProposedTransaction{body}
 
 	txBytes := marshalGoldenXdr(XDR_Transaction(&body.Signed_tx.Tx))
-	txHash := SignedTransactionHash(sha256.Sum256(txBytes))
-	payload.Event_logs[0].Proposed_tx_hash = txHash
-	hashBytes := marshalGoldenXdr(XDR_SignedTransactionHash(&txHash))
+	txHash := TransactionHash(sha256.Sum256(txBytes))
+	payload.Event_logs[0].Tx_hash = txHash
+	hashBytes := marshalGoldenXdr(XDR_TransactionHash(&txHash))
 	nondeterministicBytes := marshalGoldenXdr(
 		XDR_NondeterministicProposalData(&body.Nondeterministic_proposal_data),
 	)
