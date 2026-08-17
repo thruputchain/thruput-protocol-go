@@ -2916,7 +2916,6 @@ type GenesisCeremonyRequest struct {
 type GenesisCeremonyOutcome int32
 const (
 	GenesisCeremonyCommitted GenesisCeremonyOutcome = 0
-	GenesisCeremonyAlreadyCommitted GenesisCeremonyOutcome = 1
 	GenesisCeremonyParentMismatch GenesisCeremonyOutcome = 2
 	GenesisCeremonyBatchMismatch GenesisCeremonyOutcome = 3
 	GenesisCeremonyInvalidTransaction GenesisCeremonyOutcome = 4
@@ -2930,7 +2929,7 @@ type GenesisCeremonyCommit struct {
 
 type GenesisCeremonyResult struct {
 	// The union discriminant Outcome selects among the following arms:
-	//   GenesisCeremonyCommitted, GenesisCeremonyAlreadyCommitted:
+	//   GenesisCeremonyCommitted:
 	//      Commit() *GenesisCeremonyCommit
 	//   default:
 	//      void
@@ -24637,7 +24636,6 @@ func (v *GenesisCeremonyRequest) XdrRecurse(x XDR, name string) {
 func XDR_GenesisCeremonyRequest(v *GenesisCeremonyRequest) *GenesisCeremonyRequest { return v }
 var _XdrNames_GenesisCeremonyOutcome = map[int32]string{
 	int32(GenesisCeremonyCommitted): "GenesisCeremonyCommitted",
-	int32(GenesisCeremonyAlreadyCommitted): "GenesisCeremonyAlreadyCommitted",
 	int32(GenesisCeremonyParentMismatch): "GenesisCeremonyParentMismatch",
 	int32(GenesisCeremonyBatchMismatch): "GenesisCeremonyBatchMismatch",
 	int32(GenesisCeremonyInvalidTransaction): "GenesisCeremonyInvalidTransaction",
@@ -24645,7 +24643,6 @@ var _XdrNames_GenesisCeremonyOutcome = map[int32]string{
 }
 var _XdrValues_GenesisCeremonyOutcome = map[string]int32{
 	"GenesisCeremonyCommitted": int32(GenesisCeremonyCommitted),
-	"GenesisCeremonyAlreadyCommitted": int32(GenesisCeremonyAlreadyCommitted),
 	"GenesisCeremonyParentMismatch": int32(GenesisCeremonyParentMismatch),
 	"GenesisCeremonyBatchMismatch": int32(GenesisCeremonyBatchMismatch),
 	"GenesisCeremonyInvalidTransaction": int32(GenesisCeremonyInvalidTransaction),
@@ -24703,7 +24700,7 @@ func (_ GenesisCeremonyResult) XdrValidTags() map[int32]bool {
 }
 func (u *GenesisCeremonyResult) Commit() *GenesisCeremonyCommit {
 	switch u.Outcome {
-	case GenesisCeremonyCommitted, GenesisCeremonyAlreadyCommitted:
+	case GenesisCeremonyCommitted:
 		if v, ok := u._u.(*GenesisCeremonyCommit); ok {
 			return v
 		} else {
@@ -24727,7 +24724,7 @@ func (u *GenesisCeremonyResult) XdrUnionTagName() string {
 }
 func (u *GenesisCeremonyResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
-	case GenesisCeremonyCommitted, GenesisCeremonyAlreadyCommitted:
+	case GenesisCeremonyCommitted:
 		return XDR_GenesisCeremonyCommit(u.Commit())
 	default:
 		return nil
@@ -24735,7 +24732,7 @@ func (u *GenesisCeremonyResult) XdrUnionBody() XdrType {
 }
 func (u *GenesisCeremonyResult) XdrUnionBodyName() string {
 	switch u.Outcome {
-	case GenesisCeremonyCommitted, GenesisCeremonyAlreadyCommitted:
+	case GenesisCeremonyCommitted:
 		return "Commit"
 	default:
 		return ""
@@ -24752,7 +24749,7 @@ func (u *GenesisCeremonyResult) XdrRecurse(x XDR, name string) {
 	}
 	XDR_GenesisCeremonyOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
 	switch u.Outcome {
-	case GenesisCeremonyCommitted, GenesisCeremonyAlreadyCommitted:
+	case GenesisCeremonyCommitted:
 		x.Marshal(x.Sprintf("%scommit", name), XDR_GenesisCeremonyCommit(u.Commit()))
 		return
 	default:
