@@ -2909,7 +2909,6 @@ type SchedulerGetTipResult struct {
 type GenesisCeremonyRequest struct {
 	Expected_parent_height BlockHeight
 	Expected_parent_value_hash ConsensusValueHash
-	Expected_batch_hash SHA256Hash
 	Context ProposalContext
 	Transactions ParallelSignedTransactionBatch
 }
@@ -24632,7 +24631,6 @@ func (v *GenesisCeremonyRequest) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sexpected_parent_height", name), XDR_BlockHeight(&v.Expected_parent_height))
 	x.Marshal(x.Sprintf("%sexpected_parent_value_hash", name), XDR_ConsensusValueHash(&v.Expected_parent_value_hash))
-	x.Marshal(x.Sprintf("%sexpected_batch_hash", name), XDR_SHA256Hash(&v.Expected_batch_hash))
 	x.Marshal(x.Sprintf("%scontext", name), XDR_ProposalContext(&v.Context))
 	x.Marshal(x.Sprintf("%stransactions", name), XDR_ParallelSignedTransactionBatch(&v.Transactions))
 }
