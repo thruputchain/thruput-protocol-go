@@ -2031,10 +2031,10 @@ type IndexerOutboxOrigin struct {
 type IndexerCommittedBlockPayload struct {
 	Format_version uint32
 	Consensus_value ConsensusValue
-	// Both batches are paired and stored in deterministic transaction-hash
-	// order. Each body already contains the signed transaction and
-	// nondeterministic proposal data; carrying ProposalTxs as well would
-	// duplicate that block payload. The segmentation-sensitive
+	// Both batches are positionally paired; their order is not significant.
+	// Each body already contains the signed transaction and nondeterministic
+	// proposal data, so carrying ProposalTxs as well would duplicate that block
+	// payload. The segmentation-sensitive
 	// ConsensusValue.proposal_txs_hash remains scheduler-authenticated; the
 	// outbox payload digest protects these trusted internal bodies at rest.
 	Event_logs TxEventLogBatch
