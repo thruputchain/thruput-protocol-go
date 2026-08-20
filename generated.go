@@ -1123,9 +1123,8 @@ type EventBlockResult struct {
 type EventSched1 interface {
 	Eventsched_null(context.Context, ) error
 	Eventsched_open_block(context.Context, BlockID) (RPCError, error)
-	Eventsched_close_block(context.Context, BlockID, BlockHeight, ProposalTxs) (EventBlockResult, error)
+	Eventsched_close_block(context.Context, BlockID, BlockHeight, ProposalTxsHash) (EventBlockResult, error)
 	Eventsched_commit_block(context.Context, BlockID, ConsensusValue) (RPCError, error)
-	Eventsched_confirm_committed_block(context.Context, ConsensusValue) (RPCError, error)
 	Eventsched_abandon_block(context.Context, BlockID) (RPCError, error)
 }
 
@@ -2032,7 +2031,12 @@ type IndexerOutboxOrigin struct {
 type IndexerCommittedBlockPayload struct {
 	Format_version uint32
 	Consensus_value ConsensusValue
-	Proposal_txs ProposalTxs
+	// Both batches are paired and stored in deterministic transaction-hash
+	// order. Each body already contains the signed transaction and
+	// nondeterministic proposal data; carrying ProposalTxs as well would
+	// duplicate that block payload. The segmentation-sensitive
+	// ConsensusValue.proposal_txs_hash remains scheduler-authenticated; the
+	// outbox payload digest protects these trusted internal bodies at rest.
 	Event_logs TxEventLogBatch
 	Tx_bodies ProposedTransactionBatch
 }
@@ -12499,7 +12503,7 @@ var _ XdrSrvProc = &xdrSrvProc_Eventsched_open_block{} // XXX
 type xdrProcArg_Eventsched_close_block struct {
 	a1 *BlockID
 	a2 *BlockHeight
-	a3 *ProposalTxs
+	a3 *ProposalTxsHash
 }
 func (v *xdrProcArg_Eventsched_close_block) XdrPointer() interface{} { return v }
 func (xdrProcArg_Eventsched_close_block) XdrTypeName() string { return "xdrProcArg_Eventsched_close_block" }
@@ -12513,8 +12517,8 @@ func (v *xdrProcArg_Eventsched_close_block) XdrRecurse(x XDR, name string) {
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(BlockHeight) }
 	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(ProposalTxs) }
-	XDR_ProposalTxs(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
+	if v.a3 == nil { v.a3 = new(ProposalTxsHash) }
+	XDR_ProposalTxsHash(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Eventsched_close_block(v *xdrProcArg_Eventsched_close_block) *xdrProcArg_Eventsched_close_block { return v }
 var _ XdrType = &xdrProcArg_Eventsched_close_block{} // XXX
@@ -12633,53 +12637,6 @@ func (p *xdrSrvProc_Eventsched_commit_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Eventsched_commit_block{} // XXX
 
-type xdrProc_Eventsched_confirm_committed_block struct {
-	Arg *ConsensusValue
-	Res *RPCError
-}
-func (xdrProc_Eventsched_confirm_committed_block) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched_confirm_committed_block) Vers() uint32 { return 1 }
-func (xdrProc_Eventsched_confirm_committed_block) Proc() uint32 { return 32 }
-func (xdrProc_Eventsched_confirm_committed_block) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched_confirm_committed_block) VersName() string { return "EventSched1" }
-func (xdrProc_Eventsched_confirm_committed_block) ProcName() string { return "eventsched_confirm_committed_block" }
-func (p *xdrProc_Eventsched_confirm_committed_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(ConsensusValue)
-	}
-	return XDR_ConsensusValue(p.Arg)
-}
-func (p *xdrProc_Eventsched_confirm_committed_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched_confirm_committed_block{} // XXX
-
-type xdrSrvProc_Eventsched_confirm_committed_block struct {
-	xdrProc_Eventsched_confirm_committed_block
-	Srv EventSched1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched_confirm_committed_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched_confirm_committed_block) Do() {
-	r, err := p.Srv.Eventsched_confirm_committed_block(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched_confirm_committed_block{} // XXX
-
 type xdrProc_Eventsched_abandon_block struct {
 	Arg *BlockID
 	Res *RPCError
@@ -12738,8 +12695,6 @@ func init() {
 			return &xdrProc_Eventsched_close_block{}
 		case 31:
 			return &xdrProc_Eventsched_commit_block{}
-		case 32:
-			return &xdrProc_Eventsched_confirm_committed_block{}
 		case 40:
 			return &xdrProc_Eventsched_abandon_block{}
 		}
@@ -12764,8 +12719,6 @@ func (s EventSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Eventsched_close_block{ Srv: s.Srv }
 	case 31:  // eventsched_commit_block
 		return &xdrSrvProc_Eventsched_commit_block{ Srv: s.Srv }
-	case 32:  // eventsched_confirm_committed_block
-		return &xdrSrvProc_Eventsched_confirm_committed_block{ Srv: s.Srv }
 	case 40:  // eventsched_abandon_block
 		return &xdrSrvProc_Eventsched_abandon_block{ Srv: s.Srv }
 	default:
@@ -12798,7 +12751,7 @@ func (c EventSched1_Client) Eventsched_open_block(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight, a3 ProposalTxs) (r EventBlockResult, _ error) {
+func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight, a3 ProposalTxsHash) (r EventBlockResult, _ error) {
 	var proc xdrProc_Eventsched_close_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
@@ -12814,14 +12767,6 @@ func (c EventSched1_Client) Eventsched_commit_block(ctx context.Context, a1 Bloc
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c EventSched1_Client) Eventsched_confirm_committed_block(ctx context.Context, a1 ConsensusValue) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched_confirm_committed_block
-	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -19686,7 +19631,6 @@ func (v *IndexerCommittedBlockPayload) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sformat_version", name), XDR_uint32(&v.Format_version))
 	x.Marshal(x.Sprintf("%sconsensus_value", name), XDR_ConsensusValue(&v.Consensus_value))
-	x.Marshal(x.Sprintf("%sproposal_txs", name), XDR_ProposalTxs(&v.Proposal_txs))
 	x.Marshal(x.Sprintf("%sevent_logs", name), XDR_TxEventLogBatch(&v.Event_logs))
 	x.Marshal(x.Sprintf("%stx_bodies", name), XDR_ProposedTransactionBatch(&v.Tx_bodies))
 }

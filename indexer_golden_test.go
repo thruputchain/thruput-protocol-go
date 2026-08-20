@@ -11,7 +11,7 @@ import (
 
 func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	var payload IndexerCommittedBlockPayload
-	payload.Format_version = 1
+	payload.Format_version = 2
 
 	value := &payload.Consensus_value
 	value.Protocol = 0x01020304
@@ -66,12 +66,13 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	nondeterministicBytes := marshalGoldenXdr(
 		XDR_NondeterministicProposalData(&body.Nondeterministic_proposal_data),
 	)
-	payload.Proposal_txs.Hash = ParallelBatch{
+	proposalTxs := ProposalTxs{}
+	proposalTxs.Hash = ParallelBatch{
 		Segment_tokens: []uint32{1},
 		Segment_bytes:  []uint32{uint32(len(hashBytes))},
 		Xdr:            hashBytes,
 	}
-	payload.Proposal_txs.Nondeterministic_data = ParallelBatch{
+	proposalTxs.Nondeterministic_data = ParallelBatch{
 		Segment_tokens: []uint32{1},
 		Segment_bytes:  []uint32{uint32(len(nondeterministicBytes))},
 		Xdr:            nondeterministicBytes,
@@ -79,6 +80,9 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	value.Proposal_header.Txs_hash = goldenHash("27598ad0dd4cd1086c482fa514032f6a7dfa80b64d321eabd1f62230c38d6c05")
 	value.Proposal_header.Events_hash = goldenHash("ec8ce8c7cbb98bd0a5e6ee60acf36c6e599d0400c9ab4f411bf4ab84ea2f1f4e")
 	value.Proposal_txs_hash = goldenHash("e9bd73b5065f50e84df2faf032f7220dc3a44885a062e9872f48cd251df6232c")
+	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
+		panic("proposal tx compatibility hash mismatch")
+	}
 
 	return payload
 }
@@ -136,9 +140,6 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	var encoded bytes.Buffer
 	out := xdr.XdrOut{Out: &encoded}
 	payload := committedPayloadGoldenFixture()
-	if got := goldenProposalTxsHash(payload.Proposal_txs); got != payload.Consensus_value.Proposal_txs_hash {
-		t.Fatalf("proposal tx compatibility hash mismatch: got=%x want=%x", got, payload.Consensus_value.Proposal_txs_hash)
-	}
 	out.Marshal("", XDR_IndexerCommittedBlockPayload(&payload))
 
 	digest := sha256.Sum256(encoded.Bytes())
