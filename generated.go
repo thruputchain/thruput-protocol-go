@@ -2203,6 +2203,7 @@ const (
 
 type ERC20PaymentsConfig struct {
 	Num_addresses uint64
+	Network_hash NetworkHash
 }
 
 type ExperimentConfig struct {
@@ -2218,7 +2219,8 @@ type InitializationBlock = []SignedTransaction
 type LoadgenContextID = uint64
 
 type LoadgenSuccessResult struct {
-	Genesis_configuration GenesisConfiguration
+	Genesis_configuration GenesisConfigurationV2
+	Genesis_ceremony_txs InitializationBlock
 	Initialization_txs []InitializationBlock
 	Context_id LoadgenContextID
 }
@@ -20574,6 +20576,7 @@ func (v *ERC20PaymentsConfig) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%snum_addresses", name), XDR_uint64(&v.Num_addresses))
+	x.Marshal(x.Sprintf("%snetwork_hash", name), XDR_NetworkHash(&v.Network_hash))
 }
 func XDR_ERC20PaymentsConfig(v *ERC20PaymentsConfig) *ERC20PaymentsConfig { return v }
 var _XdrTags_ExperimentConfig = map[int32]bool{
@@ -20778,7 +20781,8 @@ func (v *LoadgenSuccessResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sgenesis_configuration", name), XDR_GenesisConfiguration(&v.Genesis_configuration))
+	x.Marshal(x.Sprintf("%sgenesis_configuration", name), XDR_GenesisConfigurationV2(&v.Genesis_configuration))
+	x.Marshal(x.Sprintf("%sgenesis_ceremony_txs", name), XDR_InitializationBlock(&v.Genesis_ceremony_txs))
 	x.Marshal(x.Sprintf("%sinitialization_txs", name), (*_XdrVec_unbounded_InitializationBlock)(&v.Initialization_txs))
 	x.Marshal(x.Sprintf("%scontext_id", name), XDR_LoadgenContextID(&v.Context_id))
 }
