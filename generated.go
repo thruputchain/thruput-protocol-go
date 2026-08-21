@@ -969,7 +969,6 @@ type DbSched1 interface {
 	Dbsched_abandon_snapshot(context.Context, BlockID) (DbSchedResult, error)
 	Dbsched_load_genesis_configuration(context.Context, GenesisConfiguration, ConsensusValue) (DbSchedResult, error)
 	Dbsched_get_tip(context.Context, ) (DbTipResult, error)
-	Dbsched_load_genesis_configuration_v2(context.Context, GenesisConfigurationV2, ConsensusValue) (DbSchedResult, error)
 }
 
 type Debug1 interface {
@@ -1261,37 +1260,11 @@ type ExecutorSched1 interface {
 	Executorsched_shutdown(context.Context, ) error
 }
 
-type PresetDeploymentConfig struct {
-	Initial_nonce SHA256Hash
-	Contract_hash SHA256Hash
-	Entrypoint ContractEntrypointID
-	Calldata Calldata
-}
-
-type InitialConfigurationEntry struct {
-	Config PresetDeploymentConfig
-	Amount Int128_xdr
-}
-
-type InitialConfigurationList = []InitialConfigurationEntry
-
 type GenesisConfiguration struct {
-	Initial_config InitialConfigurationList
-	Storage_cost_model StorageCostModelXdr
-	/// The contract resolved for root invocations of undeployed addresses.
-	/// Carried into the DbTip at genesis. GenesisConfigurationBuilder
-	/// defaults this to the native default_wallet precompile's record.
-	Default_wallet DeployedContractHash
-}
-
-/// Minimal genesis state for root-contract chain creation. Token allocation
-/// happens through the root contract in the single ceremony block at height 1.
-type GenesisConfigurationV2 struct {
 	Network_hash NetworkHash
 	Storage_cost_model StorageCostModelXdr
 	Root_contract Contract
-	/// Preserved from V1 so the genesis transition does not implicitly alter
-	/// undeployed-address invocation behavior.
+	/// The contract resolved for root invocations of undeployed addresses.
 	Default_wallet DeployedContractHash
 }
 
@@ -1304,10 +1277,10 @@ type GenesisContractAddresses int32
 const (
 	// Null address (reserved)
 	KAddressNull GenesisContractAddresses = 0
-	// Precompiled native contract for the HogToken contract
-	KAddressPrecompiledHogToken GenesisContractAddresses = 1
-	// InitialTokenClaim contract, for managing genesis token/contract setup
-	KAddressInitialTokenClaim GenesisContractAddresses = 2
+	// Precompiled native-token contract
+	KAddressNativeToken GenesisContractAddresses = 1
+	// Genesis root contract
+	KAddressGenesisRoot GenesisContractAddresses = 2
 )
 
 /// Inputs fixed before executing a candidate block.
@@ -2221,7 +2194,7 @@ type InitializationBlock = []SignedTransaction
 type LoadgenContextID = uint64
 
 type LoadgenSuccessResult struct {
-	Genesis_configuration GenesisConfigurationV2
+	Genesis_configuration GenesisConfiguration
 	Genesis_ceremony_txs InitializationBlock
 	Initialization_txs []InitializationBlock
 	Context_id LoadgenContextID
@@ -2358,7 +2331,7 @@ const KCIControlServerPort = 11111
 type HogexecPrecompiledNativeContracts int32
 const (
 	KNativeContractHogToken HogexecPrecompiledNativeContracts = 0
-	KNativeContractInitialTokenClaim HogexecPrecompiledNativeContracts = 1
+	// Native contract ID 1 is retired and must remain unused.
 	KNativeContractDefaultWallet HogexecPrecompiledNativeContracts = 2
 )
 
@@ -2957,7 +2930,6 @@ type SchedulerCoord1 interface {
 	Schedulercoord_commit_block(context.Context, BlockID, ConsensusValue) (SchedulerCommitOutcome, error)
 	Schedcoord_get_tip(context.Context, ) (SchedulerGetTipResult, error)
 	Schedcoord_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
-	Schedcoord_load_genesis_configuration_v2(context.Context, GenesisConfigurationV2) (DbSchedResult, error)
 	Schedulercoord_commit_genesis_ceremony(context.Context, GenesisCeremonyRequest) (GenesisCeremonyResult, error)
 	Schedcoord_lookup_transactions(context.Context, TransactionHashBatch) (OptSignedTransactionBatch, error)
 }
@@ -10382,73 +10354,6 @@ func (p *xdrSrvProc_Dbsched_get_tip) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbsched_get_tip{} // XXX
 
-type xdrProcArg_Dbsched_load_genesis_configuration_v2 struct {
-	a1 *GenesisConfigurationV2
-	a2 *ConsensusValue
-}
-func (v *xdrProcArg_Dbsched_load_genesis_configuration_v2) XdrPointer() interface{} { return v }
-func (xdrProcArg_Dbsched_load_genesis_configuration_v2) XdrTypeName() string { return "xdrProcArg_Dbsched_load_genesis_configuration_v2" }
-func (v xdrProcArg_Dbsched_load_genesis_configuration_v2) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Dbsched_load_genesis_configuration_v2) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Dbsched_load_genesis_configuration_v2) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(GenesisConfigurationV2) }
-	XDR_GenesisConfigurationV2(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(ConsensusValue) }
-	XDR_ConsensusValue(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Dbsched_load_genesis_configuration_v2(v *xdrProcArg_Dbsched_load_genesis_configuration_v2) *xdrProcArg_Dbsched_load_genesis_configuration_v2 { return v }
-var _ XdrType = &xdrProcArg_Dbsched_load_genesis_configuration_v2{} // XXX
-
-type xdrProc_Dbsched_load_genesis_configuration_v2 struct {
-	Arg *xdrProcArg_Dbsched_load_genesis_configuration_v2
-	Res *DbSchedResult
-}
-func (xdrProc_Dbsched_load_genesis_configuration_v2) Prog() uint32 { return 2290646759 }
-func (xdrProc_Dbsched_load_genesis_configuration_v2) Vers() uint32 { return 1 }
-func (xdrProc_Dbsched_load_genesis_configuration_v2) Proc() uint32 { return 11 }
-func (xdrProc_Dbsched_load_genesis_configuration_v2) ProgName() string { return "DbSched" }
-func (xdrProc_Dbsched_load_genesis_configuration_v2) VersName() string { return "DbSched1" }
-func (xdrProc_Dbsched_load_genesis_configuration_v2) ProcName() string { return "dbsched_load_genesis_configuration_v2" }
-func (p *xdrProc_Dbsched_load_genesis_configuration_v2) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Dbsched_load_genesis_configuration_v2)
-	}
-	return XDR_xdrProcArg_Dbsched_load_genesis_configuration_v2(p.Arg)
-}
-func (p *xdrProc_Dbsched_load_genesis_configuration_v2) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(DbSchedResult)
-	}
-	return XDR_DbSchedResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Dbsched_load_genesis_configuration_v2{} // XXX
-
-type xdrSrvProc_Dbsched_load_genesis_configuration_v2 struct {
-	xdrProc_Dbsched_load_genesis_configuration_v2
-	Srv DbSched1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Dbsched_load_genesis_configuration_v2) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) DbSched1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Dbsched_load_genesis_configuration_v2) Do() {
-	r, err := p.Srv.Dbsched_load_genesis_configuration_v2(p.Ctx, *p.Arg.a1, *p.Arg.a2)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Dbsched_load_genesis_configuration_v2{} // XXX
-
 func init() {
 	XdrCatalog[2290646759<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -10472,8 +10377,6 @@ func init() {
 			return &xdrProc_Dbsched_load_genesis_configuration{}
 		case 10:
 			return &xdrProc_Dbsched_get_tip{}
-		case 11:
-			return &xdrProc_Dbsched_load_genesis_configuration_v2{}
 		}
 		return nil
 	}
@@ -10508,8 +10411,6 @@ func (s DbSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbsched_load_genesis_configuration{ Srv: s.Srv }
 	case 10:  // dbsched_get_tip
 		return &xdrSrvProc_Dbsched_get_tip{ Srv: s.Srv }
-	case 11:  // dbsched_load_genesis_configuration_v2
-		return &xdrSrvProc_Dbsched_load_genesis_configuration_v2{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -10607,16 +10508,6 @@ func (c DbSched1_Client) Dbsched_load_genesis_configuration(ctx context.Context,
 }
 func (c DbSched1_Client) Dbsched_get_tip(ctx context.Context, ) (r DbTipResult, _ error) {
 	var proc xdrProc_Dbsched_get_tip
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c DbSched1_Client) Dbsched_load_genesis_configuration_v2(ctx context.Context, a1 GenesisConfigurationV2, a2 ConsensusValue) (r DbSchedResult, _ error) {
-	var proc xdrProc_Dbsched_load_genesis_configuration_v2
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -13902,97 +13793,6 @@ func (c ExecutorSched1_Client) Executorsched_shutdown(ctx context.Context, ) err
 	}
 	return nil
 }
-type XdrType_PresetDeploymentConfig = *PresetDeploymentConfig
-func (v *PresetDeploymentConfig) XdrPointer() interface{} { return v }
-func (PresetDeploymentConfig) XdrTypeName() string { return "PresetDeploymentConfig" }
-func (v PresetDeploymentConfig) XdrValue() interface{} { return v }
-func (v *PresetDeploymentConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *PresetDeploymentConfig) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sinitial_nonce", name), XDR_SHA256Hash(&v.Initial_nonce))
-	x.Marshal(x.Sprintf("%scontract_hash", name), XDR_SHA256Hash(&v.Contract_hash))
-	x.Marshal(x.Sprintf("%sentrypoint", name), XDR_ContractEntrypointID(&v.Entrypoint))
-	x.Marshal(x.Sprintf("%scalldata", name), XDR_Calldata(&v.Calldata))
-}
-func XDR_PresetDeploymentConfig(v *PresetDeploymentConfig) *PresetDeploymentConfig { return v }
-type XdrType_InitialConfigurationEntry = *InitialConfigurationEntry
-func (v *InitialConfigurationEntry) XdrPointer() interface{} { return v }
-func (InitialConfigurationEntry) XdrTypeName() string { return "InitialConfigurationEntry" }
-func (v InitialConfigurationEntry) XdrValue() interface{} { return v }
-func (v *InitialConfigurationEntry) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *InitialConfigurationEntry) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sconfig", name), XDR_PresetDeploymentConfig(&v.Config))
-	x.Marshal(x.Sprintf("%samount", name), XDR_Int128_xdr(&v.Amount))
-}
-func XDR_InitialConfigurationEntry(v *InitialConfigurationEntry) *InitialConfigurationEntry { return v }
-type _XdrVec_unbounded_InitialConfigurationEntry []InitialConfigurationEntry
-func (_XdrVec_unbounded_InitialConfigurationEntry) XdrBound() uint32 {
-	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
-	return bound
-}
-func (_XdrVec_unbounded_InitialConfigurationEntry) XdrCheckLen(length uint32) {
-	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_InitialConfigurationEntry length %d exceeds bound 4294967295", length)
-	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_InitialConfigurationEntry length %d exceeds max int", length)
-	}
-}
-func (v _XdrVec_unbounded_InitialConfigurationEntry) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_InitialConfigurationEntry) SetVecLen(length uint32) {
-	v.XdrCheckLen(length)
-	if int(length) <= cap(*v) {
-		if int(length) != len(*v) {
-			*v = (*v)[:int(length)]
-		}
-		return
-	}
-	newcap := 2*cap(*v)
-	if newcap < int(length) { // also catches overflow where 2*cap < 0
-		newcap = int(length)
-	} else if bound := uint(4294967295); uint(newcap) > bound {
-		if int(bound) < 0 {
-			bound = ^uint(0) >> 1
-		}
-		newcap = int(bound)
-	}
-	nv := make([]InitialConfigurationEntry, int(length), newcap)
-	copy(nv, *v)
-	*v = nv
-}
-func (v *_XdrVec_unbounded_InitialConfigurationEntry) XdrMarshalN(x XDR, name string, n uint32) {
-	v.XdrCheckLen(n)
-	for i := 0; i < int(n); i++ {
-		if (i >= len(*v)) {
-			v.SetVecLen(uint32(i+1))
-		}
-		XDR_InitialConfigurationEntry(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
-	}
-	if int(n) < len(*v) {
-		*v = (*v)[:int(n)]
-	}
-}
-func (v *_XdrVec_unbounded_InitialConfigurationEntry) XdrRecurse(x XDR, name string) {
-	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
-	x.Marshal(name, &size)
-	v.XdrMarshalN(x, name, size.Size)
-}
-func (_XdrVec_unbounded_InitialConfigurationEntry) XdrTypeName() string { return "InitialConfigurationEntry<>" }
-func (v *_XdrVec_unbounded_InitialConfigurationEntry) XdrPointer() interface{} { return (*[]InitialConfigurationEntry)(v) }
-func (v _XdrVec_unbounded_InitialConfigurationEntry) XdrValue() interface{} { return ([]InitialConfigurationEntry)(v) }
-func (v *_XdrVec_unbounded_InitialConfigurationEntry) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_InitialConfigurationList struct {
-	*_XdrVec_unbounded_InitialConfigurationEntry
-}
-func XDR_InitialConfigurationList(v *InitialConfigurationList) XdrType_InitialConfigurationList {
-	return XdrType_InitialConfigurationList{(*_XdrVec_unbounded_InitialConfigurationEntry)(v)}
-}
-func (XdrType_InitialConfigurationList) XdrTypeName() string { return "InitialConfigurationList" }
-func (v XdrType_InitialConfigurationList) XdrUnwrap() XdrType { return v._XdrVec_unbounded_InitialConfigurationEntry }
 type XdrType_GenesisConfiguration = *GenesisConfiguration
 func (v *GenesisConfiguration) XdrPointer() interface{} { return v }
 func (GenesisConfiguration) XdrTypeName() string { return "GenesisConfiguration" }
@@ -14002,35 +13802,21 @@ func (v *GenesisConfiguration) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sinitial_config", name), XDR_InitialConfigurationList(&v.Initial_config))
-	x.Marshal(x.Sprintf("%sstorage_cost_model", name), XDR_StorageCostModelXdr(&v.Storage_cost_model))
-	x.Marshal(x.Sprintf("%sdefault_wallet", name), XDR_DeployedContractHash(&v.Default_wallet))
-}
-func XDR_GenesisConfiguration(v *GenesisConfiguration) *GenesisConfiguration { return v }
-type XdrType_GenesisConfigurationV2 = *GenesisConfigurationV2
-func (v *GenesisConfigurationV2) XdrPointer() interface{} { return v }
-func (GenesisConfigurationV2) XdrTypeName() string { return "GenesisConfigurationV2" }
-func (v GenesisConfigurationV2) XdrValue() interface{} { return v }
-func (v *GenesisConfigurationV2) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *GenesisConfigurationV2) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
 	x.Marshal(x.Sprintf("%snetwork_hash", name), XDR_NetworkHash(&v.Network_hash))
 	x.Marshal(x.Sprintf("%sstorage_cost_model", name), XDR_StorageCostModelXdr(&v.Storage_cost_model))
 	x.Marshal(x.Sprintf("%sroot_contract", name), XDR_Contract(&v.Root_contract))
 	x.Marshal(x.Sprintf("%sdefault_wallet", name), XDR_DeployedContractHash(&v.Default_wallet))
 }
-func XDR_GenesisConfigurationV2(v *GenesisConfigurationV2) *GenesisConfigurationV2 { return v }
+func XDR_GenesisConfiguration(v *GenesisConfiguration) *GenesisConfiguration { return v }
 var _XdrNames_GenesisContractAddresses = map[int32]string{
 	int32(KAddressNull): "kAddressNull",
-	int32(KAddressPrecompiledHogToken): "kAddressPrecompiledHogToken",
-	int32(KAddressInitialTokenClaim): "kAddressInitialTokenClaim",
+	int32(KAddressNativeToken): "kAddressNativeToken",
+	int32(KAddressGenesisRoot): "kAddressGenesisRoot",
 }
 var _XdrValues_GenesisContractAddresses = map[string]int32{
 	"kAddressNull": int32(KAddressNull),
-	"kAddressPrecompiledHogToken": int32(KAddressPrecompiledHogToken),
-	"kAddressInitialTokenClaim": int32(KAddressInitialTokenClaim),
+	"kAddressNativeToken": int32(KAddressNativeToken),
+	"kAddressGenesisRoot": int32(KAddressGenesisRoot),
 }
 func (GenesisContractAddresses) XdrEnumNames() map[int32]string {
 	return _XdrNames_GenesisContractAddresses
@@ -20789,7 +20575,7 @@ func (v *LoadgenSuccessResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sgenesis_configuration", name), XDR_GenesisConfigurationV2(&v.Genesis_configuration))
+	x.Marshal(x.Sprintf("%sgenesis_configuration", name), XDR_GenesisConfiguration(&v.Genesis_configuration))
 	x.Marshal(x.Sprintf("%sgenesis_ceremony_txs", name), XDR_InitializationBlock(&v.Genesis_ceremony_txs))
 	x.Marshal(x.Sprintf("%sinitialization_txs", name), (*_XdrVec_unbounded_InitializationBlock)(&v.Initialization_txs))
 	x.Marshal(x.Sprintf("%scontext_id", name), XDR_LoadgenContextID(&v.Context_id))
@@ -21591,12 +21377,10 @@ func (XdrType_ParallelNondeterministicProposalDataBatch) XdrTypeName() string { 
 func (v XdrType_ParallelNondeterministicProposalDataBatch) XdrUnwrap() XdrType { return v.XdrType_ParallelBatch }
 var _XdrNames_HogexecPrecompiledNativeContracts = map[int32]string{
 	int32(KNativeContractHogToken): "kNativeContractHogToken",
-	int32(KNativeContractInitialTokenClaim): "kNativeContractInitialTokenClaim",
 	int32(KNativeContractDefaultWallet): "kNativeContractDefaultWallet",
 }
 var _XdrValues_HogexecPrecompiledNativeContracts = map[string]int32{
 	"kNativeContractHogToken": int32(KNativeContractHogToken),
-	"kNativeContractInitialTokenClaim": int32(KNativeContractInitialTokenClaim),
 	"kNativeContractDefaultWallet": int32(KNativeContractDefaultWallet),
 }
 func (HogexecPrecompiledNativeContracts) XdrEnumNames() map[int32]string {
@@ -25289,53 +25073,6 @@ func (p *xdrSrvProc_Schedcoord_load_genesis_configuration) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedcoord_load_genesis_configuration{} // XXX
 
-type xdrProc_Schedcoord_load_genesis_configuration_v2 struct {
-	Arg *GenesisConfigurationV2
-	Res *DbSchedResult
-}
-func (xdrProc_Schedcoord_load_genesis_configuration_v2) Prog() uint32 { return 1986466065 }
-func (xdrProc_Schedcoord_load_genesis_configuration_v2) Vers() uint32 { return 1 }
-func (xdrProc_Schedcoord_load_genesis_configuration_v2) Proc() uint32 { return 9 }
-func (xdrProc_Schedcoord_load_genesis_configuration_v2) ProgName() string { return "SchedulerCoord" }
-func (xdrProc_Schedcoord_load_genesis_configuration_v2) VersName() string { return "SchedulerCoord1" }
-func (xdrProc_Schedcoord_load_genesis_configuration_v2) ProcName() string { return "schedcoord_load_genesis_configuration_v2" }
-func (p *xdrProc_Schedcoord_load_genesis_configuration_v2) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(GenesisConfigurationV2)
-	}
-	return XDR_GenesisConfigurationV2(p.Arg)
-}
-func (p *xdrProc_Schedcoord_load_genesis_configuration_v2) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(DbSchedResult)
-	}
-	return XDR_DbSchedResult(p.Res)
-}
-var _ XdrProc = &xdrProc_Schedcoord_load_genesis_configuration_v2{} // XXX
-
-type xdrSrvProc_Schedcoord_load_genesis_configuration_v2 struct {
-	xdrProc_Schedcoord_load_genesis_configuration_v2
-	Srv SchedulerCoord1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Schedcoord_load_genesis_configuration_v2) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) SchedulerCoord1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Schedcoord_load_genesis_configuration_v2) Do() {
-	r, err := p.Srv.Schedcoord_load_genesis_configuration_v2(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Schedcoord_load_genesis_configuration_v2{} // XXX
-
 type xdrProc_Schedulercoord_commit_genesis_ceremony struct {
 	Arg *GenesisCeremonyRequest
 	Res *GenesisCeremonyResult
@@ -25451,8 +25188,6 @@ func init() {
 			return &xdrProc_Schedcoord_get_tip{}
 		case 8:
 			return &xdrProc_Schedcoord_load_genesis_configuration{}
-		case 9:
-			return &xdrProc_Schedcoord_load_genesis_configuration_v2{}
 		case 10:
 			return &xdrProc_Schedulercoord_commit_genesis_ceremony{}
 		case 100:
@@ -25489,8 +25224,6 @@ func (s SchedulerCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedcoord_get_tip{ Srv: s.Srv }
 	case 8:  // schedcoord_load_genesis_configuration
 		return &xdrSrvProc_Schedcoord_load_genesis_configuration{ Srv: s.Srv }
-	case 9:  // schedcoord_load_genesis_configuration_v2
-		return &xdrSrvProc_Schedcoord_load_genesis_configuration_v2{ Srv: s.Srv }
 	case 10:  // schedulercoord_commit_genesis_ceremony
 		return &xdrSrvProc_Schedulercoord_commit_genesis_ceremony{ Srv: s.Srv }
 	case 100:  // schedcoord_lookup_transactions
@@ -25582,14 +25315,6 @@ func (c SchedulerCoord1_Client) Schedcoord_get_tip(ctx context.Context, ) (r Sch
 }
 func (c SchedulerCoord1_Client) Schedcoord_load_genesis_configuration(ctx context.Context, a1 GenesisConfiguration) (r DbSchedResult, _ error) {
 	var proc xdrProc_Schedcoord_load_genesis_configuration
-	proc.Arg = &a1
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c SchedulerCoord1_Client) Schedcoord_load_genesis_configuration_v2(ctx context.Context, a1 GenesisConfigurationV2) (r DbSchedResult, _ error) {
-	var proc xdrProc_Schedcoord_load_genesis_configuration_v2
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
