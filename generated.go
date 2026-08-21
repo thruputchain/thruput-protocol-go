@@ -1337,6 +1337,8 @@ type ProposalHeader struct {
 	/// The hash of the network name, separating this network's blocks from
 	/// those of other networks.
 	Network_hash NetworkHash
+	/// Hash of the exact genesis configuration that initialized this chain.
+	Genesis_configuration_hash GenesisConfigurationHash
 	/// Block proposer. Nodes missing block data fetch it from the proposer.
 	Proposer ValidatorID
 	/// The block's timepoint, fixed by the coordinator before execution begins.
@@ -3938,6 +3940,11 @@ type ConsensusValueHash = SHA256Hash
 
 // #[rust(newtype)]
 type NetworkHash = SHA256Hash
+
+/// SHA-256 of the XDR-encoded genesis configuration loaded by the scheduler.
+/// Carried in every proposal header so the chain's execution prerequisites are
+/// recoverable as part of its consensus identity.
+type GenesisConfigurationHash = SHA256Hash
 
 /// Hash of the groundhog database contents.
 /// Format is a 2048-byte LtHash16 hash.
@@ -14084,6 +14091,7 @@ func (v *ProposalHeader) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
 	x.Marshal(x.Sprintf("%snetwork_hash", name), XDR_NetworkHash(&v.Network_hash))
+	x.Marshal(x.Sprintf("%sgenesis_configuration_hash", name), XDR_GenesisConfigurationHash(&v.Genesis_configuration_hash))
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
 	x.Marshal(x.Sprintf("%sblock_timepoint", name), XDR_TimePoint(&v.Block_timepoint))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
@@ -32407,6 +32415,14 @@ func XDR_NetworkHash(v *NetworkHash) XdrType_NetworkHash {
 }
 func (XdrType_NetworkHash) XdrTypeName() string { return "NetworkHash" }
 func (v XdrType_NetworkHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_GenesisConfigurationHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_GenesisConfigurationHash(v *GenesisConfigurationHash) XdrType_GenesisConfigurationHash {
+	return XdrType_GenesisConfigurationHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_GenesisConfigurationHash) XdrTypeName() string { return "GenesisConfigurationHash" }
+func (v XdrType_GenesisConfigurationHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrArray_2048_opaque [2048]byte
 func (v *_XdrArray_2048_opaque) GetByteSlice() []byte { return v[:] }
 func (v *_XdrArray_2048_opaque) XdrTypeName() string { return "opaque[]" }
