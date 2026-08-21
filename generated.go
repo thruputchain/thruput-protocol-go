@@ -2800,12 +2800,27 @@ type SchedulerCoord1 interface {
 	Schedcoord_lookup_transactions(context.Context, TransactionHashBatch) (OptSignedTransactionBatch, error)
 }
 
+// A db shard's stable identity: persisted by the shard (hogdb's <SHARDID key)
+// and declared to the mempool/executor via ShardCard below, so they bind
+// clients by shard_id, not by connection-arrival order. Declared ids must form
+// exactly {0..total_shards-1} and every shard must agree on total_shards (= the
+// mempool's --num-db-shards).
+type ShardIdentity struct {
+	Ext ExtensionPoint
+	Shard_id uint32
+	Total_shards uint32
+	// Routing function that produced this shard's data; see sharding.h
+	// kShardFunctionId. A mismatch is fail-stop.
+	Shard_function_id ShardFunction
+}
+
 // ShardCard uniquely describes a database shard instance and its initial
 // state.
 type ShardCard struct {
 	Protocol ProtocolCommit
 	Upid UPID
 	Block_height BlockHeight
+	Identity ShardIdentity
 	// This is the db address that the executor should connect to.
 	Address_for_exec ServerAddress
 	// This is the db address that the scheduler should connect to.
@@ -4035,6 +4050,15 @@ type AddressAndKey struct {
 	Address ContractAddress
 	Key StorageKey
 }
+
+/// Identifies the function that maps an address to a db shard. Declared and
+/// persisted per shard, so data placed by a different function is rejected
+/// rather than silently misrouted.
+type ShardFunction int32
+const (
+	/// Unkeyed FNV-1a, and so grindable -- to be replaced by a keyed hash.
+	Fnv1aPlaceholder ShardFunction = 0
+)
 
 /// BlockHeight is the height of a block, measured as the number of blocks since the genesis of the chain.
 /// The first block of transactions is at height 0.
@@ -24634,6 +24658,21 @@ func (c SchedulerCoord1_Client) Schedcoord_lookup_transactions(ctx context.Conte
 	}
 	return *proc.Res, nil
 }
+type XdrType_ShardIdentity = *ShardIdentity
+func (v *ShardIdentity) XdrPointer() interface{} { return v }
+func (ShardIdentity) XdrTypeName() string { return "ShardIdentity" }
+func (v ShardIdentity) XdrValue() interface{} { return v }
+func (v *ShardIdentity) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ShardIdentity) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
+	x.Marshal(x.Sprintf("%sshard_id", name), XDR_uint32(&v.Shard_id))
+	x.Marshal(x.Sprintf("%stotal_shards", name), XDR_uint32(&v.Total_shards))
+	x.Marshal(x.Sprintf("%sshard_function_id", name), XDR_ShardFunction(&v.Shard_function_id))
+}
+func XDR_ShardIdentity(v *ShardIdentity) *ShardIdentity { return v }
 type XdrType_ShardCard = *ShardCard
 func (v *ShardCard) XdrPointer() interface{} { return v }
 func (ShardCard) XdrTypeName() string { return "ShardCard" }
@@ -24646,6 +24685,7 @@ func (v *ShardCard) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sprotocol", name), XDR_ProtocolCommit(&v.Protocol))
 	x.Marshal(x.Sprintf("%supid", name), XDR_UPID(&v.Upid))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
+	x.Marshal(x.Sprintf("%sidentity", name), XDR_ShardIdentity(&v.Identity))
 	x.Marshal(x.Sprintf("%saddress_for_exec", name), XDR_ServerAddress(&v.Address_for_exec))
 	x.Marshal(x.Sprintf("%saddress_for_sched", name), XDR_ServerAddress(&v.Address_for_sched))
 	x.Marshal(x.Sprintf("%saddress_for_auth", name), XDR_ServerAddress(&v.Address_for_auth))
@@ -32648,6 +32688,46 @@ func (v *AddressAndKey) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%skey", name), XDR_StorageKey(&v.Key))
 }
 func XDR_AddressAndKey(v *AddressAndKey) *AddressAndKey { return v }
+var _XdrNames_ShardFunction = map[int32]string{
+	int32(Fnv1aPlaceholder): "Fnv1aPlaceholder",
+}
+var _XdrValues_ShardFunction = map[string]int32{
+	"Fnv1aPlaceholder": int32(Fnv1aPlaceholder),
+}
+func (ShardFunction) XdrEnumNames() map[int32]string {
+	return _XdrNames_ShardFunction
+}
+func (v ShardFunction) String() string {
+	if s, ok := _XdrNames_ShardFunction[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("ShardFunction#%d", v)
+}
+func (v *ShardFunction) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_ShardFunction[stok]; ok {
+			*v = ShardFunction(val)
+			return nil
+		} else if stok == "ShardFunction" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid ShardFunction.", stok))
+	}
+}
+func (v ShardFunction) GetU32() uint32 { return uint32(v) }
+func (v *ShardFunction) SetU32(n uint32) { *v = ShardFunction(n) }
+func (v *ShardFunction) XdrPointer() interface{} { return v }
+func (ShardFunction) XdrTypeName() string { return "ShardFunction" }
+func (v ShardFunction) XdrValue() interface{} { return v }
+func (v *ShardFunction) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ShardFunction = *ShardFunction
+func XDR_ShardFunction(v *ShardFunction) *ShardFunction { return v }
 type XdrType_BlockHeight struct {
 	XdrType_int64
 }
