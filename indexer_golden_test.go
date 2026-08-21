@@ -78,7 +78,7 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 		Xdr:            nondeterministicBytes,
 	}
 	value.Proposal_header.Txs_hash = goldenHash("27598ad0dd4cd1086c482fa514032f6a7dfa80b64d321eabd1f62230c38d6c05")
-	value.Proposal_header.Events_hash = goldenHash("ec8ce8c7cbb98bd0a5e6ee60acf36c6e599d0400c9ab4f411bf4ab84ea2f1f4e")
+	value.Proposal_header.Events_hash = goldenHash("ee0de519ec7a425065d237c05b6d3ef5aac59231a4a2251e221917064a04b86c")
 	value.Proposal_txs_hash = goldenHash("e9bd73b5065f50e84df2faf032f7220dc3a44885a062e9872f48cd251df6232c")
 	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
 		panic("proposal tx compatibility hash mismatch")
@@ -143,8 +143,8 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	out.Marshal("", XDR_IndexerCommittedBlockPayload(&payload))
 
 	digest := sha256.Sum256(encoded.Bytes())
-	const expectedByteLength = 684
-	const expectedDigest = "92a063e064ba85efced9b00c1df461c010845e83dac982a9548c9b28b5edd952"
+	const expectedByteLength = 576
+	const expectedDigest = "ac204b697f4a80fb7c641d1f2b13e8c843df1177a9bd060bbf4447d64df26ed6"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}

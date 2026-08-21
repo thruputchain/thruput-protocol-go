@@ -1123,7 +1123,7 @@ type EventBlockResult struct {
 type EventSched1 interface {
 	Eventsched_null(context.Context, ) error
 	Eventsched_open_block(context.Context, BlockID) (RPCError, error)
-	Eventsched_close_block(context.Context, BlockID, BlockHeight, ProposalTxsHash) (EventBlockResult, error)
+	Eventsched_close_block(context.Context, BlockID, BlockHeight) (EventBlockResult, error)
 	Eventsched_commit_block(context.Context, BlockID, ConsensusValue) (RPCError, error)
 	Eventsched_abandon_block(context.Context, BlockID) (RPCError, error)
 }
@@ -1160,15 +1160,22 @@ type TxEmittedEvent struct {
 }
 
 /// Event log for a single transaction, stored in the merkle-patricia trie.
-/// The key is the tx_hash, and the value is the complete list of
-/// events emitted by that transaction. This structure enables efficient
-/// querying of all events associated with a specific transaction.
+/// The trie leaf is encoded canonically as follows:
+///
+/// - key: the leading TransactionHash from XDR(TxEventLog);
+/// - value: the remainder of XDR(TxEventLog), followed by
+///   XDR(NondeterministicProposalData).
+///
+/// The appended proposal data binds the nondeterministic inputs used during
+/// execution to the events root. Signature-wrapper bytes are deliberately not
+/// included: TransactionHash identifies the inner Transaction independently
+/// of its signatures, so validators with different valid wrappers compute the
+/// same root.
 ///
 /// That key is the identity of the transaction the submitter signed, not of
 /// the [`ProposedTransaction`] the proposer assembled from it, so a
 /// submitter can compute it before submission and use it to find its own
-/// events. The nondeterministic proposal data travels alongside the log to
-/// the indexer and is not part of this commitment. See [`TransactionHash`].
+/// events. See [`TransactionHash`].
 ///
 /// `root_output` carries the InvocationFrameOutput of the transaction's
 /// root frame: the Return buffer on success, the Abort buffer on a
@@ -2032,11 +2039,12 @@ type IndexerCommittedBlockPayload struct {
 	Format_version uint32
 	Consensus_value ConsensusValue
 	// Both batches are positionally paired; their order is not significant.
-	// Each body already contains the signed transaction and nondeterministic
-	// proposal data, so carrying ProposalTxs as well would duplicate that block
-	// payload. The segmentation-sensitive
-	// ConsensusValue.proposal_txs_hash remains scheduler-authenticated; the
-	// outbox payload digest protects these trusted internal bodies at rest.
+	// Each inner Transaction is bound by consensus_value.proposal_header.txs_hash,
+	// while the corresponding event log and nondeterministic proposal data are
+	// bound together by consensus_value.proposal_header.events_hash. Signature
+	// wrappers are intentionally outside both consensus commitments and remain
+	// trusted internal payload; the outbox digest protects the complete payload
+	// from later corruption at rest.
 	Event_logs TxEventLogBatch
 	Tx_bodies ProposedTransactionBatch
 }
@@ -12503,7 +12511,6 @@ var _ XdrSrvProc = &xdrSrvProc_Eventsched_open_block{} // XXX
 type xdrProcArg_Eventsched_close_block struct {
 	a1 *BlockID
 	a2 *BlockHeight
-	a3 *ProposalTxsHash
 }
 func (v *xdrProcArg_Eventsched_close_block) XdrPointer() interface{} { return v }
 func (xdrProcArg_Eventsched_close_block) XdrTypeName() string { return "xdrProcArg_Eventsched_close_block" }
@@ -12517,8 +12524,6 @@ func (v *xdrProcArg_Eventsched_close_block) XdrRecurse(x XDR, name string) {
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(BlockHeight) }
 	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(ProposalTxsHash) }
-	XDR_ProposalTxsHash(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Eventsched_close_block(v *xdrProcArg_Eventsched_close_block) *xdrProcArg_Eventsched_close_block { return v }
 var _ XdrType = &xdrProcArg_Eventsched_close_block{} // XXX
@@ -12561,7 +12566,7 @@ func (p *xdrSrvProc_Eventsched_close_block) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Eventsched_close_block) Do() {
-	r, err := p.Srv.Eventsched_close_block(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	r, err := p.Srv.Eventsched_close_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -12751,12 +12756,11 @@ func (c EventSched1_Client) Eventsched_open_block(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight, a3 ProposalTxsHash) (r EventBlockResult, _ error) {
+func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight) (r EventBlockResult, _ error) {
 	var proc xdrProc_Eventsched_close_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
