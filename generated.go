@@ -2037,26 +2037,28 @@ type IndexerOutboxOrigin struct {
 	First_prev_hash ConsensusValueHash
 }
 
-/// Canonical durable outbox payload. This exact XDR value is hashed for
-/// `payload_digest`, stored in the private outbox record, and returned to the
-/// indexer so both sides use one content identity.
+/// Canonical committed-block payload returned to the indexer. The durable
+/// outbox record stores only `format_version` and `consensus_value`; the two
+/// batches live in the block's content-addressed events file, named by
+/// `consensus_value.proposal_header.events_hash`, and are reassembled on load.
 type IndexerCommittedBlockPayload struct {
 	Format_version uint32
 	Consensus_value ConsensusValue
 	// Both batches are positionally paired; their order is not significant.
 	// Each inner Transaction is bound by consensus_value.proposal_header.txs_hash,
 	// while the corresponding event log and nondeterministic proposal data are
-	// bound together by consensus_value.proposal_header.events_hash. Signature
+	// bound together by consensus_value.proposal_header.events_hash. Both roots
+	// are recomputed whenever the payload is loaded from disk. Signature
 	// wrappers are intentionally outside both consensus commitments and remain
-	// trusted internal payload; the outbox digest protects the complete payload
-	// from later corruption at rest.
+	// trusted internal payload: any wrapper satisfying the transaction's auth
+	// claim is equally valid, so which one a block carries is not observable to
+	// anything that validates against the header.
 	Event_logs TxEventLogBatch
 	Tx_bodies ProposedTransactionBatch
 }
 
 type IndexerCommittedBlockIdentity struct {
 	Consensus_hash ConsensusValueHash
-	Payload_digest SHA256Hash
 }
 
 type IndexerCommittedBlock struct {
@@ -2068,7 +2070,6 @@ type IndexerInitializedProgress struct {
 	Origin IndexerOutboxOrigin
 	Contiguous_height BlockHeight
 	Last_consensus_hash ConsensusValueHash
-	Last_payload_digest SHA256Hash
 }
 
 type IndexerProgressState int32
@@ -19667,7 +19668,6 @@ func (v *IndexerCommittedBlockIdentity) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sconsensus_hash", name), XDR_ConsensusValueHash(&v.Consensus_hash))
-	x.Marshal(x.Sprintf("%spayload_digest", name), XDR_SHA256Hash(&v.Payload_digest))
 }
 func XDR_IndexerCommittedBlockIdentity(v *IndexerCommittedBlockIdentity) *IndexerCommittedBlockIdentity { return v }
 type XdrType_IndexerCommittedBlock = *IndexerCommittedBlock
@@ -19695,7 +19695,6 @@ func (v *IndexerInitializedProgress) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sorigin", name), XDR_IndexerOutboxOrigin(&v.Origin))
 	x.Marshal(x.Sprintf("%scontiguous_height", name), XDR_BlockHeight(&v.Contiguous_height))
 	x.Marshal(x.Sprintf("%slast_consensus_hash", name), XDR_ConsensusValueHash(&v.Last_consensus_hash))
-	x.Marshal(x.Sprintf("%slast_payload_digest", name), XDR_SHA256Hash(&v.Last_payload_digest))
 }
 func XDR_IndexerInitializedProgress(v *IndexerInitializedProgress) *IndexerInitializedProgress { return v }
 var _XdrNames_IndexerProgressState = map[int32]string{
