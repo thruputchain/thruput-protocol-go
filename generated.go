@@ -263,10 +263,15 @@ const (
 	KFailure IntroAuthOutcome = 1
 )
 
+type MempoolAuthIntroSuccess struct {
+	Shards []ShardCard
+	Network_hash NetworkHash
+}
+
 type IntroAuthResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   KSuccess:
-	//      Shards() *[]ShardCard
+	//      Success() *MempoolAuthIntroSuccess
 	//   default:
 	//      void
 	Outcome IntroAuthOutcome
@@ -1133,15 +1138,22 @@ type TxEmittedEvent struct {
 }
 
 /// Event log for a single transaction, stored in the merkle-patricia trie.
-/// The key is the tx_hash, and the value is the complete list of
-/// events emitted by that transaction. This structure enables efficient
-/// querying of all events associated with a specific transaction.
+/// The trie leaf is encoded canonically as follows:
+///
+/// - key: the leading TransactionHash from XDR(TxEventLog);
+/// - value: the remainder of XDR(TxEventLog), followed by
+///   XDR(NondeterministicProposalData).
+///
+/// The appended proposal data binds the nondeterministic inputs used during
+/// execution to the events root. Signature-wrapper bytes are deliberately not
+/// included: TransactionHash identifies the inner Transaction independently
+/// of its signatures, so validators with different valid wrappers compute the
+/// same root.
 ///
 /// That key is the identity of the transaction the submitter signed, not of
 /// the [`ProposedTransaction`] the proposer assembled from it, so a
 /// submitter can compute it before submission and use it to find its own
-/// events. The nondeterministic proposal data travels alongside the log to
-/// the indexer and is not part of this commitment. See [`TransactionHash`].
+/// events. See [`TransactionHash`].
 ///
 /// `root_output` carries the InvocationFrameOutput of the transaction's
 /// root frame: the Return buffer on success, the Abort buffer on a
@@ -1193,9 +1205,8 @@ type EventBlockResult struct {
 type EventSched1 interface {
 	Eventsched_null(context.Context, ) error
 	Eventsched_open_block(context.Context, BlockID) (RPCError, error)
-	Eventsched_close_block(context.Context, BlockID, BlockHeight, ProposalTxs) (EventBlockResult, error)
+	Eventsched_close_block(context.Context, BlockID, BlockHeight) (EventBlockResult, error)
 	Eventsched_commit_block(context.Context, BlockID, ConsensusValue) (RPCError, error)
-	Eventsched_confirm_committed_block(context.Context, ConsensusValue) (RPCError, error)
 	Eventsched_abandon_block(context.Context, BlockID) (RPCError, error)
 }
 
@@ -1997,20 +2008,28 @@ type IndexerOutboxOrigin struct {
 	First_prev_hash ConsensusValueHash
 }
 
-/// Canonical durable outbox payload. This exact XDR value is hashed for
-/// `payload_digest`, stored in the private outbox record, and returned to the
-/// indexer so both sides use one content identity.
+/// Canonical committed-block payload returned to the indexer. The durable
+/// outbox record stores only `format_version` and `consensus_value`; the two
+/// batches live in the block's content-addressed events file, named by
+/// `consensus_value.proposal_header.events_hash`, and are reassembled on load.
 type IndexerCommittedBlockPayload struct {
 	Format_version uint32
 	Consensus_value ConsensusValue
-	Proposal_txs ProposalTxs
+	// Both batches are positionally paired; their order is not significant.
+	// Each inner Transaction is bound by consensus_value.proposal_header.txs_hash,
+	// while the corresponding event log and nondeterministic proposal data are
+	// bound together by consensus_value.proposal_header.events_hash. Both roots
+	// are recomputed whenever the payload is loaded from disk. Signature
+	// wrappers are intentionally outside both consensus commitments and remain
+	// trusted internal payload: any wrapper satisfying the transaction's auth
+	// claim is equally valid, so which one a block carries is not observable to
+	// anything that validates against the header.
 	Event_logs TxEventLogBatch
 	Tx_bodies ProposedTransactionBatch
 }
 
 type IndexerCommittedBlockIdentity struct {
 	Consensus_hash ConsensusValueHash
-	Payload_digest SHA256Hash
 }
 
 type IndexerCommittedBlock struct {
@@ -2022,7 +2041,6 @@ type IndexerInitializedProgress struct {
 	Origin IndexerOutboxOrigin
 	Contiguous_height BlockHeight
 	Last_consensus_hash ConsensusValueHash
-	Last_payload_digest SHA256Hash
 }
 
 type IndexerProgressState int32
@@ -5617,21 +5635,34 @@ func (_XdrVec_unbounded_ShardCard) XdrTypeName() string { return "ShardCard<>" }
 func (v *_XdrVec_unbounded_ShardCard) XdrPointer() interface{} { return (*[]ShardCard)(v) }
 func (v _XdrVec_unbounded_ShardCard) XdrValue() interface{} { return ([]ShardCard)(v) }
 func (v *_XdrVec_unbounded_ShardCard) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_MempoolAuthIntroSuccess = *MempoolAuthIntroSuccess
+func (v *MempoolAuthIntroSuccess) XdrPointer() interface{} { return v }
+func (MempoolAuthIntroSuccess) XdrTypeName() string { return "MempoolAuthIntroSuccess" }
+func (v MempoolAuthIntroSuccess) XdrValue() interface{} { return v }
+func (v *MempoolAuthIntroSuccess) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *MempoolAuthIntroSuccess) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_ShardCard)(&v.Shards))
+	x.Marshal(x.Sprintf("%snetwork_hash", name), XDR_NetworkHash(&v.Network_hash))
+}
+func XDR_MempoolAuthIntroSuccess(v *MempoolAuthIntroSuccess) *MempoolAuthIntroSuccess { return v }
 func (_ IntroAuthResult) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *IntroAuthResult) Shards() *[]ShardCard {
+func (u *IntroAuthResult) Success() *MempoolAuthIntroSuccess {
 	switch u.Outcome {
 	case KSuccess:
-		if v, ok := u._u.(*[]ShardCard); ok {
+		if v, ok := u._u.(*MempoolAuthIntroSuccess); ok {
 			return v
 		} else {
-			var zero []ShardCard
+			var zero MempoolAuthIntroSuccess
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("IntroAuthResult.Shards accessed when Outcome == %v", u.Outcome)
+		XdrPanic("IntroAuthResult.Success accessed when Outcome == %v", u.Outcome)
 		return nil
 	}
 }
@@ -5647,7 +5678,7 @@ func (u *IntroAuthResult) XdrUnionTagName() string {
 func (u *IntroAuthResult) XdrUnionBody() XdrType {
 	switch u.Outcome {
 	case KSuccess:
-		return (*_XdrVec_unbounded_ShardCard)(u.Shards())
+		return XDR_MempoolAuthIntroSuccess(u.Success())
 	default:
 		return nil
 	}
@@ -5655,7 +5686,7 @@ func (u *IntroAuthResult) XdrUnionBody() XdrType {
 func (u *IntroAuthResult) XdrUnionBodyName() string {
 	switch u.Outcome {
 	case KSuccess:
-		return "Shards"
+		return "Success"
 	default:
 		return ""
 	}
@@ -5672,7 +5703,7 @@ func (u *IntroAuthResult) XdrRecurse(x XDR, name string) {
 	XDR_IntroAuthOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
 	switch u.Outcome {
 	case KSuccess:
-		x.Marshal(x.Sprintf("%sshards", name), (*_XdrVec_unbounded_ShardCard)(u.Shards()))
+		x.Marshal(x.Sprintf("%ssuccess", name), XDR_MempoolAuthIntroSuccess(u.Success()))
 		return
 	default:
 		return
@@ -12504,7 +12535,6 @@ var _ XdrSrvProc = &xdrSrvProc_Eventsched_open_block{} // XXX
 type xdrProcArg_Eventsched_close_block struct {
 	a1 *BlockID
 	a2 *BlockHeight
-	a3 *ProposalTxs
 }
 func (v *xdrProcArg_Eventsched_close_block) XdrPointer() interface{} { return v }
 func (xdrProcArg_Eventsched_close_block) XdrTypeName() string { return "xdrProcArg_Eventsched_close_block" }
@@ -12518,8 +12548,6 @@ func (v *xdrProcArg_Eventsched_close_block) XdrRecurse(x XDR, name string) {
 	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
 	if v.a2 == nil { v.a2 = new(BlockHeight) }
 	XDR_BlockHeight(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-	if v.a3 == nil { v.a3 = new(ProposalTxs) }
-	XDR_ProposalTxs(v.a3).XdrMarshal(x, x.Sprintf("%sa3", name))
 }
 func XDR_xdrProcArg_Eventsched_close_block(v *xdrProcArg_Eventsched_close_block) *xdrProcArg_Eventsched_close_block { return v }
 var _ XdrType = &xdrProcArg_Eventsched_close_block{} // XXX
@@ -12562,7 +12590,7 @@ func (p *xdrSrvProc_Eventsched_close_block) SetContext(ctx context.Context) {
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Eventsched_close_block) Do() {
-	r, err := p.Srv.Eventsched_close_block(p.Ctx, *p.Arg.a1, *p.Arg.a2, *p.Arg.a3)
+	r, err := p.Srv.Eventsched_close_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -12638,53 +12666,6 @@ func (p *xdrSrvProc_Eventsched_commit_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Eventsched_commit_block{} // XXX
 
-type xdrProc_Eventsched_confirm_committed_block struct {
-	Arg *ConsensusValue
-	Res *RPCError
-}
-func (xdrProc_Eventsched_confirm_committed_block) Prog() uint32 { return 2326270502 }
-func (xdrProc_Eventsched_confirm_committed_block) Vers() uint32 { return 1 }
-func (xdrProc_Eventsched_confirm_committed_block) Proc() uint32 { return 32 }
-func (xdrProc_Eventsched_confirm_committed_block) ProgName() string { return "EventSched" }
-func (xdrProc_Eventsched_confirm_committed_block) VersName() string { return "EventSched1" }
-func (xdrProc_Eventsched_confirm_committed_block) ProcName() string { return "eventsched_confirm_committed_block" }
-func (p *xdrProc_Eventsched_confirm_committed_block) GetArg() XdrType {
-	if p.Arg == nil {
-		p.Arg = new(ConsensusValue)
-	}
-	return XDR_ConsensusValue(p.Arg)
-}
-func (p *xdrProc_Eventsched_confirm_committed_block) GetRes() XdrType {
-	if p.Res == nil {
-		p.Res = new(RPCError)
-	}
-	return XDR_RPCError(p.Res)
-}
-var _ XdrProc = &xdrProc_Eventsched_confirm_committed_block{} // XXX
-
-type xdrSrvProc_Eventsched_confirm_committed_block struct {
-	xdrProc_Eventsched_confirm_committed_block
-	Srv EventSched1
-	Ctx context.Context
-}
-func (p *xdrSrvProc_Eventsched_confirm_committed_block) SetContext(ctx context.Context) {
-	if wc, ok := p.Srv.(interface {
-		WithContext(context.Context) EventSched1
-	}); ok {
-		p.Srv = wc.WithContext(ctx)
-	}
-	p.Ctx = ctx
-}
-func (p *xdrSrvProc_Eventsched_confirm_committed_block) Do() {
-	r, err := p.Srv.Eventsched_confirm_committed_block(p.Ctx, *p.Arg)
-	p.Res = &r
-
-	if err != nil {
-		panic(err)
-	}
-}
-var _ XdrSrvProc = &xdrSrvProc_Eventsched_confirm_committed_block{} // XXX
-
 type xdrProc_Eventsched_abandon_block struct {
 	Arg *BlockID
 	Res *RPCError
@@ -12743,8 +12724,6 @@ func init() {
 			return &xdrProc_Eventsched_close_block{}
 		case 31:
 			return &xdrProc_Eventsched_commit_block{}
-		case 32:
-			return &xdrProc_Eventsched_confirm_committed_block{}
 		case 40:
 			return &xdrProc_Eventsched_abandon_block{}
 		}
@@ -12769,8 +12748,6 @@ func (s EventSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Eventsched_close_block{ Srv: s.Srv }
 	case 31:  // eventsched_commit_block
 		return &xdrSrvProc_Eventsched_commit_block{ Srv: s.Srv }
-	case 32:  // eventsched_confirm_committed_block
-		return &xdrSrvProc_Eventsched_confirm_committed_block{ Srv: s.Srv }
 	case 40:  // eventsched_abandon_block
 		return &xdrSrvProc_Eventsched_abandon_block{ Srv: s.Srv }
 	default:
@@ -12803,12 +12780,11 @@ func (c EventSched1_Client) Eventsched_open_block(ctx context.Context, a1 BlockI
 	}
 	return *proc.Res, nil
 }
-func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight, a3 ProposalTxs) (r EventBlockResult, _ error) {
+func (c EventSched1_Client) Eventsched_close_block(ctx context.Context, a1 BlockID, a2 BlockHeight) (r EventBlockResult, _ error) {
 	var proc xdrProc_Eventsched_close_block
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	proc.Arg.a3 = &a3
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -12819,14 +12795,6 @@ func (c EventSched1_Client) Eventsched_commit_block(ctx context.Context, a1 Bloc
 	proc.GetArg()
 	proc.Arg.a1 = &a1
 	proc.Arg.a2 = &a2
-	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return r, err
-	}
-	return *proc.Res, nil
-}
-func (c EventSched1_Client) Eventsched_confirm_committed_block(ctx context.Context, a1 ConsensusValue) (r RPCError, _ error) {
-	var proc xdrProc_Eventsched_confirm_committed_block
-	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -19464,7 +19432,6 @@ func (v *IndexerCommittedBlockPayload) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sformat_version", name), XDR_uint32(&v.Format_version))
 	x.Marshal(x.Sprintf("%sconsensus_value", name), XDR_ConsensusValue(&v.Consensus_value))
-	x.Marshal(x.Sprintf("%sproposal_txs", name), XDR_ProposalTxs(&v.Proposal_txs))
 	x.Marshal(x.Sprintf("%sevent_logs", name), XDR_TxEventLogBatch(&v.Event_logs))
 	x.Marshal(x.Sprintf("%stx_bodies", name), XDR_ProposedTransactionBatch(&v.Tx_bodies))
 }
@@ -19479,7 +19446,6 @@ func (v *IndexerCommittedBlockIdentity) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sconsensus_hash", name), XDR_ConsensusValueHash(&v.Consensus_hash))
-	x.Marshal(x.Sprintf("%spayload_digest", name), XDR_SHA256Hash(&v.Payload_digest))
 }
 func XDR_IndexerCommittedBlockIdentity(v *IndexerCommittedBlockIdentity) *IndexerCommittedBlockIdentity { return v }
 type XdrType_IndexerCommittedBlock = *IndexerCommittedBlock
@@ -19507,7 +19473,6 @@ func (v *IndexerInitializedProgress) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sorigin", name), XDR_IndexerOutboxOrigin(&v.Origin))
 	x.Marshal(x.Sprintf("%scontiguous_height", name), XDR_BlockHeight(&v.Contiguous_height))
 	x.Marshal(x.Sprintf("%slast_consensus_hash", name), XDR_ConsensusValueHash(&v.Last_consensus_hash))
-	x.Marshal(x.Sprintf("%slast_payload_digest", name), XDR_SHA256Hash(&v.Last_payload_digest))
 }
 func XDR_IndexerInitializedProgress(v *IndexerInitializedProgress) *IndexerInitializedProgress { return v }
 var _XdrNames_IndexerProgressState = map[int32]string{
