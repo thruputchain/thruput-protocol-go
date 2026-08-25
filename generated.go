@@ -936,6 +936,7 @@ type DbAddressAuthDataBatchResult struct {
 type DbBlockOk struct {
 	Storage_hash StorageShortHash
 	Storage_long_hash StorageLongHash
+	Config_hash_preimage ConfigHashPreimage
 }
 
 type DbBlockResult struct {
@@ -1321,6 +1322,8 @@ type ProposalHeader struct {
 	/// The hash of the network name, separating this network's blocks from
 	/// those of other networks.
 	Network_hash NetworkHash
+	/// The hash of the post-block network configuration.
+	Config_hash ConfigHash
 	/// Block proposer. Nodes missing block data fetch it from the proposer.
 	Proposer ValidatorID
 	/// The block's timepoint, fixed by the coordinator before execution begins.
@@ -3268,6 +3271,12 @@ type StorageCostModelXdr struct {
 	Balance_cost uint64
 }
 
+/// The network configuration committed to by ProposalHeader::config_hash.
+/// New consensus-critical configuration belongs in this preimage.
+type ConfigHashPreimage struct {
+	Storage_cost_model StorageCostModelXdr
+}
+
 /// The type of a storage item.
 type StorageItemType int32
 const (
@@ -3928,6 +3937,9 @@ type ConsensusValueHash = SHA256Hash
 
 // #[rust(newtype)]
 type NetworkHash = SHA256Hash
+
+/// SHA-256 of the XDR-encoded ConfigHashPreimage.
+type ConfigHash = SHA256Hash
 
 /// Hash of the groundhog database contents.
 /// Format is a 2048-byte LtHash16 hash.
@@ -9660,6 +9672,7 @@ func (v *DbBlockOk) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sstorage_hash", name), XDR_StorageShortHash(&v.Storage_hash))
 	x.Marshal(x.Sprintf("%sstorage_long_hash", name), XDR_StorageLongHash(&v.Storage_long_hash))
+	x.Marshal(x.Sprintf("%sconfig_hash_preimage", name), XDR_ConfigHashPreimage(&v.Config_hash_preimage))
 }
 func XDR_DbBlockOk(v *DbBlockOk) *DbBlockOk { return v }
 func (_ DbBlockResult) XdrValidTags() map[int32]bool {
@@ -13838,6 +13851,7 @@ func (v *ProposalHeader) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
 	x.Marshal(x.Sprintf("%snetwork_hash", name), XDR_NetworkHash(&v.Network_hash))
+	x.Marshal(x.Sprintf("%sconfig_hash", name), XDR_ConfigHash(&v.Config_hash))
 	x.Marshal(x.Sprintf("%sproposer", name), XDR_ValidatorID(&v.Proposer))
 	x.Marshal(x.Sprintf("%sblock_timepoint", name), XDR_TimePoint(&v.Block_timepoint))
 	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
@@ -29179,6 +29193,18 @@ func (v *StorageCostModelXdr) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sbalance_cost", name), XDR_uint64(&v.Balance_cost))
 }
 func XDR_StorageCostModelXdr(v *StorageCostModelXdr) *StorageCostModelXdr { return v }
+type XdrType_ConfigHashPreimage = *ConfigHashPreimage
+func (v *ConfigHashPreimage) XdrPointer() interface{} { return v }
+func (ConfigHashPreimage) XdrTypeName() string { return "ConfigHashPreimage" }
+func (v ConfigHashPreimage) XdrValue() interface{} { return v }
+func (v *ConfigHashPreimage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ConfigHashPreimage) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sstorage_cost_model", name), XDR_StorageCostModelXdr(&v.Storage_cost_model))
+}
+func XDR_ConfigHashPreimage(v *ConfigHashPreimage) *ConfigHashPreimage { return v }
 var _XdrNames_StorageItemType = map[int32]string{
 	int32(KItemTypeBytestring): "kItemTypeBytestring",
 	int32(KItemTypeNonnegativeInt): "kItemTypeNonnegativeInt",
@@ -32097,6 +32123,14 @@ func XDR_NetworkHash(v *NetworkHash) XdrType_NetworkHash {
 }
 func (XdrType_NetworkHash) XdrTypeName() string { return "NetworkHash" }
 func (v XdrType_NetworkHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_ConfigHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_ConfigHash(v *ConfigHash) XdrType_ConfigHash {
+	return XdrType_ConfigHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_ConfigHash) XdrTypeName() string { return "ConfigHash" }
+func (v XdrType_ConfigHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrArray_2048_opaque [2048]byte
 func (v *_XdrArray_2048_opaque) GetByteSlice() []byte { return v[:] }
 func (v *_XdrArray_2048_opaque) XdrTypeName() string { return "opaque[]" }
