@@ -660,7 +660,7 @@ type SemVer = string
 ///
 /// Contract entrypoints can be arbitrary 8 byte identifiers (the [`ContractEntrypointID`] type).
 ///  By default, the SDK
-/// for Groundhog contracts follows the following scheme for allocating those 
+/// for Groundhog contracts follows the following scheme for allocating those
 /// identifiers, although this scheme is not a strict requirement.
 ///
 /// Contract interfaces define a set of methods (entrypoints) with a name
@@ -2153,7 +2153,7 @@ type EventIndexer1 interface {
 }
 
 /// kCoordinatorMaxBytesTxsMessage is the maximum size of a dissemination
-/// message containing transactions. The transaction batches inside these 
+/// message containing transactions. The transaction batches inside these
 /// messages will be submitted to the mempool as vetted txs.
 /// Thus the mempool-to-coordinator RPC must have a slightly higher
 /// maximum message size to accommodate for RPC framing.
@@ -3291,7 +3291,7 @@ type Bytestring = []byte // bound KBytestringMaxLen
 ///
 /// [`StorageDelta`]s are modifications that are applied to these StorageItem objects.
 ///
-/// Contracts do not generally directly load these values, but can access them via the typed 
+/// Contracts do not generally directly load these values, but can access them via the typed
 /// system call interface provided by the Groundhog runtime.
 /// For example, a contract can call `BytestringGet`, which will return either a Bytestring value or
 /// an error if the storage key does not exist or contains a different type.
@@ -3317,7 +3317,7 @@ type StorageItem struct {
 // This is the type that is actually sent over the network from the database to the executor.
 // This type strips out complex types (the replay cache and retrocausal queue) that the
 // executor does not need to load.
-// The types are filled in, as the executor does need to know the type of an item even 
+// The types are filled in, as the executor does need to know the type of an item even
 // without knowing the contents.
 type WireStorageItem struct {
 	// The union discriminant Type selects among the following arms:
@@ -3448,7 +3448,7 @@ type StorageDeltaFlagSet = int32
 /// The combined unit of storage modification sent to the database from the executor.
 /// A delta with a set of flags, applied to a specific entry in the database.
 type FlaggedStorageDelta struct {
-	// TODO(geoff): The addrkey field is likely repetitive when sending 
+	// TODO(geoff): The addrkey field is likely repetitive when sending
 	// many deltas to the database.
 	// possibly we can readjust this data structure, if raw bandwidth becomes
 	// important.
@@ -3669,7 +3669,7 @@ type Uniquifier struct {
 ///
 /// Transactions are the fundamental unit of state modification. Each transaction:
 /// - Invokes a single contract method (which may make subinvocations)
-/// - Includes claims about attached signatures, which must be verified before execution 
+/// - Includes claims about attached signatures, which must be verified before execution
 ///   can begin.  A transaction is invalid if any attached signatures are invalid
 ///   or if the attached signatures do not match the auth claims.
 /// - Can deploy new contracts that will be available during execution
@@ -3946,7 +3946,7 @@ type EventsHash = SHA256Hash
 type ProposalHeaderHash = SHA256Hash
 
 /// Represents a 256-bit contract address.
-/// In the groundhog storage model, each contract is deployed at a 
+/// In the groundhog storage model, each contract is deployed at a
 /// 32-byte unique `ContractAddress`.
 type ContractAddress = [32]byte
 
@@ -29324,7 +29324,7 @@ func (u *StorageItem) Bytestring() *Bytestring {
 /// A nonnegative integer, stored as a 128-bit value.
 ///
 /// This can be stored at any [`StorageKey`] of type `ContractData`.
-/// This type is also used to store the free native token balance at 
+/// This type is also used to store the free native token balance at
 /// storage key `FreeNativeTokenBalance`.
 func (u *StorageItem) Nnint() *Int128_xdr {
 	switch u.Type {
@@ -29361,7 +29361,7 @@ func (u *StorageItem) Queue_entries() *[]QueueEntry {
 }
 /// A set of [`Uniquifier`]s that have been used by the current address.
 /// Transactions can only insert a Uniquifier, not read the whole set.
-/// 
+///
 /// This is the type stored at storage key `ReplayCache`.
 /// It cannot be stored at any other storage key.
 func (u *StorageItem) Active_uniquifiers() *[]Uniquifier {
@@ -29910,7 +29910,7 @@ func (_ StorageDelta) XdrValidTags() map[int32]bool {
 ///
 /// Item Type: `kItemTypeBytestring`
 ///
-/// Conflicts: 
+/// Conflicts:
 ///   - Will conflict with any other delta that creates a *different* item at the same storage key.
 func (u *StorageDelta) Bytestring() *Bytestring {
 	switch u.Type {
@@ -29933,7 +29933,7 @@ func (u *StorageDelta) Bytestring() *Bytestring {
 ///
 /// Item Type: `kItemTypeNonnegativeInt`
 ///
-/// Conflicts: 
+/// Conflicts:
 ///   - Will conflict with any NonnegativeIntSetAdd delta with a different `set_value`.
 ///   - NonnegativeIntAdd deltas are equivalent to a NonnegativeIntSetAdd delta with a `set_value` equal
 ///     to the value of the item at the start of the block (if it is a nonnegative integer) or 0 otherwise.
@@ -29957,13 +29957,13 @@ func (u *StorageDelta) Nnint() *NonnegativeInt128SetAddArgs {
 	}
 }
 /// Adds the supplied value to the nonnegative integer item at the storage key.
-/// This type is equivalent to a NonnegativeIntSetAdd delta with a `set_value` 
+/// This type is equivalent to a NonnegativeIntSetAdd delta with a `set_value`
 /// equal to the value of the item at the start of the block (if it is a nonnegative integer) or 0 otherwise.
 /// This delta type enables a more efficient implementation of common nonnegative integer use cases (like token balances).
 ///
 /// Item Type: `kItemTypeNonnegativeInt`
 ///
-/// Conflicts: 
+/// Conflicts:
 ///   - Same as NonnegativeIntSetAdd deltas.
 func (u *StorageDelta) Nnint_add() *Int128_xdr {
 	switch u.Type {
@@ -29984,7 +29984,7 @@ func (u *StorageDelta) Nnint_add() *Int128_xdr {
 ///
 /// Item Type: `kItemTypeRetrocausalQueue`
 ///
-/// Conflicts: 
+/// Conflicts:
 ///   - Insertions do not conflict with each other.
 ///     TODO(geoff): we may impose limits on the number of entries that can be inserted in one block.
 ///   - Consuming entries conflicts with other consumption deltas in the same block.
@@ -30007,7 +30007,7 @@ func (u *StorageDelta) Retrocausal_queue() *RetrocausalQueueDelta {
 ///
 /// Item Type: `kItemTypeAuthData`
 ///
-/// Conflicts: 
+/// Conflicts:
 ///   - Will conflict with any other auth change delta in the same block.
 func (u *StorageDelta) Auth_data_change() *AuthDataChangeArgs {
 	switch u.Type {
@@ -30025,12 +30025,12 @@ func (u *StorageDelta) Auth_data_change() *AuthDataChangeArgs {
 	}
 }
 /// Deploys a new contract for the current address.
-/// 
+///
 /// Item Type: `kItemTypeDeployedContractHash`
 ///
-/// Conflicts: 
+/// Conflicts:
 ///   - None.  The semantics of how contract deployment addresses are calculated (see [`ContractDeploymentHashPreimage`])
-///     if two transactions deploy a contract to the same address, 
+///     if two transactions deploy a contract to the same address,
 ///     then both transactions are deploying the exact same contract.
 func (u *StorageDelta) Deployed_contract_hash() *DeployedContractHash {
 	switch u.Type {
@@ -30049,9 +30049,9 @@ func (u *StorageDelta) Deployed_contract_hash() *DeployedContractHash {
 }
 /// Add a [`Uniquifier`] to the replay cache.
 ///
-/// Item Type: kItemTypeReplayCacheData 
+/// Item Type: kItemTypeReplayCacheData
 ///
-/// Conflicts: 
+/// Conflicts:
 ///   - Will conflict with any other attempt to consume the same [`Uniquifier`].
 func (u *StorageDelta) Consume_uniquifier_args() *ConsumeUniquifierArgs {
 	switch u.Type {
