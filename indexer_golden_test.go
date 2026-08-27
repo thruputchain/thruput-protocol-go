@@ -143,8 +143,8 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	out.Marshal("", XDR_IndexerCommittedBlockPayload(&payload))
 
 	digest := sha256.Sum256(encoded.Bytes())
-	const expectedByteLength = 544
-	const expectedDigest = "8210f3f1b556c708405ae3366587d35e5f98de9b638e50f71c30537d0818d736"
+	const expectedByteLength = 576
+	const expectedDigest = "ac204b697f4a80fb7c641d1f2b13e8c843df1177a9bd060bbf4447d64df26ed6"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}
