@@ -1983,6 +1983,52 @@ type TransactionRefPage struct {
 	Oldest_block BlockHeight
 }
 
+/// Backend disposition of a block-explorer page query.  Distinguishes
+/// "the query ran and matched nothing" (IndexerQueryOk with an empty
+/// page) from "the indexer could not run the query at all", so a
+/// broken or still-opening node is not rendered as an empty chain.
+type IndexerQueryOutcome int32
+const (
+	IndexerQueryOk IndexerQueryOutcome = 0
+	/// The indexer's database is not open (still starting up, or shut
+	/// down).  Transient from the cluster's point of view: retry, or ask
+	/// a healthy node.
+	IndexerQueryNotReady IndexerQueryOutcome = 1
+	/// Unrecoverable backend failure (corrupt record, storage error).
+	/// Details are in the indexer's logs.
+	IndexerQueryInternalFailure IndexerQueryOutcome = 2
+)
+
+type EventPageResult struct {
+	// The union discriminant Outcome selects among the following arms:
+	//   IndexerQueryOk:
+	//      Page() *EventPage
+	//   default:
+	//      void
+	Outcome IndexerQueryOutcome
+	_u interface{}
+}
+
+type TransactionPageResult struct {
+	// The union discriminant Outcome selects among the following arms:
+	//   IndexerQueryOk:
+	//      Page() *TransactionPage
+	//   default:
+	//      void
+	Outcome IndexerQueryOutcome
+	_u interface{}
+}
+
+type TransactionRefPageResult struct {
+	// The union discriminant Outcome selects among the following arms:
+	//   IndexerQueryOk:
+	//      Page() *TransactionRefPage
+	//   default:
+	//      void
+	Outcome IndexerQueryOutcome
+	_u interface{}
+}
+
 type IndexerBlockExplorerIntroOutcome int32
 const (
 	IntroSuccess IndexerBlockExplorerIntroOutcome = 0
@@ -1993,10 +2039,10 @@ type IndexerBlockExplorer1 interface {
 	Indexer_block_explorer_intro(context.Context, ProtocolCommit) (IndexerBlockExplorerIntroOutcome, error)
 	Get_transaction_info(context.Context, TransactionHash) (TxInfoResult, error)
 	Get_block_by_height(context.Context, BlockHeight) (BlockLookupResult, error)
-	Get_events(context.Context, EventQuery) (EventPage, error)
-	Get_transactions(context.Context, TransactionQuery) (TransactionPage, error)
-	Get_transactions_by_address(context.Context, AddressTransactionQuery) (TransactionRefPage, error)
-	Get_transactions_by_block(context.Context, BlockTransactionQuery) (TransactionRefPage, error)
+	Get_events(context.Context, EventQuery) (EventPageResult, error)
+	Get_transactions(context.Context, TransactionQuery) (TransactionPageResult, error)
+	Get_transactions_by_address(context.Context, AddressTransactionQuery) (TransactionRefPageResult, error)
+	Get_transactions_by_block(context.Context, BlockTransactionQuery) (TransactionRefPageResult, error)
 }
 
 type TxEventLogBatch = []TxEventLog
@@ -18869,6 +18915,236 @@ func (v *TransactionRefPage) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%soldest_block", name), XDR_BlockHeight(&v.Oldest_block))
 }
 func XDR_TransactionRefPage(v *TransactionRefPage) *TransactionRefPage { return v }
+var _XdrNames_IndexerQueryOutcome = map[int32]string{
+	int32(IndexerQueryOk): "IndexerQueryOk",
+	int32(IndexerQueryNotReady): "IndexerQueryNotReady",
+	int32(IndexerQueryInternalFailure): "IndexerQueryInternalFailure",
+}
+var _XdrValues_IndexerQueryOutcome = map[string]int32{
+	"IndexerQueryOk": int32(IndexerQueryOk),
+	"IndexerQueryNotReady": int32(IndexerQueryNotReady),
+	"IndexerQueryInternalFailure": int32(IndexerQueryInternalFailure),
+}
+func (IndexerQueryOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_IndexerQueryOutcome
+}
+func (v IndexerQueryOutcome) String() string {
+	if s, ok := _XdrNames_IndexerQueryOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("IndexerQueryOutcome#%d", v)
+}
+func (v *IndexerQueryOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_IndexerQueryOutcome[stok]; ok {
+			*v = IndexerQueryOutcome(val)
+			return nil
+		} else if stok == "IndexerQueryOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid IndexerQueryOutcome.", stok))
+	}
+}
+func (v IndexerQueryOutcome) GetU32() uint32 { return uint32(v) }
+func (v *IndexerQueryOutcome) SetU32(n uint32) { *v = IndexerQueryOutcome(n) }
+func (v *IndexerQueryOutcome) XdrPointer() interface{} { return v }
+func (IndexerQueryOutcome) XdrTypeName() string { return "IndexerQueryOutcome" }
+func (v IndexerQueryOutcome) XdrValue() interface{} { return v }
+func (v *IndexerQueryOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_IndexerQueryOutcome = *IndexerQueryOutcome
+func XDR_IndexerQueryOutcome(v *IndexerQueryOutcome) *IndexerQueryOutcome { return v }
+func (_ EventPageResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *EventPageResult) Page() *EventPage {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		if v, ok := u._u.(*EventPage); ok {
+			return v
+		} else {
+			var zero EventPage
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("EventPageResult.Page accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u EventPageResult) XdrValid() bool {
+	return true
+}
+func (u *EventPageResult) XdrUnionTag() XdrNum32 {
+	return XDR_IndexerQueryOutcome(&u.Outcome)
+}
+func (u *EventPageResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *EventPageResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		return XDR_EventPage(u.Page())
+	default:
+		return nil
+	}
+}
+func (u *EventPageResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		return "Page"
+	default:
+		return ""
+	}
+}
+type XdrType_EventPageResult = *EventPageResult
+func (v *EventPageResult) XdrPointer() interface{} { return v }
+func (EventPageResult) XdrTypeName() string { return "EventPageResult" }
+func (v EventPageResult) XdrValue() interface{} { return v }
+func (v *EventPageResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *EventPageResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_IndexerQueryOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case IndexerQueryOk:
+		x.Marshal(x.Sprintf("%spage", name), XDR_EventPage(u.Page()))
+		return
+	default:
+		return
+	}
+}
+func XDR_EventPageResult(v *EventPageResult) *EventPageResult { return v}
+func (_ TransactionPageResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *TransactionPageResult) Page() *TransactionPage {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		if v, ok := u._u.(*TransactionPage); ok {
+			return v
+		} else {
+			var zero TransactionPage
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("TransactionPageResult.Page accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u TransactionPageResult) XdrValid() bool {
+	return true
+}
+func (u *TransactionPageResult) XdrUnionTag() XdrNum32 {
+	return XDR_IndexerQueryOutcome(&u.Outcome)
+}
+func (u *TransactionPageResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *TransactionPageResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		return XDR_TransactionPage(u.Page())
+	default:
+		return nil
+	}
+}
+func (u *TransactionPageResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		return "Page"
+	default:
+		return ""
+	}
+}
+type XdrType_TransactionPageResult = *TransactionPageResult
+func (v *TransactionPageResult) XdrPointer() interface{} { return v }
+func (TransactionPageResult) XdrTypeName() string { return "TransactionPageResult" }
+func (v TransactionPageResult) XdrValue() interface{} { return v }
+func (v *TransactionPageResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *TransactionPageResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_IndexerQueryOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case IndexerQueryOk:
+		x.Marshal(x.Sprintf("%spage", name), XDR_TransactionPage(u.Page()))
+		return
+	default:
+		return
+	}
+}
+func XDR_TransactionPageResult(v *TransactionPageResult) *TransactionPageResult { return v}
+func (_ TransactionRefPageResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *TransactionRefPageResult) Page() *TransactionRefPage {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		if v, ok := u._u.(*TransactionRefPage); ok {
+			return v
+		} else {
+			var zero TransactionRefPage
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("TransactionRefPageResult.Page accessed when Outcome == %v", u.Outcome)
+		return nil
+	}
+}
+func (u TransactionRefPageResult) XdrValid() bool {
+	return true
+}
+func (u *TransactionRefPageResult) XdrUnionTag() XdrNum32 {
+	return XDR_IndexerQueryOutcome(&u.Outcome)
+}
+func (u *TransactionRefPageResult) XdrUnionTagName() string {
+	return "Outcome"
+}
+func (u *TransactionRefPageResult) XdrUnionBody() XdrType {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		return XDR_TransactionRefPage(u.Page())
+	default:
+		return nil
+	}
+}
+func (u *TransactionRefPageResult) XdrUnionBodyName() string {
+	switch u.Outcome {
+	case IndexerQueryOk:
+		return "Page"
+	default:
+		return ""
+	}
+}
+type XdrType_TransactionRefPageResult = *TransactionRefPageResult
+func (v *TransactionRefPageResult) XdrPointer() interface{} { return v }
+func (TransactionRefPageResult) XdrTypeName() string { return "TransactionRefPageResult" }
+func (v TransactionRefPageResult) XdrValue() interface{} { return v }
+func (v *TransactionRefPageResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *TransactionRefPageResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_IndexerQueryOutcome(&u.Outcome).XdrMarshal(x, x.Sprintf("%soutcome", name))
+	switch u.Outcome {
+	case IndexerQueryOk:
+		x.Marshal(x.Sprintf("%spage", name), XDR_TransactionRefPage(u.Page()))
+		return
+	default:
+		return
+	}
+}
+func XDR_TransactionRefPageResult(v *TransactionRefPageResult) *TransactionRefPageResult { return v}
 var _XdrNames_IndexerBlockExplorerIntroOutcome = map[int32]string{
 	int32(IntroSuccess): "IntroSuccess",
 	int32(IntroMismatchedProtocol): "IntroMismatchedProtocol",
@@ -19055,7 +19331,7 @@ var _ XdrSrvProc = &xdrSrvProc_Get_block_by_height{} // XXX
 
 type xdrProc_Get_events struct {
 	Arg *EventQuery
-	Res *EventPage
+	Res *EventPageResult
 }
 func (xdrProc_Get_events) Prog() uint32 { return 1126279850 }
 func (xdrProc_Get_events) Vers() uint32 { return 1 }
@@ -19071,9 +19347,9 @@ func (p *xdrProc_Get_events) GetArg() XdrType {
 }
 func (p *xdrProc_Get_events) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(EventPage)
+		p.Res = new(EventPageResult)
 	}
-	return XDR_EventPage(p.Res)
+	return XDR_EventPageResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Get_events{} // XXX
 
@@ -19102,7 +19378,7 @@ var _ XdrSrvProc = &xdrSrvProc_Get_events{} // XXX
 
 type xdrProc_Get_transactions struct {
 	Arg *TransactionQuery
-	Res *TransactionPage
+	Res *TransactionPageResult
 }
 func (xdrProc_Get_transactions) Prog() uint32 { return 1126279850 }
 func (xdrProc_Get_transactions) Vers() uint32 { return 1 }
@@ -19118,9 +19394,9 @@ func (p *xdrProc_Get_transactions) GetArg() XdrType {
 }
 func (p *xdrProc_Get_transactions) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(TransactionPage)
+		p.Res = new(TransactionPageResult)
 	}
-	return XDR_TransactionPage(p.Res)
+	return XDR_TransactionPageResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Get_transactions{} // XXX
 
@@ -19149,7 +19425,7 @@ var _ XdrSrvProc = &xdrSrvProc_Get_transactions{} // XXX
 
 type xdrProc_Get_transactions_by_address struct {
 	Arg *AddressTransactionQuery
-	Res *TransactionRefPage
+	Res *TransactionRefPageResult
 }
 func (xdrProc_Get_transactions_by_address) Prog() uint32 { return 1126279850 }
 func (xdrProc_Get_transactions_by_address) Vers() uint32 { return 1 }
@@ -19165,9 +19441,9 @@ func (p *xdrProc_Get_transactions_by_address) GetArg() XdrType {
 }
 func (p *xdrProc_Get_transactions_by_address) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(TransactionRefPage)
+		p.Res = new(TransactionRefPageResult)
 	}
-	return XDR_TransactionRefPage(p.Res)
+	return XDR_TransactionRefPageResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Get_transactions_by_address{} // XXX
 
@@ -19196,7 +19472,7 @@ var _ XdrSrvProc = &xdrSrvProc_Get_transactions_by_address{} // XXX
 
 type xdrProc_Get_transactions_by_block struct {
 	Arg *BlockTransactionQuery
-	Res *TransactionRefPage
+	Res *TransactionRefPageResult
 }
 func (xdrProc_Get_transactions_by_block) Prog() uint32 { return 1126279850 }
 func (xdrProc_Get_transactions_by_block) Vers() uint32 { return 1 }
@@ -19212,9 +19488,9 @@ func (p *xdrProc_Get_transactions_by_block) GetArg() XdrType {
 }
 func (p *xdrProc_Get_transactions_by_block) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(TransactionRefPage)
+		p.Res = new(TransactionRefPageResult)
 	}
-	return XDR_TransactionRefPage(p.Res)
+	return XDR_TransactionRefPageResult(p.Res)
 }
 var _ XdrProc = &xdrProc_Get_transactions_by_block{} // XXX
 
@@ -19325,7 +19601,7 @@ func (c IndexerBlockExplorer1_Client) Get_block_by_height(ctx context.Context, a
 	}
 	return *proc.Res, nil
 }
-func (c IndexerBlockExplorer1_Client) Get_events(ctx context.Context, a1 EventQuery) (r EventPage, _ error) {
+func (c IndexerBlockExplorer1_Client) Get_events(ctx context.Context, a1 EventQuery) (r EventPageResult, _ error) {
 	var proc xdrProc_Get_events
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -19333,7 +19609,7 @@ func (c IndexerBlockExplorer1_Client) Get_events(ctx context.Context, a1 EventQu
 	}
 	return *proc.Res, nil
 }
-func (c IndexerBlockExplorer1_Client) Get_transactions(ctx context.Context, a1 TransactionQuery) (r TransactionPage, _ error) {
+func (c IndexerBlockExplorer1_Client) Get_transactions(ctx context.Context, a1 TransactionQuery) (r TransactionPageResult, _ error) {
 	var proc xdrProc_Get_transactions
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -19341,7 +19617,7 @@ func (c IndexerBlockExplorer1_Client) Get_transactions(ctx context.Context, a1 T
 	}
 	return *proc.Res, nil
 }
-func (c IndexerBlockExplorer1_Client) Get_transactions_by_address(ctx context.Context, a1 AddressTransactionQuery) (r TransactionRefPage, _ error) {
+func (c IndexerBlockExplorer1_Client) Get_transactions_by_address(ctx context.Context, a1 AddressTransactionQuery) (r TransactionRefPageResult, _ error) {
 	var proc xdrProc_Get_transactions_by_address
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -19349,7 +19625,7 @@ func (c IndexerBlockExplorer1_Client) Get_transactions_by_address(ctx context.Co
 	}
 	return *proc.Res, nil
 }
-func (c IndexerBlockExplorer1_Client) Get_transactions_by_block(ctx context.Context, a1 BlockTransactionQuery) (r TransactionRefPage, _ error) {
+func (c IndexerBlockExplorer1_Client) Get_transactions_by_block(ctx context.Context, a1 BlockTransactionQuery) (r TransactionRefPageResult, _ error) {
 	var proc xdrProc_Get_transactions_by_block
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
