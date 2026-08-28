@@ -17,21 +17,34 @@ EXCLUDE_FILES="transaction_trace.x ffi_enums.x invoke_flag.x invoke_args.x execu
 
 # generate pkg.go
 
-X_FILES=""
-for file in protocol/*.x; do
-    filename=$(basename "$file")
-    exclude=0
-    for excl in $EXCLUDE_FILES; do
-        if [ "$filename" = "$excl" ]; then
-            exclude=1
-            break
+# goxdr emits declarations in the order it receives files, so the order below
+# decides the layout of generated.go. A bare glob takes that order from the
+# shell's collation, which differs by machine -- glibc's en_US.UTF-8 ignores
+# punctuation and puts dogwood_kit.x before dogwood.x, while C compares bytes
+# and puts dogwood.x first -- so regenerating elsewhere reshuffled thousands of
+# lines for no semantic change.
+#
+# Sort explicitly instead, on the name with punctuation removed, which is the
+# order generated.go has always been in. Doing it here rather than by setting a
+# locale keeps it reproducible on a machine that has no en_US.UTF-8 installed,
+# where the setting would silently fall back to C. The key is emitted ahead of
+# the path so ties fall back to comparing the path itself.
+X_FILES=$(
+    for file in protocol/*.x; do
+        filename=$(basename "$file")
+        exclude=0
+        for excl in $EXCLUDE_FILES; do
+            if [ "$filename" = "$excl" ]; then
+                exclude=1
+                break
+            fi
+        done
+        if [ $exclude -eq 0 ]; then
+            printf '%s\t%s\n' "$(printf '%s' "$filename" | tr -d '._')" "$file"
         fi
-    done
-    if [ $exclude -eq 0 ]; then
-        X_FILES="$X_FILES $file"
-    fi
-done
-X_FILES=$(echo "$X_FILES" | sed 's/^ *//')
+    done | LC_ALL=C sort | cut -f2- | tr '\n' ' '
+)
+X_FILES=$(echo "$X_FILES" | sed 's/ *$//')
 PKG_NAME="proto"
 
 cat <<EOF > pkg.go
