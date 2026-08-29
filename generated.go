@@ -2391,7 +2391,16 @@ type UPID = [8]byte
 
 /// ProtocolCommit describes a specific protocol repo version.
 /// Used to ensure communicating daemons in a validator deployment are compatible.
-type ProtocolCommit = string
+///
+/// Printable ASCII: a short prefix followed by the leading characters of the
+/// protocol repo commit id. Peers only ever compare it byte for byte, and it
+/// travels as plain text outside XDR too -- runtime manifests, log lines, and
+/// indexer outbox filenames -- so it stays text rather than a raw hash.
+///
+/// Fixed width, so a peer cannot declare a length: decoding reads exactly
+/// these bytes into an inline array, with no length prefix and no allocation.
+/// 20 is a whole number of XDR words, so nothing is spent on padding.
+type ProtocolCommit = [20]byte
 
 /// Direction to walk a paginated stream.
 type IterationOrder int32
@@ -21576,14 +21585,28 @@ func XDR_UPID(v *UPID) XdrType_UPID {
 }
 func (XdrType_UPID) XdrTypeName() string { return "UPID" }
 func (v XdrType_UPID) XdrUnwrap() XdrType { return v._XdrArray_8_opaque }
+type _XdrArray_20_opaque [20]byte
+func (v *_XdrArray_20_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_20_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_20_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_20_opaque) XdrPointer() interface{} { return (*[20]byte)(v) }
+func (v *_XdrArray_20_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_20_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_20_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_20_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 20 // Force error if not const or doesn't fit
+	return bound
+}
 type XdrType_ProtocolCommit struct {
-	XdrString
+	*_XdrArray_20_opaque
 }
 func XDR_ProtocolCommit(v *ProtocolCommit) XdrType_ProtocolCommit {
-	return XdrType_ProtocolCommit{XdrString{v, 0xffffffff}}
+	return XdrType_ProtocolCommit{(*_XdrArray_20_opaque)(v)}
 }
 func (XdrType_ProtocolCommit) XdrTypeName() string { return "ProtocolCommit" }
-func (v XdrType_ProtocolCommit) XdrUnwrap() XdrType { return v.XdrString }
+func (v XdrType_ProtocolCommit) XdrUnwrap() XdrType { return v._XdrArray_20_opaque }
 var _XdrNames_IterationOrder = map[int32]string{
 	int32(IterationOrderAscending): "IterationOrderAscending",
 	int32(IterationOrderDescending): "IterationOrderDescending",

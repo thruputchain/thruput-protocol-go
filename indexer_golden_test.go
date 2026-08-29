@@ -152,7 +152,7 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 
 func TestIndexerOutboxOriginXdrGolden(t *testing.T) {
 	origin := IndexerOutboxOrigin{
-		Protocol:       "hogp/archive_a",
+		Protocol:       ProtocolCommit([]byte("hogp/0123456789abcde")),
 		Epoch_sequence: 0x0102030405060708,
 		First_height:   123456789,
 	}
@@ -162,7 +162,7 @@ func TestIndexerOutboxOriginXdrGolden(t *testing.T) {
 	digest := sha256.Sum256(encoded)
 
 	const expectedByteLength = 68
-	const expectedDigest = "331fa7d25a4742298e93beab33c73345e236b7529878da8d1a3327bf8eaf52bd"
+	const expectedDigest = "c31dedbeba469212cb8aee98c74bdd53810031fdd5f2e5b97f68193b50b74fca"
 	if len(encoded) != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", len(encoded), digest)
 	}
