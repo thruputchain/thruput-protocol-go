@@ -63,22 +63,31 @@ cd ${SCRIPT_DIR}
 proto_commit=$(git -C ./protocol rev-parse HEAD)
 quoted=$(printf '"%s"\n' "$proto_commit")
 
+# ProtocolCommit is a fixed opaque[20], so the token must be exactly 20 bytes:
+# the "hogp/" prefix leaves 15 for the commit id. Cut it to width here, where a
+# short commit id fails the build, rather than slicing in Go where it would
+# panic in a running daemon.
+hog_protocol="hogp/$(printf '%s' "$proto_commit" | cut -c1-15)"
+if [ ${#hog_protocol} -ne 20 ]; then
+    echo "protocol token is ${#hog_protocol} bytes, want 20: ${hog_protocol}" >&2
+    exit 1
+fi
+hog_protocol_quoted=$(printf '"%s"\n' "$hog_protocol")
+
 cat > hogp.go <<EOF
 package proto
 
 const ProtocolGitCommit string = ${quoted}
 
-// HogProtocol returns the token peers exchange to check they share a protocol
-// revision. It is sized to fill proto.ProtocolCommit exactly: the XDR type is
-// a fixed 20-byte array, and the "hogp/" prefix leaves 15 for the commit id.
-func HogProtocol() string {
-	return "hogp/" + ProtocolGitCommit[:15]
-}
+// hogProtocol is the token peers exchange to check they share a protocol
+// revision. build.sh emits it at its final width.
+const hogProtocol = ${hog_protocol_quoted}
 
-// HogProtocolCommit returns the same token in the fixed-width form the wire
-// carries. It never fails: the conversion is total for a 20-byte string.
-func HogProtocolCommit() ProtocolCommit {
-	return ProtocolCommit([]byte(HogProtocol()))
+// HogProtocol returns the token peers exchange to check they share a protocol
+// revision. It is always len(ProtocolCommit) bytes, so callers that need the
+// wire form can convert it without checking: ProtocolCommit([]byte(...)).
+func HogProtocol() string {
+	return hogProtocol
 }
 EOF
 
