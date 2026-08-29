@@ -2,15 +2,13 @@ package proto
 
 const ProtocolGitCommit string = "9925e9f66699dbd43f30d323454f1b7d2140e20b"
 
-// HogProtocol returns the token peers exchange to check they share a protocol
-// revision. It is sized to fill proto.ProtocolCommit exactly: the XDR type is
-// a fixed 20-byte array, and the "hogp/" prefix leaves 15 for the commit id.
-func HogProtocol() string {
-	return "hogp/" + ProtocolGitCommit[:15]
-}
+// hogProtocol is the token peers exchange to check they share a protocol
+// revision. build.sh emits it at its final width.
+const hogProtocol = "hogp/9925e9f66699dbd"
 
-// HogProtocolCommit returns the same token in the fixed-width form the wire
-// carries. It never fails: the conversion is total for a 20-byte string.
-func HogProtocolCommit() ProtocolCommit {
-	return ProtocolCommit([]byte(HogProtocol()))
+// HogProtocol returns the token peers exchange to check they share a protocol
+// revision. It is always len(ProtocolCommit) bytes, so callers that need the
+// wire form can convert it without checking: ProtocolCommit([]byte(...)).
+func HogProtocol() string {
+	return hogProtocol
 }
