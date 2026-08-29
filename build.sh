@@ -80,13 +80,14 @@ package proto
 const ProtocolGitCommit string = ${quoted}
 
 // hogProtocol is the token peers exchange to check they share a protocol
-// revision. build.sh emits it at its final width.
-const hogProtocol = ${hog_protocol_quoted}
+// revision. build.sh emits it at its final width, so this conversion cannot
+// fail.
+var hogProtocol = ProtocolCommit([]byte(${hog_protocol_quoted}))
 
 // HogProtocol returns the token peers exchange to check they share a protocol
-// revision. It is always len(ProtocolCommit) bytes, so callers that need the
-// wire form can convert it without checking: ProtocolCommit([]byte(...)).
-func HogProtocol() string {
+// revision, in the fixed-width form the wire carries. Callers needing text
+// take string(t[:]).
+func HogProtocol() ProtocolCommit {
 	return hogProtocol
 }
 EOF
