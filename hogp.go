@@ -1,6 +1,6 @@
 package proto
 
-const ProtocolGitCommit string = "bd860533b6e27bba8d0dac0bf7045f5e935a08ce"
+const ProtocolGitCommit string = "9925e9f66699dbd43f30d323454f1b7d2140e20b"
 
 // HogProtocol returns the token peers exchange to check they share a protocol
 // revision. It is sized to fill proto.ProtocolCommit exactly: the XDR type is
