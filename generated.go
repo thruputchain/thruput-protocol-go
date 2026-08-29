@@ -3673,6 +3673,14 @@ const (
 	/// a contract may use it as a stop condition (e.g. drain a queue until it
 	/// returns this).
 	KSyscallErrorCodeRetrocausalQueueReadLimitReached SyscallErrorCode = 10
+	/// The invocation would exceed the network's cross-invoke depth bound
+	/// (kConfigParamMaxCrossInvokeDepth), which limits how many invocation
+	/// frames one transaction may hold open at once. Like the retrocausal-queue
+	/// read limit this is a resource limit, not a malformed call: the same
+	/// invocation succeeds from a shallower frame. It is reported before any
+	/// child frame runs, so the syscall is a complete no-op and the caller's
+	/// invoke outputs are left untouched.
+	KSyscallErrorCodeInvokeDepthExceeded SyscallErrorCode = 11
 )
 
 type Data = []byte
@@ -31297,6 +31305,7 @@ var _XdrNames_SyscallErrorCode = map[int32]string{
 	int32(KSyscallErrorCodeStorageKeyNotExist): "kSyscallErrorCodeStorageKeyNotExist",
 	int32(KSyscallErrorCodeNoRetrocausalQueueEntry): "kSyscallErrorCodeNoRetrocausalQueueEntry",
 	int32(KSyscallErrorCodeRetrocausalQueueReadLimitReached): "kSyscallErrorCodeRetrocausalQueueReadLimitReached",
+	int32(KSyscallErrorCodeInvokeDepthExceeded): "kSyscallErrorCodeInvokeDepthExceeded",
 }
 var _XdrValues_SyscallErrorCode = map[string]int32{
 	"kSyscallErrorCodeNone": int32(KSyscallErrorCodeNone),
@@ -31310,6 +31319,7 @@ var _XdrValues_SyscallErrorCode = map[string]int32{
 	"kSyscallErrorCodeStorageKeyNotExist": int32(KSyscallErrorCodeStorageKeyNotExist),
 	"kSyscallErrorCodeNoRetrocausalQueueEntry": int32(KSyscallErrorCodeNoRetrocausalQueueEntry),
 	"kSyscallErrorCodeRetrocausalQueueReadLimitReached": int32(KSyscallErrorCodeRetrocausalQueueReadLimitReached),
+	"kSyscallErrorCodeInvokeDepthExceeded": int32(KSyscallErrorCodeInvokeDepthExceeded),
 }
 func (SyscallErrorCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_SyscallErrorCode
