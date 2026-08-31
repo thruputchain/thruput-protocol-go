@@ -1,0 +1,39 @@
+name: Notify consumers
+
+on:
+  push:
+    branches: [main]
+
+# Nothing here uses GITHUB_TOKEN -- the dispatch below authenticates with an
+# App installation token -- so it needs no permissions of its own.
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      # Mirrors protocol's own notify workflow, which dispatches to this
+      # repository the same way. Pinned to a commit SHA rather than the v3
+      # tag because this step receives the App private key.
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.PROTOCOL_SYNCHRONIZER_APP_ID }}
+          private-key: ${{ secrets.PROTOCOL_SYNCHRONIZER_SECRET_KEY }}
+          owner: groundhogchain
+          repositories: groundhog-go
+
+      # Fires on every push to main, not only the auto-update bumps.
+      # groundhog-go pins this repository by commit, so any main commit is a
+      # real pointer move for it, and its own workflow no-ops when there is
+      # nothing to bump.
+      #
+      # This does not loop: groundhog-go notifies nobody. Its pointer in hogd
+      # is still moved by hand.
+      - name: Trigger groundhog-go auto-update
+        run: |
+          gh workflow run auto-update.yml \
+            --repo groundhogchain/groundhog-go
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
