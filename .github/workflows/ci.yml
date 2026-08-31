@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    # auto-update/protocol is the synchronizer's branch. CI has to report on
+    # it directly: its PR is opened with auto-merge already on, so the checks
+    # must land against the branch head, not only at review time.
+    branches: ["main", "auto-update/protocol"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
