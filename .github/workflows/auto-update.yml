@@ -1,0 +1,100 @@
+name: Auto-update protocol
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-update-protocol
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      # Two keys: one to read the protocol submodule, one to push the
+      # auto-update branch back here. The push must NOT use GITHUB_TOKEN --
+      # commits pushed with it do not start workflow runs, so ci.yml would
+      # never run on the branch this job opens a PR from.
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.PROTOCOL_DEPLOY_SECRET_KEY }}
+            ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          ssh-key: ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
+
+      - name: Update protocol submodule to latest main
+        run: |
+          git -C protocol fetch origin main
+          git -C protocol checkout origin/main
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # go.mod pins goxdr, and generating with any other version reshuffles
+      # generated.go wholesale, so install exactly what the module requires
+      # rather than @latest.
+      - name: Install goxdr
+        run: |
+          version=$(go list -m -f '{{.Version}}' github.com/xdrpp/goxdr)
+          echo "-- Installing goxdr ${version} --"
+          go install "github.com/xdrpp/goxdr/cmd/goxdr@${version}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Rewrites pkg.go, generated.go and hogp.go, then runs go mod tidy,
+      # go generate and go build. Nothing here is hand-written.
+      - name: Regenerate
+        run: ./build.sh
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Protocol submodule already up to date."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and open PR
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          PROTOCOL_SHA=$(git -C protocol rev-parse --short HEAD)
+          BRANCH="auto-update/protocol"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin git@github.com:groundhogchain/protocol-go.git
+
+          git checkout -b "$BRANCH"
+          git add -A
+          # commit.sh writes "bump to protocol@<short-sha>", the same message
+          # the manual bump-groundhog-go path produces.
+          ./commit.sh
+          git push -f -u origin "$BRANCH"
+
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Updated existing PR: $EXISTING_PR"
+          else
+            gh pr create \
+              --title "Auto-update protocol to ${PROTOCOL_SHA}" \
+              --body "Automated protocol submodule bump and regeneration.
+
+          Protocol: groundhogchain/protocol@${PROTOCOL_SHA}" || true
+          fi
+
+          gh pr merge "$BRANCH" --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
