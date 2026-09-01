@@ -1285,8 +1285,8 @@ type ExecutorSched1 interface {
 	Executorsched_validate_transaction(context.Context, BlockID, ProposedTransaction) (ExecResult, error)
 	Executorsched_propose_batch(context.Context, BlockID, SignedTransactionBatch) (ExecProposeBatchResult, error)
 	Executorsched_validate_batch(context.Context, BlockID, ProposedTransactionBatch) (ExecValidateBatchResult, error)
-	Executorsched_open_proposal_block(context.Context, BlockID) (ExecResult, error)
-	Executorsched_open_validation_block(context.Context, BlockID) (ExecResult, error)
+	Executorsched_open_proposal_block(context.Context, BlockID, BlockExecutionContext) (ExecResult, error)
+	Executorsched_open_validation_block(context.Context, BlockID, BlockExecutionContext) (ExecResult, error)
 	Executorsched_finish_block(context.Context, BlockID) (ExecResult, error)
 	Executorsched_shutdown(context.Context, ) error
 }
@@ -2647,6 +2647,35 @@ type RetrocausalQueueDelta struct {
 
 // An internal unique ID describing a block.
 type BlockID = uint64
+
+/// The contract-visible facts about the block an executor is running.
+///
+/// Passed to both executor open-block calls so that a block looks identical
+/// to the executor whether it is being proposed or validated, and so that
+/// everything a contract can observe about "the current block" comes from
+/// one place rather than being inferred from the parent tip.
+///
+/// This is deliberately not `ProposalContext` (its `protocol` and `proposer`
+/// are scheduler concerns, and `protocol` is not recoverable from a
+/// `ProposalHeader` when validating) and not `ProposalHeader` (whose txs,
+/// storage, events and config hashes are outputs of executing the block, so
+/// they do not exist when it is opened).
+///
+/// Does not travel on network: the scheduler builds it per block, from the
+/// coordinator's `ProposalContext` when proposing and from the proposal's
+/// `ProposalHeader` when validating. A validator must take these values from
+/// the proposal it is validating rather than regenerating them, or its
+/// execution diverges from the proposer's and consensus splits.
+type BlockExecutionContext struct {
+	/// Height of the block being executed -- the parent tip's height plus one.
+	/// Supplied rather than derived so that height and timepoint have a single
+	/// source; the executor is expected to check it against the tip it reads.
+	Block_height BlockHeight
+	/// The block's timepoint, fixed before execution begins. Unlike the
+	/// height there is no way to recover this from the parent tip: the
+	/// parent's timepoint is the previous block's.
+	Block_timepoint TimePoint
+}
 
 type DbTip struct {
 	Id BlockID
@@ -13552,8 +13581,28 @@ func (p *xdrSrvProc_Executorsched_validate_batch) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Executorsched_validate_batch{} // XXX
 
+type xdrProcArg_Executorsched_open_proposal_block struct {
+	a1 *BlockID
+	a2 *BlockExecutionContext
+}
+func (v *xdrProcArg_Executorsched_open_proposal_block) XdrPointer() interface{} { return v }
+func (xdrProcArg_Executorsched_open_proposal_block) XdrTypeName() string { return "xdrProcArg_Executorsched_open_proposal_block" }
+func (v xdrProcArg_Executorsched_open_proposal_block) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Executorsched_open_proposal_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Executorsched_open_proposal_block) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(BlockExecutionContext) }
+	XDR_BlockExecutionContext(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Executorsched_open_proposal_block(v *xdrProcArg_Executorsched_open_proposal_block) *xdrProcArg_Executorsched_open_proposal_block { return v }
+var _ XdrType = &xdrProcArg_Executorsched_open_proposal_block{} // XXX
+
 type xdrProc_Executorsched_open_proposal_block struct {
-	Arg *BlockID
+	Arg *xdrProcArg_Executorsched_open_proposal_block
 	Res *ExecResult
 }
 func (xdrProc_Executorsched_open_proposal_block) Prog() uint32 { return 2129107353 }
@@ -13564,9 +13613,9 @@ func (xdrProc_Executorsched_open_proposal_block) VersName() string { return "Exe
 func (xdrProc_Executorsched_open_proposal_block) ProcName() string { return "executorsched_open_proposal_block" }
 func (p *xdrProc_Executorsched_open_proposal_block) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(BlockID)
+		p.Arg = new(xdrProcArg_Executorsched_open_proposal_block)
 	}
-	return XDR_BlockID(p.Arg)
+	return XDR_xdrProcArg_Executorsched_open_proposal_block(p.Arg)
 }
 func (p *xdrProc_Executorsched_open_proposal_block) GetRes() XdrType {
 	if p.Res == nil {
@@ -13590,7 +13639,7 @@ func (p *xdrSrvProc_Executorsched_open_proposal_block) SetContext(ctx context.Co
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Executorsched_open_proposal_block) Do() {
-	r, err := p.Srv.Executorsched_open_proposal_block(p.Ctx, *p.Arg)
+	r, err := p.Srv.Executorsched_open_proposal_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -13599,8 +13648,28 @@ func (p *xdrSrvProc_Executorsched_open_proposal_block) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Executorsched_open_proposal_block{} // XXX
 
+type xdrProcArg_Executorsched_open_validation_block struct {
+	a1 *BlockID
+	a2 *BlockExecutionContext
+}
+func (v *xdrProcArg_Executorsched_open_validation_block) XdrPointer() interface{} { return v }
+func (xdrProcArg_Executorsched_open_validation_block) XdrTypeName() string { return "xdrProcArg_Executorsched_open_validation_block" }
+func (v xdrProcArg_Executorsched_open_validation_block) XdrValue() interface{} { return v }
+func (v *xdrProcArg_Executorsched_open_validation_block) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *xdrProcArg_Executorsched_open_validation_block) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	if v.a1 == nil { v.a1 = new(BlockID) }
+	XDR_BlockID(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
+	if v.a2 == nil { v.a2 = new(BlockExecutionContext) }
+	XDR_BlockExecutionContext(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+}
+func XDR_xdrProcArg_Executorsched_open_validation_block(v *xdrProcArg_Executorsched_open_validation_block) *xdrProcArg_Executorsched_open_validation_block { return v }
+var _ XdrType = &xdrProcArg_Executorsched_open_validation_block{} // XXX
+
 type xdrProc_Executorsched_open_validation_block struct {
-	Arg *BlockID
+	Arg *xdrProcArg_Executorsched_open_validation_block
 	Res *ExecResult
 }
 func (xdrProc_Executorsched_open_validation_block) Prog() uint32 { return 2129107353 }
@@ -13611,9 +13680,9 @@ func (xdrProc_Executorsched_open_validation_block) VersName() string { return "E
 func (xdrProc_Executorsched_open_validation_block) ProcName() string { return "executorsched_open_validation_block" }
 func (p *xdrProc_Executorsched_open_validation_block) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(BlockID)
+		p.Arg = new(xdrProcArg_Executorsched_open_validation_block)
 	}
-	return XDR_BlockID(p.Arg)
+	return XDR_xdrProcArg_Executorsched_open_validation_block(p.Arg)
 }
 func (p *xdrProc_Executorsched_open_validation_block) GetRes() XdrType {
 	if p.Res == nil {
@@ -13637,7 +13706,7 @@ func (p *xdrSrvProc_Executorsched_open_validation_block) SetContext(ctx context.
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Executorsched_open_validation_block) Do() {
-	r, err := p.Srv.Executorsched_open_validation_block(p.Ctx, *p.Arg)
+	r, err := p.Srv.Executorsched_open_validation_block(p.Ctx, *p.Arg.a1, *p.Arg.a2)
 	p.Res = &r
 
 	if err != nil {
@@ -13864,17 +13933,21 @@ func (c ExecutorSched1_Client) Executorsched_validate_batch(ctx context.Context,
 	}
 	return *proc.Res, nil
 }
-func (c ExecutorSched1_Client) Executorsched_open_proposal_block(ctx context.Context, a1 BlockID) (r ExecResult, _ error) {
+func (c ExecutorSched1_Client) Executorsched_open_proposal_block(ctx context.Context, a1 BlockID, a2 BlockExecutionContext) (r ExecResult, _ error) {
 	var proc xdrProc_Executorsched_open_proposal_block
-	proc.Arg = &a1
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
 	return *proc.Res, nil
 }
-func (c ExecutorSched1_Client) Executorsched_open_validation_block(ctx context.Context, a1 BlockID) (r ExecResult, _ error) {
+func (c ExecutorSched1_Client) Executorsched_open_validation_block(ctx context.Context, a1 BlockID, a2 BlockExecutionContext) (r ExecResult, _ error) {
 	var proc xdrProc_Executorsched_open_validation_block
-	proc.Arg = &a1
+	proc.GetArg()
+	proc.Arg.a1 = &a1
+	proc.Arg.a2 = &a2
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
@@ -22749,6 +22822,19 @@ func XDR_BlockID(v *BlockID) XdrType_BlockID {
 }
 func (XdrType_BlockID) XdrTypeName() string { return "BlockID" }
 func (v XdrType_BlockID) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+type XdrType_BlockExecutionContext = *BlockExecutionContext
+func (v *BlockExecutionContext) XdrPointer() interface{} { return v }
+func (BlockExecutionContext) XdrTypeName() string { return "BlockExecutionContext" }
+func (v BlockExecutionContext) XdrValue() interface{} { return v }
+func (v *BlockExecutionContext) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BlockExecutionContext) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sblock_height", name), XDR_BlockHeight(&v.Block_height))
+	x.Marshal(x.Sprintf("%sblock_timepoint", name), XDR_TimePoint(&v.Block_timepoint))
+}
+func XDR_BlockExecutionContext(v *BlockExecutionContext) *BlockExecutionContext { return v }
 type XdrType_DbTip = *DbTip
 func (v *DbTip) XdrPointer() interface{} { return v }
 func (DbTip) XdrTypeName() string { return "DbTip" }
