@@ -2343,18 +2343,15 @@ type MultiplexMessage struct {
 	_u interface{}
 }
 
-/// The consensus-critical execution parameters a block executes under.
-///
-/// Every parameter is a named field, so a configuration is structurally
-/// complete: it cannot omit one, repeat one, or order them differently. The
-/// protocol blesses no value for any of them either -- a chain states all of
-/// them at genesis, so there is nothing a node can silently inherit and no way
-/// for two node versions to disagree about what is in force.
-///
-/// Adding a parameter means adding a field here and an arm to
-/// [`ConfigUpgrade`].
-type NetworkConfig struct {
-	Ext ExtensionPoint
+/// The parameters a chain created before `max_new_contracts_per_tx` existed
+/// states. Field meanings are the ones documented on [`NetworkConfigV1`].
+type NetworkConfigV0 struct {
+	Max_sha256_buffers uint32
+	Max_cross_invoke_depth uint32
+}
+
+/// The parameters a chain states as of `max_new_contracts_per_tx`.
+type NetworkConfigV1 struct {
 	/// Concurrently open incremental SHA-256 buffers permitted per invocation
 	/// frame (`SHA256Update`, `SHA256Copy`, `SHA256Finalize`).
 	Max_sha256_buffers uint32
@@ -2377,6 +2374,39 @@ type NetworkConfig struct {
 	/// a single message. A chain must set it low enough that the largest batch
 	/// it admits still fits that message; hogd rejects a genesis that does not.
 	Max_new_contracts_per_tx uint32
+}
+
+/// The consensus-critical execution parameters a block executes under.
+///
+/// Every parameter is a named field, so a configuration is structurally
+/// complete: it cannot omit one, repeat one, or order them differently. The
+/// protocol blesses no value for any of them either -- a chain states all of
+/// them at genesis, so there is nothing a node can silently inherit and no way
+/// for two node versions to disagree about what is in force.
+///
+/// Versioned as a union rather than extended in place. XDR is positional, so a
+/// field appended to a struct changes the layout of everything embedding it,
+/// and a chain created under the older layout could no longer be read. Each arm
+/// instead states the parameters in force in full, and a chain keeps the arm it
+/// was created with until an upgrade moves it.
+///
+/// The discriminant occupies the four bytes the leading `ExtensionPoint` used
+/// to, so a configuration written before this union existed decodes as `v0`
+/// byte for byte -- which is what that extension point was reserved for (see
+/// `ExtensionPoint` in types.x).
+///
+/// Adding a parameter means adding an arm here that carries the previous arm's
+/// fields plus the new one, along with a [`ConfigParamID`] and a
+/// [`ConfigUpgrade`] arm. A node that meets an arm it cannot name must fail to
+/// decode rather than guess which parameters are in force.
+type NetworkConfig struct {
+	// The union discriminant V selects among the following arms:
+	//   0:
+	//      V0() *NetworkConfigV0
+	//   1:
+	//      V1() *NetworkConfigV1
+	V int32
+	_u interface{}
 }
 
 /// Names one consensus-critical configuration parameter.
@@ -21509,21 +21539,122 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_MultiplexMessage(v *MultiplexMessage) *MultiplexMessage { return v}
+type XdrType_NetworkConfigV0 = *NetworkConfigV0
+func (v *NetworkConfigV0) XdrPointer() interface{} { return v }
+func (NetworkConfigV0) XdrTypeName() string { return "NetworkConfigV0" }
+func (v NetworkConfigV0) XdrValue() interface{} { return v }
+func (v *NetworkConfigV0) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NetworkConfigV0) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(&v.Max_sha256_buffers))
+	x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(&v.Max_cross_invoke_depth))
+}
+func XDR_NetworkConfigV0(v *NetworkConfigV0) *NetworkConfigV0 { return v }
+type XdrType_NetworkConfigV1 = *NetworkConfigV1
+func (v *NetworkConfigV1) XdrPointer() interface{} { return v }
+func (NetworkConfigV1) XdrTypeName() string { return "NetworkConfigV1" }
+func (v NetworkConfigV1) XdrValue() interface{} { return v }
+func (v *NetworkConfigV1) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NetworkConfigV1) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(&v.Max_sha256_buffers))
+	x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(&v.Max_cross_invoke_depth))
+	x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(&v.Max_new_contracts_per_tx))
+}
+func XDR_NetworkConfigV1(v *NetworkConfigV1) *NetworkConfigV1 { return v }
+var _XdrTags_NetworkConfig = map[int32]bool{
+	XdrToI32(0): true,
+	XdrToI32(1): true,
+}
+func (_ NetworkConfig) XdrValidTags() map[int32]bool {
+	return _XdrTags_NetworkConfig
+}
+func (u *NetworkConfig) V0() *NetworkConfigV0 {
+	switch u.V {
+	case 0:
+		if v, ok := u._u.(*NetworkConfigV0); ok {
+			return v
+		} else {
+			var zero NetworkConfigV0
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("NetworkConfig.V0 accessed when V == %v", u.V)
+		return nil
+	}
+}
+func (u *NetworkConfig) V1() *NetworkConfigV1 {
+	switch u.V {
+	case 1:
+		if v, ok := u._u.(*NetworkConfigV1); ok {
+			return v
+		} else {
+			var zero NetworkConfigV1
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("NetworkConfig.V1 accessed when V == %v", u.V)
+		return nil
+	}
+}
+func (u NetworkConfig) XdrValid() bool {
+	switch u.V {
+	case 0,1:
+		return true
+	}
+	return false
+}
+func (u *NetworkConfig) XdrUnionTag() XdrNum32 {
+	return XDR_int32(&u.V)
+}
+func (u *NetworkConfig) XdrUnionTagName() string {
+	return "V"
+}
+func (u *NetworkConfig) XdrUnionBody() XdrType {
+	switch u.V {
+	case 0:
+		return XDR_NetworkConfigV0(u.V0())
+	case 1:
+		return XDR_NetworkConfigV1(u.V1())
+	}
+	return nil
+}
+func (u *NetworkConfig) XdrUnionBodyName() string {
+	switch u.V {
+	case 0:
+		return "V0"
+	case 1:
+		return "V1"
+	}
+	return ""
+}
 type XdrType_NetworkConfig = *NetworkConfig
 func (v *NetworkConfig) XdrPointer() interface{} { return v }
 func (NetworkConfig) XdrTypeName() string { return "NetworkConfig" }
 func (v NetworkConfig) XdrValue() interface{} { return v }
 func (v *NetworkConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *NetworkConfig) XdrRecurse(x XDR, name string) {
+func (u *NetworkConfig) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
-	x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(&v.Max_sha256_buffers))
-	x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(&v.Max_cross_invoke_depth))
-	x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(&v.Max_new_contracts_per_tx))
+	XDR_int32(&u.V).XdrMarshal(x, x.Sprintf("%sv", name))
+	switch u.V {
+	case 0:
+		x.Marshal(x.Sprintf("%sv0", name), XDR_NetworkConfigV0(u.V0()))
+		return
+	case 1:
+		x.Marshal(x.Sprintf("%sv1", name), XDR_NetworkConfigV1(u.V1()))
+		return
+	}
+	XdrPanic("invalid V (%v) in NetworkConfig", u.V)
 }
-func XDR_NetworkConfig(v *NetworkConfig) *NetworkConfig { return v }
+func XDR_NetworkConfig(v *NetworkConfig) *NetworkConfig { return v}
 var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMaxSHA256Buffers): "kConfigParamMaxSHA256Buffers",
 	int32(KConfigParamMaxCrossInvokeDepth): "kConfigParamMaxCrossInvokeDepth",
