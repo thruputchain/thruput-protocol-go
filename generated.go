@@ -2364,6 +2364,19 @@ type NetworkConfig struct {
 	/// runtime, so this is what stops a recursive call chain from growing until
 	/// the executor runs out of room for it.
 	Max_cross_invoke_depth uint32
+	/// Contracts one transaction may attach in `contracts_to_deploy`.
+	///
+	/// Counted over what is attached rather than what a contract goes on to
+	/// deploy: the executor holds every attached contract for the whole
+	/// transaction, and the ones deployed are a subset chosen during execution.
+	/// Attaching the same contract twice is rejected outright, so the count is
+	/// over distinct contracts either way.
+	///
+	/// Together with the per-contract blob size cap this is what bounds the
+	/// transaction's final commit batch, which the executor sends to storage as
+	/// a single message. A chain must set it low enough that the largest batch
+	/// it admits still fits that message; hogd rejects a genesis that does not.
+	Max_new_contracts_per_tx uint32
 }
 
 /// Names one consensus-critical configuration parameter.
@@ -2371,6 +2384,7 @@ type ConfigParamID int32
 const (
 	KConfigParamMaxSHA256Buffers ConfigParamID = 0
 	KConfigParamMaxCrossInvokeDepth ConfigParamID = 1
+	KConfigParamMaxNewContractsPerTx ConfigParamID = 2
 )
 
 /// A change to one network configuration parameter.
@@ -2389,6 +2403,8 @@ type ConfigUpgrade struct {
 	//      Max_sha256_buffers() *uint32
 	//   KConfigParamMaxCrossInvokeDepth:
 	//      Max_cross_invoke_depth() *uint32
+	//   KConfigParamMaxNewContractsPerTx:
+	//      Max_new_contracts_per_tx() *uint32
 	Param ConfigParamID
 	_u interface{}
 }
@@ -21505,15 +21521,18 @@ func (v *NetworkConfig) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
 	x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(&v.Max_sha256_buffers))
 	x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(&v.Max_cross_invoke_depth))
+	x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(&v.Max_new_contracts_per_tx))
 }
 func XDR_NetworkConfig(v *NetworkConfig) *NetworkConfig { return v }
 var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMaxSHA256Buffers): "kConfigParamMaxSHA256Buffers",
 	int32(KConfigParamMaxCrossInvokeDepth): "kConfigParamMaxCrossInvokeDepth",
+	int32(KConfigParamMaxNewContractsPerTx): "kConfigParamMaxNewContractsPerTx",
 }
 var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
 	"kConfigParamMaxCrossInvokeDepth": int32(KConfigParamMaxCrossInvokeDepth),
+	"kConfigParamMaxNewContractsPerTx": int32(KConfigParamMaxNewContractsPerTx),
 }
 func (ConfigParamID) XdrEnumNames() map[int32]string {
 	return _XdrNames_ConfigParamID
@@ -21552,6 +21571,7 @@ func XDR_ConfigParamID(v *ConfigParamID) *ConfigParamID { return v }
 var _XdrTags_ConfigUpgrade = map[int32]bool{
 	XdrToI32(KConfigParamMaxSHA256Buffers): true,
 	XdrToI32(KConfigParamMaxCrossInvokeDepth): true,
+	XdrToI32(KConfigParamMaxNewContractsPerTx): true,
 }
 func (_ ConfigUpgrade) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigUpgrade
@@ -21586,9 +21606,24 @@ func (u *ConfigUpgrade) Max_cross_invoke_depth() *uint32 {
 		return nil
 	}
 }
+func (u *ConfigUpgrade) Max_new_contracts_per_tx() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxNewContractsPerTx:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigUpgrade.Max_new_contracts_per_tx accessed when Param == %v", u.Param)
+		return nil
+	}
+}
 func (u ConfigUpgrade) XdrValid() bool {
 	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth:
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx:
 		return true
 	}
 	return false
@@ -21605,6 +21640,8 @@ func (u *ConfigUpgrade) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Max_sha256_buffers())
 	case KConfigParamMaxCrossInvokeDepth:
 		return XDR_uint32(u.Max_cross_invoke_depth())
+	case KConfigParamMaxNewContractsPerTx:
+		return XDR_uint32(u.Max_new_contracts_per_tx())
 	}
 	return nil
 }
@@ -21614,6 +21651,8 @@ func (u *ConfigUpgrade) XdrUnionBodyName() string {
 		return "Max_sha256_buffers"
 	case KConfigParamMaxCrossInvokeDepth:
 		return "Max_cross_invoke_depth"
+	case KConfigParamMaxNewContractsPerTx:
+		return "Max_new_contracts_per_tx"
 	}
 	return ""
 }
@@ -21633,6 +21672,9 @@ func (u *ConfigUpgrade) XdrRecurse(x XDR, name string) {
 		return
 	case KConfigParamMaxCrossInvokeDepth:
 		x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(u.Max_cross_invoke_depth()))
+		return
+	case KConfigParamMaxNewContractsPerTx:
+		x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(u.Max_new_contracts_per_tx()))
 		return
 	}
 	XdrPanic("invalid Param (%v) in ConfigUpgrade", u.Param)
