@@ -2343,73 +2343,10 @@ type MultiplexMessage struct {
 	_u interface{}
 }
 
-/// The parameters a chain created before `max_new_contracts_per_tx` existed
-/// states. Field meanings are the ones documented on [`NetworkConfigV1`].
-type NetworkConfigV0 struct {
-	Max_sha256_buffers uint32
-	Max_cross_invoke_depth uint32
-}
-
-/// The parameters a chain states as of `max_new_contracts_per_tx`.
-type NetworkConfigV1 struct {
-	/// Concurrently open incremental SHA-256 buffers permitted per invocation
-	/// frame (`SHA256Update`, `SHA256Copy`, `SHA256Finalize`).
-	Max_sha256_buffers uint32
-	/// Invocation frames one transaction may have open at once, counting every
-	/// invoke rather than only the savepoint-pushing ones that
-	/// `kMaxSavepointDepth` bounds. Each open frame holds a live contract
-	/// runtime, so this is what stops a recursive call chain from growing until
-	/// the executor runs out of room for it.
-	Max_cross_invoke_depth uint32
-	/// Contracts one transaction may attach in `contracts_to_deploy`.
-	///
-	/// Counted over what is attached rather than what a contract goes on to
-	/// deploy: the executor holds every attached contract for the whole
-	/// transaction, and the ones deployed are a subset chosen during execution.
-	/// Attaching the same contract twice is rejected outright, so the count is
-	/// over distinct contracts either way.
-	///
-	/// Together with the per-contract blob size cap this is what bounds the
-	/// transaction's final commit batch, which the executor sends to storage as
-	/// a single message. A chain must set it low enough that the largest batch
-	/// it admits still fits that message; hogd rejects a genesis that does not.
-	Max_new_contracts_per_tx uint32
-}
-
-/// The consensus-critical execution parameters a block executes under.
-///
-/// Every parameter is a named field, so a configuration is structurally
-/// complete: it cannot omit one, repeat one, or order them differently. The
-/// protocol blesses no value for any of them either -- a chain states all of
-/// them at genesis, so there is nothing a node can silently inherit and no way
-/// for two node versions to disagree about what is in force.
-///
-/// Versioned as a union rather than extended in place. XDR is positional, so a
-/// field appended to a struct changes the layout of everything embedding it,
-/// and a chain created under the older layout could no longer be read. Each arm
-/// instead states the parameters in force in full, and a chain keeps the arm it
-/// was created with until an upgrade moves it.
-///
-/// The discriminant occupies the four bytes the leading `ExtensionPoint` used
-/// to, so a configuration written before this union existed decodes as `v0`
-/// byte for byte -- which is what that extension point was reserved for (see
-/// `ExtensionPoint` in types.x).
-///
-/// Adding a parameter means adding an arm here that carries the previous arm's
-/// fields plus the new one, along with a [`ConfigParamID`] and a
-/// [`ConfigUpgrade`] arm. A node that meets an arm it cannot name must fail to
-/// decode rather than guess which parameters are in force.
-type NetworkConfig struct {
-	// The union discriminant V selects among the following arms:
-	//   0:
-	//      V0() *NetworkConfigV0
-	//   1:
-	//      V1() *NetworkConfigV1
-	V int32
-	_u interface{}
-}
-
 /// Names one consensus-critical configuration parameter.
+///
+/// Append-only: an id, once assigned, means that parameter forever, and a
+/// retired parameter keeps its id rather than freeing it for reuse.
 type ConfigParamID int32
 const (
 	KConfigParamMaxSHA256Buffers ConfigParamID = 0
@@ -2417,17 +2354,18 @@ const (
 	KConfigParamMaxNewContractsPerTx ConfigParamID = 2
 )
 
-/// A change to one network configuration parameter.
+/// One configuration parameter and the value in force for it.
 ///
-/// Consensus carries these in `ConsensusValue::upgrades`, so a block that
-/// changes several parameters carries one per parameter and everything it does
-/// not name keeps the value it already has. The encoding is 8 bytes, well
-/// inside the `Upgrade` that holds it.
+/// Serves both uses of that pairing: `NetworkConfigV1` states a chain's
+/// configuration as a list of these, and consensus carries one per parameter
+/// being changed in `ConsensusValue::upgrades`, where everything a block does
+/// not name keeps the value it already has. Each arm carries its own type, so
+/// a future parameter need not be an `unsigned int`.
 ///
 /// There is no `default` arm on purpose: a node that cannot name a parameter
-/// cannot apply a change to it, so an unrecognized id must fail to decode
-/// rather than decode to something the node then ignores.
-type ConfigUpgrade struct {
+/// cannot know what value is in force for it, so an unrecognized id must fail
+/// to decode rather than decode to something the node then ignores.
+type ConfigParam struct {
 	// The union discriminant Param selects among the following arms:
 	//   KConfigParamMaxSHA256Buffers:
 	//      Max_sha256_buffers() *uint32
@@ -2436,6 +2374,64 @@ type ConfigUpgrade struct {
 	//   KConfigParamMaxNewContractsPerTx:
 	//      Max_new_contracts_per_tx() *uint32
 	Param ConfigParamID
+	_u interface{}
+}
+
+/// The parameters a chain created before they became a list states. Field
+/// meanings are the ones documented on the matching [`ConfigParam`] arms.
+type NetworkConfigV0 struct {
+	Max_sha256_buffers uint32
+	Max_cross_invoke_depth uint32
+}
+
+/// The parameters a chain states, as a list rather than a fixed set of fields.
+///
+/// A new parameter is then an id and a [`ConfigParam`] arm, with no new
+/// `NetworkConfig` version and no change to the layout of anything embedding
+/// one -- which is what a flat struct could not offer.
+///
+/// `params` MUST be strictly ascending by `param`. The encoding is hashed into
+/// `ProposalHeader::config_hash`, so two orderings of one set of parameters
+/// would be two hashes for a configuration the nodes agree on; requiring a
+/// single order makes the encoding canonical, and rules out a repeated
+/// parameter in the same stroke. A list that is unordered or repeats an id
+/// must fail validation rather than resolve to one of the values. That rule is
+/// also what bounds the list: strictly ascending ids are distinct, so a valid
+/// one cannot be longer than the number of parameters that exist.
+///
+/// A parameter absent from the list takes the value the protocol defines for
+/// it. That is what lets a chain predating a parameter keep running, and it is
+/// why adding one is still a coordinated release: nodes have to agree on the
+/// value an omission means, even though they no longer have to agree on a
+/// struct layout.
+type NetworkConfigV1 struct {
+	Params []ConfigParam
+}
+
+/// The consensus-critical execution parameters a block executes under.
+///
+/// The protocol blesses no value for any parameter: a chain states its
+/// configuration at genesis, so there is nothing a node silently inherits.
+///
+/// Versioned as a union rather than extended in place. XDR is positional, so a
+/// field appended to a struct changes the layout of everything embedding it,
+/// and a chain created under the older layout could no longer be read. The
+/// discriminant occupies the four bytes the leading `ExtensionPoint` used to,
+/// so a configuration written before this union existed decodes as `v0` byte
+/// for byte -- which is what that extension point was reserved for (see
+/// `ExtensionPoint` in types.x).
+///
+/// `v1` states its parameters as a list, so a new parameter needs an id and a
+/// [`ConfigParam`] arm rather than a new version here. A node that meets a
+/// version it cannot name must fail to decode rather than guess which
+/// parameters are in force.
+type NetworkConfig struct {
+	// The union discriminant V selects among the following arms:
+	//   0:
+	//      V0() *NetworkConfigV0
+	//   1:
+	//      V1() *NetworkConfigV1
+	V int32
 	_u interface{}
 }
 
@@ -21539,6 +21535,181 @@ func (u *MultiplexMessage) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_MultiplexMessage(v *MultiplexMessage) *MultiplexMessage { return v}
+var _XdrNames_ConfigParamID = map[int32]string{
+	int32(KConfigParamMaxSHA256Buffers): "kConfigParamMaxSHA256Buffers",
+	int32(KConfigParamMaxCrossInvokeDepth): "kConfigParamMaxCrossInvokeDepth",
+	int32(KConfigParamMaxNewContractsPerTx): "kConfigParamMaxNewContractsPerTx",
+}
+var _XdrValues_ConfigParamID = map[string]int32{
+	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
+	"kConfigParamMaxCrossInvokeDepth": int32(KConfigParamMaxCrossInvokeDepth),
+	"kConfigParamMaxNewContractsPerTx": int32(KConfigParamMaxNewContractsPerTx),
+}
+func (ConfigParamID) XdrEnumNames() map[int32]string {
+	return _XdrNames_ConfigParamID
+}
+func (v ConfigParamID) String() string {
+	if s, ok := _XdrNames_ConfigParamID[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("ConfigParamID#%d", v)
+}
+func (v *ConfigParamID) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_ConfigParamID[stok]; ok {
+			*v = ConfigParamID(val)
+			return nil
+		} else if stok == "ConfigParamID" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid ConfigParamID.", stok))
+	}
+}
+func (v ConfigParamID) GetU32() uint32 { return uint32(v) }
+func (v *ConfigParamID) SetU32(n uint32) { *v = ConfigParamID(n) }
+func (v *ConfigParamID) XdrPointer() interface{} { return v }
+func (ConfigParamID) XdrTypeName() string { return "ConfigParamID" }
+func (v ConfigParamID) XdrValue() interface{} { return v }
+func (v *ConfigParamID) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ConfigParamID = *ConfigParamID
+func XDR_ConfigParamID(v *ConfigParamID) *ConfigParamID { return v }
+var _XdrTags_ConfigParam = map[int32]bool{
+	XdrToI32(KConfigParamMaxSHA256Buffers): true,
+	XdrToI32(KConfigParamMaxCrossInvokeDepth): true,
+	XdrToI32(KConfigParamMaxNewContractsPerTx): true,
+}
+func (_ ConfigParam) XdrValidTags() map[int32]bool {
+	return _XdrTags_ConfigParam
+}
+/// Concurrently open incremental SHA-256 buffers permitted per invocation
+/// frame (`SHA256Update`, `SHA256Copy`, `SHA256Finalize`).
+func (u *ConfigParam) Max_sha256_buffers() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxSHA256Buffers:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_sha256_buffers accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Invocation frames one transaction may have open at once, counting every
+/// invoke rather than only the savepoint-pushing ones that
+/// `kMaxSavepointDepth` bounds. Each open frame holds a live contract
+/// runtime, so this is what stops a recursive call chain from growing until
+/// the executor runs out of room for it.
+func (u *ConfigParam) Max_cross_invoke_depth() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxCrossInvokeDepth:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_cross_invoke_depth accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Contracts one transaction may attach in `contracts_to_deploy`.
+///
+/// Counted over what is attached rather than what a contract goes on to
+/// deploy: the executor holds every attached contract for the whole
+/// transaction, and the ones deployed are a subset chosen during execution.
+/// Attaching the same contract twice is rejected outright, so the count is
+/// over distinct contracts either way.
+///
+/// Together with the per-contract blob size cap this is what bounds the
+/// transaction's final commit batch, which the executor sends to storage as
+/// a single message. A chain must set it low enough that the largest batch
+/// it admits still fits that message; hogd rejects a genesis that does not.
+func (u *ConfigParam) Max_new_contracts_per_tx() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxNewContractsPerTx:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_new_contracts_per_tx accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+func (u ConfigParam) XdrValid() bool {
+	switch u.Param {
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx:
+		return true
+	}
+	return false
+}
+func (u *ConfigParam) XdrUnionTag() XdrNum32 {
+	return XDR_ConfigParamID(&u.Param)
+}
+func (u *ConfigParam) XdrUnionTagName() string {
+	return "Param"
+}
+func (u *ConfigParam) XdrUnionBody() XdrType {
+	switch u.Param {
+	case KConfigParamMaxSHA256Buffers:
+		return XDR_uint32(u.Max_sha256_buffers())
+	case KConfigParamMaxCrossInvokeDepth:
+		return XDR_uint32(u.Max_cross_invoke_depth())
+	case KConfigParamMaxNewContractsPerTx:
+		return XDR_uint32(u.Max_new_contracts_per_tx())
+	}
+	return nil
+}
+func (u *ConfigParam) XdrUnionBodyName() string {
+	switch u.Param {
+	case KConfigParamMaxSHA256Buffers:
+		return "Max_sha256_buffers"
+	case KConfigParamMaxCrossInvokeDepth:
+		return "Max_cross_invoke_depth"
+	case KConfigParamMaxNewContractsPerTx:
+		return "Max_new_contracts_per_tx"
+	}
+	return ""
+}
+type XdrType_ConfigParam = *ConfigParam
+func (v *ConfigParam) XdrPointer() interface{} { return v }
+func (ConfigParam) XdrTypeName() string { return "ConfigParam" }
+func (v ConfigParam) XdrValue() interface{} { return v }
+func (v *ConfigParam) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *ConfigParam) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_ConfigParamID(&u.Param).XdrMarshal(x, x.Sprintf("%sparam", name))
+	switch u.Param {
+	case KConfigParamMaxSHA256Buffers:
+		x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(u.Max_sha256_buffers()))
+		return
+	case KConfigParamMaxCrossInvokeDepth:
+		x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(u.Max_cross_invoke_depth()))
+		return
+	case KConfigParamMaxNewContractsPerTx:
+		x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(u.Max_new_contracts_per_tx()))
+		return
+	}
+	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
+}
+func XDR_ConfigParam(v *ConfigParam) *ConfigParam { return v}
 type XdrType_NetworkConfigV0 = *NetworkConfigV0
 func (v *NetworkConfigV0) XdrPointer() interface{} { return v }
 func (NetworkConfigV0) XdrTypeName() string { return "NetworkConfigV0" }
@@ -21552,6 +21723,61 @@ func (v *NetworkConfigV0) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(&v.Max_cross_invoke_depth))
 }
 func XDR_NetworkConfigV0(v *NetworkConfigV0) *NetworkConfigV0 { return v }
+type _XdrVec_unbounded_ConfigParam []ConfigParam
+func (_XdrVec_unbounded_ConfigParam) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_ConfigParam) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_ConfigParam length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_ConfigParam length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_ConfigParam) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_ConfigParam) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]ConfigParam, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_ConfigParam) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_ConfigParam(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_ConfigParam) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_ConfigParam) XdrTypeName() string { return "ConfigParam<>" }
+func (v *_XdrVec_unbounded_ConfigParam) XdrPointer() interface{} { return (*[]ConfigParam)(v) }
+func (v _XdrVec_unbounded_ConfigParam) XdrValue() interface{} { return ([]ConfigParam)(v) }
+func (v *_XdrVec_unbounded_ConfigParam) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_NetworkConfigV1 = *NetworkConfigV1
 func (v *NetworkConfigV1) XdrPointer() interface{} { return v }
 func (NetworkConfigV1) XdrTypeName() string { return "NetworkConfigV1" }
@@ -21561,9 +21787,7 @@ func (v *NetworkConfigV1) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(&v.Max_sha256_buffers))
-	x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(&v.Max_cross_invoke_depth))
-	x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(&v.Max_new_contracts_per_tx))
+	x.Marshal(x.Sprintf("%sparams", name), (*_XdrVec_unbounded_ConfigParam)(&v.Params))
 }
 func XDR_NetworkConfigV1(v *NetworkConfigV1) *NetworkConfigV1 { return v }
 var _XdrTags_NetworkConfig = map[int32]bool{
@@ -21655,162 +21879,6 @@ func (u *NetworkConfig) XdrRecurse(x XDR, name string) {
 	XdrPanic("invalid V (%v) in NetworkConfig", u.V)
 }
 func XDR_NetworkConfig(v *NetworkConfig) *NetworkConfig { return v}
-var _XdrNames_ConfigParamID = map[int32]string{
-	int32(KConfigParamMaxSHA256Buffers): "kConfigParamMaxSHA256Buffers",
-	int32(KConfigParamMaxCrossInvokeDepth): "kConfigParamMaxCrossInvokeDepth",
-	int32(KConfigParamMaxNewContractsPerTx): "kConfigParamMaxNewContractsPerTx",
-}
-var _XdrValues_ConfigParamID = map[string]int32{
-	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
-	"kConfigParamMaxCrossInvokeDepth": int32(KConfigParamMaxCrossInvokeDepth),
-	"kConfigParamMaxNewContractsPerTx": int32(KConfigParamMaxNewContractsPerTx),
-}
-func (ConfigParamID) XdrEnumNames() map[int32]string {
-	return _XdrNames_ConfigParamID
-}
-func (v ConfigParamID) String() string {
-	if s, ok := _XdrNames_ConfigParamID[int32(v)]; ok {
-		return s
-	}
-	return fmt.Sprintf("ConfigParamID#%d", v)
-}
-func (v *ConfigParamID) Scan(ss fmt.ScanState, _ rune) error {
-	if tok, err := ss.Token(true, XdrSymChar); err != nil {
-		return err
-	} else {
-		stok := string(tok)
-		if val, ok := _XdrValues_ConfigParamID[stok]; ok {
-			*v = ConfigParamID(val)
-			return nil
-		} else if stok == "ConfigParamID" {
-			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
-				n == 1 && err == nil {
-				return nil
-			}
-		}
-		return XdrError(fmt.Sprintf("%s is not a valid ConfigParamID.", stok))
-	}
-}
-func (v ConfigParamID) GetU32() uint32 { return uint32(v) }
-func (v *ConfigParamID) SetU32(n uint32) { *v = ConfigParamID(n) }
-func (v *ConfigParamID) XdrPointer() interface{} { return v }
-func (ConfigParamID) XdrTypeName() string { return "ConfigParamID" }
-func (v ConfigParamID) XdrValue() interface{} { return v }
-func (v *ConfigParamID) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_ConfigParamID = *ConfigParamID
-func XDR_ConfigParamID(v *ConfigParamID) *ConfigParamID { return v }
-var _XdrTags_ConfigUpgrade = map[int32]bool{
-	XdrToI32(KConfigParamMaxSHA256Buffers): true,
-	XdrToI32(KConfigParamMaxCrossInvokeDepth): true,
-	XdrToI32(KConfigParamMaxNewContractsPerTx): true,
-}
-func (_ ConfigUpgrade) XdrValidTags() map[int32]bool {
-	return _XdrTags_ConfigUpgrade
-}
-func (u *ConfigUpgrade) Max_sha256_buffers() *uint32 {
-	switch u.Param {
-	case KConfigParamMaxSHA256Buffers:
-		if v, ok := u._u.(*uint32); ok {
-			return v
-		} else {
-			var zero uint32
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("ConfigUpgrade.Max_sha256_buffers accessed when Param == %v", u.Param)
-		return nil
-	}
-}
-func (u *ConfigUpgrade) Max_cross_invoke_depth() *uint32 {
-	switch u.Param {
-	case KConfigParamMaxCrossInvokeDepth:
-		if v, ok := u._u.(*uint32); ok {
-			return v
-		} else {
-			var zero uint32
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("ConfigUpgrade.Max_cross_invoke_depth accessed when Param == %v", u.Param)
-		return nil
-	}
-}
-func (u *ConfigUpgrade) Max_new_contracts_per_tx() *uint32 {
-	switch u.Param {
-	case KConfigParamMaxNewContractsPerTx:
-		if v, ok := u._u.(*uint32); ok {
-			return v
-		} else {
-			var zero uint32
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("ConfigUpgrade.Max_new_contracts_per_tx accessed when Param == %v", u.Param)
-		return nil
-	}
-}
-func (u ConfigUpgrade) XdrValid() bool {
-	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx:
-		return true
-	}
-	return false
-}
-func (u *ConfigUpgrade) XdrUnionTag() XdrNum32 {
-	return XDR_ConfigParamID(&u.Param)
-}
-func (u *ConfigUpgrade) XdrUnionTagName() string {
-	return "Param"
-}
-func (u *ConfigUpgrade) XdrUnionBody() XdrType {
-	switch u.Param {
-	case KConfigParamMaxSHA256Buffers:
-		return XDR_uint32(u.Max_sha256_buffers())
-	case KConfigParamMaxCrossInvokeDepth:
-		return XDR_uint32(u.Max_cross_invoke_depth())
-	case KConfigParamMaxNewContractsPerTx:
-		return XDR_uint32(u.Max_new_contracts_per_tx())
-	}
-	return nil
-}
-func (u *ConfigUpgrade) XdrUnionBodyName() string {
-	switch u.Param {
-	case KConfigParamMaxSHA256Buffers:
-		return "Max_sha256_buffers"
-	case KConfigParamMaxCrossInvokeDepth:
-		return "Max_cross_invoke_depth"
-	case KConfigParamMaxNewContractsPerTx:
-		return "Max_new_contracts_per_tx"
-	}
-	return ""
-}
-type XdrType_ConfigUpgrade = *ConfigUpgrade
-func (v *ConfigUpgrade) XdrPointer() interface{} { return v }
-func (ConfigUpgrade) XdrTypeName() string { return "ConfigUpgrade" }
-func (v ConfigUpgrade) XdrValue() interface{} { return v }
-func (v *ConfigUpgrade) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (u *ConfigUpgrade) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	XDR_ConfigParamID(&u.Param).XdrMarshal(x, x.Sprintf("%sparam", name))
-	switch u.Param {
-	case KConfigParamMaxSHA256Buffers:
-		x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(u.Max_sha256_buffers()))
-		return
-	case KConfigParamMaxCrossInvokeDepth:
-		x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(u.Max_cross_invoke_depth()))
-		return
-	case KConfigParamMaxNewContractsPerTx:
-		x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(u.Max_new_contracts_per_tx()))
-		return
-	}
-	XdrPanic("invalid Param (%v) in ConfigUpgrade", u.Param)
-}
-func XDR_ConfigUpgrade(v *ConfigUpgrade) *ConfigUpgrade { return v}
 type XdrType_ConfigHashPreimage = *ConfigHashPreimage
 func (v *ConfigHashPreimage) XdrPointer() interface{} { return v }
 func (ConfigHashPreimage) XdrTypeName() string { return "ConfigHashPreimage" }
