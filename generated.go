@@ -2356,7 +2356,7 @@ const (
 
 /// One configuration parameter and the value in force for it.
 ///
-/// Serves both uses of that pairing: `NetworkConfigV1` states a chain's
+/// Serves both uses of that pairing: `NetworkConfigV0` states a chain's
 /// configuration as a list of these, and consensus carries one per parameter
 /// being changed in `ConsensusValue::upgrades`, where everything a block does
 /// not name keeps the value it already has. Each arm carries its own type, so
@@ -2377,34 +2377,29 @@ type ConfigParam struct {
 	_u interface{}
 }
 
-/// The parameters a chain created before they became a list states. Field
-/// meanings are the ones documented on the matching [`ConfigParam`] arms.
-type NetworkConfigV0 struct {
-	Max_sha256_buffers uint32
-	Max_cross_invoke_depth uint32
-}
-
-/// The parameters a chain states, as a list rather than a fixed set of fields.
+/// The parameters a chain states, as a list rather than fixed fields. A new
+/// parameter is then an id and a [`ConfigParam`] arm, with no new version here
+/// and no change to the layout of anything embedding one.
 ///
-/// A new parameter is then an id and a [`ConfigParam`] arm, with no new
-/// `NetworkConfig` version and no change to the layout of anything embedding
-/// one -- which is what a flat struct could not offer.
+/// `params` MUST be a prefix of the id space: ids run 0, 1, 2, ... in order,
+/// with no gaps. The encoding is hashed into `ProposalHeader::config_hash`, so
+/// permitting one arrangement per configuration is what gives it one hash. A
+/// list that is unordered, repeats an id, or skips one must fail validation
+/// rather than resolve to one of the values. The rule also bounds the list: a
+/// prefix cannot be longer than the number of parameters that exist.
 ///
-/// `params` MUST be strictly ascending by `param`. The encoding is hashed into
-/// `ProposalHeader::config_hash`, so two orderings of one set of parameters
-/// would be two hashes for a configuration the nodes agree on; requiring a
-/// single order makes the encoding canonical, and rules out a repeated
-/// parameter in the same stroke. A list that is unordered or repeats an id
-/// must fail validation rather than resolve to one of the values. That rule is
-/// also what bounds the list: strictly ascending ids are distinct, so a valid
-/// one cannot be longer than the number of parameters that exist.
+/// Ascending order alone would leave interior gaps legal, and a gap is what
+/// makes the encoding ambiguous: a parameter at its default value could be
+/// written down or left out. A prefix settles which -- below the list's length
+/// a parameter is stated, past it it is not -- and makes resolving one an
+/// index rather than a search.
 ///
 /// A parameter absent from the list takes the value the protocol defines for
-/// it. That is what lets a chain predating a parameter keep running, and it is
-/// why adding one is still a coordinated release: nodes have to agree on the
-/// value an omission means, even though they no longer have to agree on a
-/// struct layout.
-type NetworkConfigV1 struct {
+/// it. Absence says nothing about why: the list may be short because the
+/// configuration predates the parameter, or because its creator declined to
+/// state one it knew, and nothing on the wire tells those apart. A creator
+/// SHOULD state every parameter it knows; a verifier cannot check that.
+type NetworkConfigV0 struct {
 	Params []ConfigParam
 }
 
@@ -2413,24 +2408,15 @@ type NetworkConfigV1 struct {
 /// The protocol blesses no value for any parameter: a chain states its
 /// configuration at genesis, so there is nothing a node silently inherits.
 ///
-/// Versioned as a union rather than extended in place. XDR is positional, so a
-/// field appended to a struct changes the layout of everything embedding it,
-/// and a chain created under the older layout could no longer be read. The
-/// discriminant occupies the four bytes the leading `ExtensionPoint` used to,
-/// so a configuration written before this union existed decodes as `v0` byte
-/// for byte -- which is what that extension point was reserved for (see
-/// `ExtensionPoint` in types.x).
-///
-/// `v1` states its parameters as a list, so a new parameter needs an id and a
-/// [`ConfigParam`] arm rather than a new version here. A node that meets a
-/// version it cannot name must fail to decode rather than guess which
-/// parameters are in force.
+/// One version, because `v0` states its parameters as a list: a new parameter
+/// is an id and a [`ConfigParam`] arm, not a new arm here. The discriminant is
+/// kept so that if a change ever does need one, it is a new case rather than a
+/// silent reinterpretation of these bytes. A node meeting a version it cannot
+/// name must fail to decode rather than guess what is in force.
 type NetworkConfig struct {
 	// The union discriminant V selects among the following arms:
 	//   0:
 	//      V0() *NetworkConfigV0
-	//   1:
-	//      V1() *NetworkConfigV1
 	V int32
 	_u interface{}
 }
@@ -21710,19 +21696,6 @@ func (u *ConfigParam) XdrRecurse(x XDR, name string) {
 	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
 }
 func XDR_ConfigParam(v *ConfigParam) *ConfigParam { return v}
-type XdrType_NetworkConfigV0 = *NetworkConfigV0
-func (v *NetworkConfigV0) XdrPointer() interface{} { return v }
-func (NetworkConfigV0) XdrTypeName() string { return "NetworkConfigV0" }
-func (v NetworkConfigV0) XdrValue() interface{} { return v }
-func (v *NetworkConfigV0) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *NetworkConfigV0) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%smax_sha256_buffers", name), XDR_uint32(&v.Max_sha256_buffers))
-	x.Marshal(x.Sprintf("%smax_cross_invoke_depth", name), XDR_uint32(&v.Max_cross_invoke_depth))
-}
-func XDR_NetworkConfigV0(v *NetworkConfigV0) *NetworkConfigV0 { return v }
 type _XdrVec_unbounded_ConfigParam []ConfigParam
 func (_XdrVec_unbounded_ConfigParam) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -21778,21 +21751,20 @@ func (_XdrVec_unbounded_ConfigParam) XdrTypeName() string { return "ConfigParam<
 func (v *_XdrVec_unbounded_ConfigParam) XdrPointer() interface{} { return (*[]ConfigParam)(v) }
 func (v _XdrVec_unbounded_ConfigParam) XdrValue() interface{} { return ([]ConfigParam)(v) }
 func (v *_XdrVec_unbounded_ConfigParam) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_NetworkConfigV1 = *NetworkConfigV1
-func (v *NetworkConfigV1) XdrPointer() interface{} { return v }
-func (NetworkConfigV1) XdrTypeName() string { return "NetworkConfigV1" }
-func (v NetworkConfigV1) XdrValue() interface{} { return v }
-func (v *NetworkConfigV1) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *NetworkConfigV1) XdrRecurse(x XDR, name string) {
+type XdrType_NetworkConfigV0 = *NetworkConfigV0
+func (v *NetworkConfigV0) XdrPointer() interface{} { return v }
+func (NetworkConfigV0) XdrTypeName() string { return "NetworkConfigV0" }
+func (v NetworkConfigV0) XdrValue() interface{} { return v }
+func (v *NetworkConfigV0) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NetworkConfigV0) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sparams", name), (*_XdrVec_unbounded_ConfigParam)(&v.Params))
 }
-func XDR_NetworkConfigV1(v *NetworkConfigV1) *NetworkConfigV1 { return v }
+func XDR_NetworkConfigV0(v *NetworkConfigV0) *NetworkConfigV0 { return v }
 var _XdrTags_NetworkConfig = map[int32]bool{
 	XdrToI32(0): true,
-	XdrToI32(1): true,
 }
 func (_ NetworkConfig) XdrValidTags() map[int32]bool {
 	return _XdrTags_NetworkConfig
@@ -21812,24 +21784,9 @@ func (u *NetworkConfig) V0() *NetworkConfigV0 {
 		return nil
 	}
 }
-func (u *NetworkConfig) V1() *NetworkConfigV1 {
-	switch u.V {
-	case 1:
-		if v, ok := u._u.(*NetworkConfigV1); ok {
-			return v
-		} else {
-			var zero NetworkConfigV1
-			u._u = &zero
-			return &zero
-		}
-	default:
-		XdrPanic("NetworkConfig.V1 accessed when V == %v", u.V)
-		return nil
-	}
-}
 func (u NetworkConfig) XdrValid() bool {
 	switch u.V {
-	case 0,1:
+	case 0:
 		return true
 	}
 	return false
@@ -21844,8 +21801,6 @@ func (u *NetworkConfig) XdrUnionBody() XdrType {
 	switch u.V {
 	case 0:
 		return XDR_NetworkConfigV0(u.V0())
-	case 1:
-		return XDR_NetworkConfigV1(u.V1())
 	}
 	return nil
 }
@@ -21853,8 +21808,6 @@ func (u *NetworkConfig) XdrUnionBodyName() string {
 	switch u.V {
 	case 0:
 		return "V0"
-	case 1:
-		return "V1"
 	}
 	return ""
 }
@@ -21871,9 +21824,6 @@ func (u *NetworkConfig) XdrRecurse(x XDR, name string) {
 	switch u.V {
 	case 0:
 		x.Marshal(x.Sprintf("%sv0", name), XDR_NetworkConfigV0(u.V0()))
-		return
-	case 1:
-		x.Marshal(x.Sprintf("%sv1", name), XDR_NetworkConfigV1(u.V1()))
 		return
 	}
 	XdrPanic("invalid V (%v) in NetworkConfig", u.V)
