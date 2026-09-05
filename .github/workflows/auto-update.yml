@@ -71,7 +71,7 @@ jobs:
       # the push above does not: a merge performed by it starts no workflow
       # runs, so notify-consumers never fires and groundhog-go falls behind.
       # A deploy key cannot stand in here -- it authenticates git, not the API.
-      # PROTOCOL_GO_AUTOMERGE_TOKEN is scoped to this repository alone and
+      # PROTOCOL_GO_AUTO_UPDATE_PAT is scoped to this repository alone and
       # needs only Contents: write and Pull requests: write.
       - name: Commit and open PR
         if: steps.diff.outputs.changed == 'true'
@@ -106,4 +106,4 @@ jobs:
           # notify-consumers.
           gh pr merge "$BRANCH" --auto --squash
         env:
-          GH_TOKEN: ${{ secrets.PROTOCOL_GO_AUTOMERGE_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROTOCOL_GO_AUTO_UPDATE_PAT }}
