@@ -3,11 +3,12 @@ name: Notify consumers
 on:
   push:
     branches: [main]
-  # Manual escape hatch. The push trigger above is inert for the commits that
-  # matter most: an auto-update PR merged by GITHUB_TOKEN produces no push
-  # event, so this workflow never fires for protocol bumps and groundhog-go
-  # silently falls behind. Until that is fixed properly, dispatch this by hand
-  # to catch groundhog-go up.
+  # Manual escape hatch, kept for catching groundhog-go up by hand.
+  #
+  # The push trigger above used to be inert for the commits that mattered
+  # most: auto-update merged its PR with GITHUB_TOKEN, and a merge performed
+  # by it starts no workflow runs. That merge now uses a token scoped to this
+  # repository, so protocol bumps reach this workflow on their own.
   workflow_dispatch:
 
 # Nothing here uses GITHUB_TOKEN -- the dispatch below authenticates with an
