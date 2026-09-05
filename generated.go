@@ -2352,6 +2352,7 @@ const (
 	KConfigParamMaxSHA256Buffers ConfigParamID = 0
 	KConfigParamMaxCrossInvokeDepth ConfigParamID = 1
 	KConfigParamMaxNewContractsPerTx ConfigParamID = 2
+	KConfigParamMaxBytestringLen ConfigParamID = 3
 )
 
 /// One configuration parameter and the value in force for it.
@@ -2373,6 +2374,8 @@ type ConfigParam struct {
 	//      Max_cross_invoke_depth() *uint32
 	//   KConfigParamMaxNewContractsPerTx:
 	//      Max_new_contracts_per_tx() *uint32
+	//   KConfigParamMaxBytestringLen:
+	//      Max_bytestring_len() *uint32
 	Param ConfigParamID
 	_u interface{}
 }
@@ -3478,10 +3481,19 @@ const (
 	KItemTypeDeleted StorageItemType = -1
 )
 
-const KBytestringMaxLen = 1024
+/// The largest bytestring the wire format admits, and so the ceiling on
+/// `kConfigParamMaxBytestringLen`. Raising this is a protocol upgrade;
+/// raising the configured limit is not.
+const KBytestringCeilingLen = 65000
+
+/// The limit in force when a configuration does not state one.
+const KDefaultMaxBytestringLen = 1024
 
 /// An arbitrary value, stored as an opaque string of bytes.
-type Bytestring = []byte // bound KBytestringMaxLen
+///
+/// Bounded by the ceiling, not by the limit in force: what a chain permits is
+/// enforced where a bytestring is written rather than where it is decoded.
+type Bytestring = []byte // bound KBytestringCeilingLen
 
 /// The value at every storage key is one of the following data types.
 ///
@@ -21525,11 +21537,13 @@ var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMaxSHA256Buffers): "kConfigParamMaxSHA256Buffers",
 	int32(KConfigParamMaxCrossInvokeDepth): "kConfigParamMaxCrossInvokeDepth",
 	int32(KConfigParamMaxNewContractsPerTx): "kConfigParamMaxNewContractsPerTx",
+	int32(KConfigParamMaxBytestringLen): "kConfigParamMaxBytestringLen",
 }
 var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
 	"kConfigParamMaxCrossInvokeDepth": int32(KConfigParamMaxCrossInvokeDepth),
 	"kConfigParamMaxNewContractsPerTx": int32(KConfigParamMaxNewContractsPerTx),
+	"kConfigParamMaxBytestringLen": int32(KConfigParamMaxBytestringLen),
 }
 func (ConfigParamID) XdrEnumNames() map[int32]string {
 	return _XdrNames_ConfigParamID
@@ -21569,6 +21583,7 @@ var _XdrTags_ConfigParam = map[int32]bool{
 	XdrToI32(KConfigParamMaxSHA256Buffers): true,
 	XdrToI32(KConfigParamMaxCrossInvokeDepth): true,
 	XdrToI32(KConfigParamMaxNewContractsPerTx): true,
+	XdrToI32(KConfigParamMaxBytestringLen): true,
 }
 func (_ ConfigParam) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigParam
@@ -21637,9 +21652,31 @@ func (u *ConfigParam) Max_new_contracts_per_tx() *uint32 {
 		return nil
 	}
 }
+/// Bytes one bytestring storage item may hold, checked where a contract
+/// writes one rather than where one is read, so that lowering it leaves
+/// existing items readable instead of stranding state.
+///
+/// `kBytestringCeilingLen` bounds this. A chain must also keep it low
+/// enough that its own storage engine handles the largest item it thereby
+/// admits; the ceiling does not guarantee that.
+func (u *ConfigParam) Max_bytestring_len() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxBytestringLen:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_bytestring_len accessed when Param == %v", u.Param)
+		return nil
+	}
+}
 func (u ConfigParam) XdrValid() bool {
 	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx:
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen:
 		return true
 	}
 	return false
@@ -21658,6 +21695,8 @@ func (u *ConfigParam) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Max_cross_invoke_depth())
 	case KConfigParamMaxNewContractsPerTx:
 		return XDR_uint32(u.Max_new_contracts_per_tx())
+	case KConfigParamMaxBytestringLen:
+		return XDR_uint32(u.Max_bytestring_len())
 	}
 	return nil
 }
@@ -21669,6 +21708,8 @@ func (u *ConfigParam) XdrUnionBodyName() string {
 		return "Max_cross_invoke_depth"
 	case KConfigParamMaxNewContractsPerTx:
 		return "Max_new_contracts_per_tx"
+	case KConfigParamMaxBytestringLen:
+		return "Max_bytestring_len"
 	}
 	return ""
 }
@@ -21691,6 +21732,9 @@ func (u *ConfigParam) XdrRecurse(x XDR, name string) {
 		return
 	case KConfigParamMaxNewContractsPerTx:
 		x.Marshal(x.Sprintf("%smax_new_contracts_per_tx", name), XDR_uint32(u.Max_new_contracts_per_tx()))
+		return
+	case KConfigParamMaxBytestringLen:
+		x.Marshal(x.Sprintf("%smax_bytestring_len", name), XDR_uint32(u.Max_bytestring_len()))
 		return
 	}
 	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
@@ -30058,7 +30102,7 @@ type XdrType_Bytestring struct {
 	XdrVecOpaque
 }
 func XDR_Bytestring(v *Bytestring) XdrType_Bytestring {
-	return XdrType_Bytestring{XdrVecOpaque{v, KBytestringMaxLen}}
+	return XdrType_Bytestring{XdrVecOpaque{v, KBytestringCeilingLen}}
 }
 func (XdrType_Bytestring) XdrTypeName() string { return "Bytestring" }
 func (v XdrType_Bytestring) XdrUnwrap() XdrType { return v.XdrVecOpaque }
