@@ -1255,6 +1255,13 @@ const (
 	// returned during validation. This is determininistic, but signals a bad
 	// block from a malicious proposer.
 	ExecResultTxValidationFailure ExecResult = 200
+	// The transaction is malformed: a structural check rejected it before
+	// execution, on its contents alone and independent of ledger state.
+	// This error code is only returned during proposal, where the scheduler
+	// drops the transaction instead of including it in the block. The same
+	// defect during validation is ExecResultTxValidationFailure, since a
+	// malformed transaction inside a proposed block is the proposer's fault.
+	ExecResultMalformedTransaction ExecResult = 201
 	// System error; network connection broke, etc.
 	// Executor can recover from this error to continue execution of other
 	// transactions.
@@ -13025,6 +13032,7 @@ var _XdrNames_ExecResult = map[int32]string{
 	int32(ExecResultTxNonDeterministicError): "ExecResultTxNonDeterministicError",
 	int32(ExecResultFailedGasSponsorship): "ExecResultFailedGasSponsorship",
 	int32(ExecResultTxValidationFailure): "ExecResultTxValidationFailure",
+	int32(ExecResultMalformedTransaction): "ExecResultMalformedTransaction",
 	int32(ExecResultSystemError): "ExecResultSystemError",
 	int32(ExecResultUnrecoverable): "ExecResultUnrecoverable",
 }
@@ -13035,6 +13043,7 @@ var _XdrValues_ExecResult = map[string]int32{
 	"ExecResultTxNonDeterministicError": int32(ExecResultTxNonDeterministicError),
 	"ExecResultFailedGasSponsorship": int32(ExecResultFailedGasSponsorship),
 	"ExecResultTxValidationFailure": int32(ExecResultTxValidationFailure),
+	"ExecResultMalformedTransaction": int32(ExecResultMalformedTransaction),
 	"ExecResultSystemError": int32(ExecResultSystemError),
 	"ExecResultUnrecoverable": int32(ExecResultUnrecoverable),
 }
