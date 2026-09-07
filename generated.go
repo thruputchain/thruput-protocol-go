@@ -2119,15 +2119,27 @@ type IndexerInitializedProgress struct {
 	Last_consensus_hash ConsensusValueHash
 }
 
+/// Where the indexer stands, as its pull request states it.
 type IndexerProgressState int32
 const (
+	/// No origin adopted yet. The server answers with the oldest retained
+	/// origin, or its first block; never held.
 	IndexerProgressUninitialized IndexerProgressState = 0
+	/// Applied everything through `initialized`; asks what comes next. Answered
+	/// at once: the next block, `EventIndexerPullCaughtUp` when there is none,
+	/// or a conflict. The first pull of every connection is this, since the
+	/// caught-up reply is the indexer's readiness signal.
 	IndexerProgressInitialized IndexerProgressState = 1
+	/// Same cursor, and already answered caught up on this connection. Asks the
+	/// server to hold the request until the next publication and answer with
+	/// it, so a block is pulled the moment it is committed rather than when the
+	/// indexer next asks. Request-only: an indexer never persists this state.
+	IndexerProgressCaughtUp IndexerProgressState = 2
 )
 
 type IndexerProgress struct {
 	// The union discriminant State selects among the following arms:
-	//   IndexerProgressInitialized:
+	//   IndexerProgressInitialized, IndexerProgressCaughtUp:
 	//      Initialized() *IndexerInitializedProgress
 	//   default:
 	//      void
@@ -19973,10 +19985,12 @@ func XDR_IndexerInitializedProgress(v *IndexerInitializedProgress) *IndexerIniti
 var _XdrNames_IndexerProgressState = map[int32]string{
 	int32(IndexerProgressUninitialized): "IndexerProgressUninitialized",
 	int32(IndexerProgressInitialized): "IndexerProgressInitialized",
+	int32(IndexerProgressCaughtUp): "IndexerProgressCaughtUp",
 }
 var _XdrValues_IndexerProgressState = map[string]int32{
 	"IndexerProgressUninitialized": int32(IndexerProgressUninitialized),
 	"IndexerProgressInitialized": int32(IndexerProgressInitialized),
+	"IndexerProgressCaughtUp": int32(IndexerProgressCaughtUp),
 }
 func (IndexerProgressState) XdrEnumNames() map[int32]string {
 	return _XdrNames_IndexerProgressState
@@ -20017,7 +20031,7 @@ func (_ IndexerProgress) XdrValidTags() map[int32]bool {
 }
 func (u *IndexerProgress) Initialized() *IndexerInitializedProgress {
 	switch u.State {
-	case IndexerProgressInitialized:
+	case IndexerProgressInitialized, IndexerProgressCaughtUp:
 		if v, ok := u._u.(*IndexerInitializedProgress); ok {
 			return v
 		} else {
@@ -20041,7 +20055,7 @@ func (u *IndexerProgress) XdrUnionTagName() string {
 }
 func (u *IndexerProgress) XdrUnionBody() XdrType {
 	switch u.State {
-	case IndexerProgressInitialized:
+	case IndexerProgressInitialized, IndexerProgressCaughtUp:
 		return XDR_IndexerInitializedProgress(u.Initialized())
 	default:
 		return nil
@@ -20049,7 +20063,7 @@ func (u *IndexerProgress) XdrUnionBody() XdrType {
 }
 func (u *IndexerProgress) XdrUnionBodyName() string {
 	switch u.State {
-	case IndexerProgressInitialized:
+	case IndexerProgressInitialized, IndexerProgressCaughtUp:
 		return "Initialized"
 	default:
 		return ""
@@ -20066,7 +20080,7 @@ func (u *IndexerProgress) XdrRecurse(x XDR, name string) {
 	}
 	XDR_IndexerProgressState(&u.State).XdrMarshal(x, x.Sprintf("%sstate", name))
 	switch u.State {
-	case IndexerProgressInitialized:
+	case IndexerProgressInitialized, IndexerProgressCaughtUp:
 		x.Marshal(x.Sprintf("%sinitialized", name), XDR_IndexerInitializedProgress(u.Initialized()))
 		return
 	default:
