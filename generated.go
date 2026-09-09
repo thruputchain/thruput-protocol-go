@@ -286,7 +286,8 @@ type MempoolAuth1 interface {
 // #[rust(const=u32)]
 const KAuthTokenMaxLen = 256
 
-// #[rust(const=u32)]
+/// Levels of node nesting a token may carry when a configuration does not
+/// state `kConfigParamMaxAuthTokenDepth`. Consensus-critical, so frozen.
 const KAuthTokenMaxDepth = 4
 
 // #[rust(const=u32)]
@@ -540,9 +541,18 @@ type ConsensusBasis struct {
 	Proposal_txs ProposalTxs
 }
 
+/// The largest contract code blob a chain admits when its configuration does
+/// not state `kConfigParamMaxContractSizeBytes`. Consensus-critical, so
+/// frozen: every chain predating the parameter ran under it.
+const KDefaultMaxContractSizeBytes = 262144
+
 /// An opaque blob of executable code.
 ///
 /// This is the raw binary that will be executed as an RV32 contract.
+///
+/// Unbounded on the wire: the size a chain admits is a configuration
+/// parameter (`kConfigParamMaxContractSizeBytes`), enforced where a
+/// transaction attaches a contract rather than where one is decoded.
 type ContractBlob struct {
 	Data []byte
 }
@@ -1370,9 +1380,23 @@ type ProposalHeader struct {
 	Events_hash EventsHash
 }
 
+/// Bytes one incremental SHA-256 buffer may absorb when a configuration does
+/// not state `kConfigParamMaxSHA256BufferBytes`. Consensus-critical, so
+/// frozen: every chain predating the parameter ran under it.
 const KSHA256BufferMaxSize = 4096
 
+/// Storage savepoints one transaction may hold when a configuration does not
+/// state `kConfigParamMaxSavepointDepth`. Frozen for the same reason.
 const KMaxSavepointDepth = 1024
+
+/// Bytes of RV32 code an attached artifact may carry when a configuration
+/// does not state `kConfigParamMaxRv32CodeBytes`. Frozen for the same reason.
+const KDefaultMaxRv32CodeBytes = 65536
+
+/// Bytes of RV32 guest memory an attached artifact may declare when a
+/// configuration does not state `kConfigParamMaxRv32MemoryBytes`. Frozen for
+/// the same reason.
+const KDefaultMaxRv32MemoryBytes = 65536
 
 type HogXID = string
 
@@ -2375,6 +2399,12 @@ const (
 	KConfigParamMaxCrossInvokeDepth ConfigParamID = 1
 	KConfigParamMaxNewContractsPerTx ConfigParamID = 2
 	KConfigParamMaxBytestringLen ConfigParamID = 3
+	KConfigParamMaxContractSizeBytes ConfigParamID = 4
+	KConfigParamMaxSavepointDepth ConfigParamID = 5
+	KConfigParamMaxSHA256BufferBytes ConfigParamID = 6
+	KConfigParamMaxAuthTokenDepth ConfigParamID = 7
+	KConfigParamMaxRv32CodeBytes ConfigParamID = 8
+	KConfigParamMaxRv32MemoryBytes ConfigParamID = 9
 )
 
 /// One configuration parameter and the value in force for it.
@@ -2398,6 +2428,18 @@ type ConfigParam struct {
 	//      Max_new_contracts_per_tx() *uint32
 	//   KConfigParamMaxBytestringLen:
 	//      Max_bytestring_len() *uint32
+	//   KConfigParamMaxContractSizeBytes:
+	//      Max_contract_size_bytes() *uint32
+	//   KConfigParamMaxSavepointDepth:
+	//      Max_savepoint_depth() *uint32
+	//   KConfigParamMaxSHA256BufferBytes:
+	//      Max_sha256_buffer_bytes() *uint32
+	//   KConfigParamMaxAuthTokenDepth:
+	//      Max_auth_token_depth() *uint32
+	//   KConfigParamMaxRv32CodeBytes:
+	//      Max_rv32_code_bytes() *uint32
+	//   KConfigParamMaxRv32MemoryBytes:
+	//      Max_rv32_memory_bytes() *uint32
 	Param ConfigParamID
 	_u interface{}
 }
@@ -21600,12 +21642,24 @@ var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMaxCrossInvokeDepth): "kConfigParamMaxCrossInvokeDepth",
 	int32(KConfigParamMaxNewContractsPerTx): "kConfigParamMaxNewContractsPerTx",
 	int32(KConfigParamMaxBytestringLen): "kConfigParamMaxBytestringLen",
+	int32(KConfigParamMaxContractSizeBytes): "kConfigParamMaxContractSizeBytes",
+	int32(KConfigParamMaxSavepointDepth): "kConfigParamMaxSavepointDepth",
+	int32(KConfigParamMaxSHA256BufferBytes): "kConfigParamMaxSHA256BufferBytes",
+	int32(KConfigParamMaxAuthTokenDepth): "kConfigParamMaxAuthTokenDepth",
+	int32(KConfigParamMaxRv32CodeBytes): "kConfigParamMaxRv32CodeBytes",
+	int32(KConfigParamMaxRv32MemoryBytes): "kConfigParamMaxRv32MemoryBytes",
 }
 var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
 	"kConfigParamMaxCrossInvokeDepth": int32(KConfigParamMaxCrossInvokeDepth),
 	"kConfigParamMaxNewContractsPerTx": int32(KConfigParamMaxNewContractsPerTx),
 	"kConfigParamMaxBytestringLen": int32(KConfigParamMaxBytestringLen),
+	"kConfigParamMaxContractSizeBytes": int32(KConfigParamMaxContractSizeBytes),
+	"kConfigParamMaxSavepointDepth": int32(KConfigParamMaxSavepointDepth),
+	"kConfigParamMaxSHA256BufferBytes": int32(KConfigParamMaxSHA256BufferBytes),
+	"kConfigParamMaxAuthTokenDepth": int32(KConfigParamMaxAuthTokenDepth),
+	"kConfigParamMaxRv32CodeBytes": int32(KConfigParamMaxRv32CodeBytes),
+	"kConfigParamMaxRv32MemoryBytes": int32(KConfigParamMaxRv32MemoryBytes),
 }
 func (ConfigParamID) XdrEnumNames() map[int32]string {
 	return _XdrNames_ConfigParamID
@@ -21646,6 +21700,12 @@ var _XdrTags_ConfigParam = map[int32]bool{
 	XdrToI32(KConfigParamMaxCrossInvokeDepth): true,
 	XdrToI32(KConfigParamMaxNewContractsPerTx): true,
 	XdrToI32(KConfigParamMaxBytestringLen): true,
+	XdrToI32(KConfigParamMaxContractSizeBytes): true,
+	XdrToI32(KConfigParamMaxSavepointDepth): true,
+	XdrToI32(KConfigParamMaxSHA256BufferBytes): true,
+	XdrToI32(KConfigParamMaxAuthTokenDepth): true,
+	XdrToI32(KConfigParamMaxRv32CodeBytes): true,
+	XdrToI32(KConfigParamMaxRv32MemoryBytes): true,
 }
 func (_ ConfigParam) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigParam
@@ -21669,7 +21729,7 @@ func (u *ConfigParam) Max_sha256_buffers() *uint32 {
 }
 /// Invocation frames one transaction may have open at once, counting every
 /// invoke rather than only the savepoint-pushing ones that
-/// `kMaxSavepointDepth` bounds. Each open frame holds a live contract
+/// `kConfigParamMaxSavepointDepth` bounds. Each open frame holds a live contract
 /// runtime, so this is what stops a recursive call chain from growing until
 /// the executor runs out of room for it.
 func (u *ConfigParam) Max_cross_invoke_depth() *uint32 {
@@ -21695,10 +21755,11 @@ func (u *ConfigParam) Max_cross_invoke_depth() *uint32 {
 /// Attaching the same contract twice is rejected outright, so the count is
 /// over distinct contracts either way.
 ///
-/// Together with the per-contract blob size cap this is what bounds the
+/// Together with `kConfigParamMaxContractSizeBytes` this is what bounds the
 /// transaction's final commit batch, which the executor sends to storage as
-/// a single message. A chain must set it low enough that the largest batch
-/// it admits still fits that message; hogd rejects a genesis that does not.
+/// a single message. A chain must set the pair low enough that the largest
+/// batch it admits still fits that message; hogd rejects a genesis that
+/// does not.
 func (u *ConfigParam) Max_new_contracts_per_tx() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxNewContractsPerTx:
@@ -21736,9 +21797,150 @@ func (u *ConfigParam) Max_bytestring_len() *uint32 {
 		return nil
 	}
 }
+/// Bytes one attached contract's code blob (`ContractBlob.data`) may hold,
+/// checked before any attached contract is verified or executed. It is
+/// the same quantity `contract_deployment_cost_per_byte` charges for.
+///
+/// `kDefaultMaxContractSizeBytes` is the value in force for a
+/// configuration that does not state one. The wire format does not bound
+/// `ContractBlob`, so nothing here caps what a chain may state: a chain
+/// must keep it low enough that its own storage engine stores the largest
+/// contract it thereby admits, that every attached contract still fits a
+/// transaction (`kMaxBytesSignedTransaction`), and that the commit batch
+/// `kConfigParamMaxNewContractsPerTx` bounds fits one storage message.
+/// hogd rejects a genesis that does not.
+func (u *ConfigParam) Max_contract_size_bytes() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxContractSizeBytes:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_contract_size_bytes accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Storage savepoints one transaction may have open at once: one per
+/// `TryInvoke` frame still executing, plus the one the root commit takes.
+/// A `TryInvoke` past the limit fails as the guest would see any other
+/// refused call. `kMaxSavepointDepth` is the value in force for a
+/// configuration that does not state one.
+///
+/// Every open savepoint is a live nested VM on one executor thread, so a
+/// chain must keep this within what its executors' stacks hold; hogd
+/// rejects a genesis above its build ceiling.
+func (u *ConfigParam) Max_savepoint_depth() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxSavepointDepth:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_savepoint_depth accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Bytes one incremental SHA-256 buffer may absorb between resets
+/// (`SHA256Update`), the per-buffer companion of
+/// `kConfigParamMaxSHA256Buffers`. `kSHA256BufferMaxSize` is the value in
+/// force for a configuration that does not state one. Only the byte count
+/// is bounded: the hasher state is constant-size, so nothing else scales
+/// with it.
+func (u *ConfigParam) Max_sha256_buffer_bytes() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxSHA256BufferBytes:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_sha256_buffer_bytes accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Levels of `AuthTokenNode` nesting an auth token may carry, counted from
+/// its root, checked where a token is minted or forwarded into a view.
+/// `kAuthTokenMaxDepth` is the value in force for a configuration that
+/// does not state one. The wire type bounds a node's payload and its
+/// direct children (`kAuthTokenMaxLen`, `kAuthTokenMaxChildNodes`) but not
+/// the depth, so this is what bounds a token's total size.
+func (u *ConfigParam) Max_auth_token_depth() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxAuthTokenDepth:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_auth_token_depth accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Bytes of code (`code_size` in the artifact header) an RV32 artifact may
+/// carry to be admitted as an attached contract.
+/// `kDefaultMaxRv32CodeBytes` is the value in force for a configuration
+/// that does not state one.
+///
+/// Checked where a contract is attached, not where a deployed one is
+/// instantiated, so lowering it leaves deployed contracts runnable. The
+/// artifact format itself does not bound the field; hogd rejects a genesis
+/// above what its VM can translate.
+func (u *ConfigParam) Max_rv32_code_bytes() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxRv32CodeBytes:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_rv32_code_bytes accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Bytes of guest data memory (`memory_bytes` in the artifact header) an
+/// RV32 artifact may declare to be admitted as an attached contract.
+/// `kDefaultMaxRv32MemoryBytes` is the value in force for a configuration
+/// that does not state one.
+///
+/// Checked at attachment like `kConfigParamMaxRv32CodeBytes`. Every
+/// invocation provisions and seeds the declared memory outside gas, so a
+/// chain raising this accepts that per-call cost; hogd rejects a genesis
+/// above what its VM provisions.
+func (u *ConfigParam) Max_rv32_memory_bytes() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxRv32MemoryBytes:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_rv32_memory_bytes accessed when Param == %v", u.Param)
+		return nil
+	}
+}
 func (u ConfigParam) XdrValid() bool {
 	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen:
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes:
 		return true
 	}
 	return false
@@ -21759,6 +21961,18 @@ func (u *ConfigParam) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Max_new_contracts_per_tx())
 	case KConfigParamMaxBytestringLen:
 		return XDR_uint32(u.Max_bytestring_len())
+	case KConfigParamMaxContractSizeBytes:
+		return XDR_uint32(u.Max_contract_size_bytes())
+	case KConfigParamMaxSavepointDepth:
+		return XDR_uint32(u.Max_savepoint_depth())
+	case KConfigParamMaxSHA256BufferBytes:
+		return XDR_uint32(u.Max_sha256_buffer_bytes())
+	case KConfigParamMaxAuthTokenDepth:
+		return XDR_uint32(u.Max_auth_token_depth())
+	case KConfigParamMaxRv32CodeBytes:
+		return XDR_uint32(u.Max_rv32_code_bytes())
+	case KConfigParamMaxRv32MemoryBytes:
+		return XDR_uint32(u.Max_rv32_memory_bytes())
 	}
 	return nil
 }
@@ -21772,6 +21986,18 @@ func (u *ConfigParam) XdrUnionBodyName() string {
 		return "Max_new_contracts_per_tx"
 	case KConfigParamMaxBytestringLen:
 		return "Max_bytestring_len"
+	case KConfigParamMaxContractSizeBytes:
+		return "Max_contract_size_bytes"
+	case KConfigParamMaxSavepointDepth:
+		return "Max_savepoint_depth"
+	case KConfigParamMaxSHA256BufferBytes:
+		return "Max_sha256_buffer_bytes"
+	case KConfigParamMaxAuthTokenDepth:
+		return "Max_auth_token_depth"
+	case KConfigParamMaxRv32CodeBytes:
+		return "Max_rv32_code_bytes"
+	case KConfigParamMaxRv32MemoryBytes:
+		return "Max_rv32_memory_bytes"
 	}
 	return ""
 }
@@ -21797,6 +22023,24 @@ func (u *ConfigParam) XdrRecurse(x XDR, name string) {
 		return
 	case KConfigParamMaxBytestringLen:
 		x.Marshal(x.Sprintf("%smax_bytestring_len", name), XDR_uint32(u.Max_bytestring_len()))
+		return
+	case KConfigParamMaxContractSizeBytes:
+		x.Marshal(x.Sprintf("%smax_contract_size_bytes", name), XDR_uint32(u.Max_contract_size_bytes()))
+		return
+	case KConfigParamMaxSavepointDepth:
+		x.Marshal(x.Sprintf("%smax_savepoint_depth", name), XDR_uint32(u.Max_savepoint_depth()))
+		return
+	case KConfigParamMaxSHA256BufferBytes:
+		x.Marshal(x.Sprintf("%smax_sha256_buffer_bytes", name), XDR_uint32(u.Max_sha256_buffer_bytes()))
+		return
+	case KConfigParamMaxAuthTokenDepth:
+		x.Marshal(x.Sprintf("%smax_auth_token_depth", name), XDR_uint32(u.Max_auth_token_depth()))
+		return
+	case KConfigParamMaxRv32CodeBytes:
+		x.Marshal(x.Sprintf("%smax_rv32_code_bytes", name), XDR_uint32(u.Max_rv32_code_bytes()))
+		return
+	case KConfigParamMaxRv32MemoryBytes:
+		x.Marshal(x.Sprintf("%smax_rv32_memory_bytes", name), XDR_uint32(u.Max_rv32_memory_bytes()))
 		return
 	}
 	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
