@@ -1306,6 +1306,9 @@ type GenesisConfiguration struct {
 	Network_config NetworkConfig
 	Root_contract Contract
 	/// The contract resolved for root invocations of undeployed addresses.
+	/// Committed to by `ProposalHeader::config_hash` through
+	/// `ConfigHashPreimage`, so a node cannot run under a different one than
+	/// the chain agreed.
 	Default_wallet DeployedContractHash
 }
 
@@ -2448,6 +2451,16 @@ type NetworkConfig struct {
 type ConfigHashPreimage struct {
 	Storage_cost_model StorageCostModelXdr
 	Network_config NetworkConfig
+	/// The contract a root invocation of an undeployed address resolves to, as
+	/// `GenesisConfiguration` states it and every `DbTip` carries it forward.
+	///
+	/// It selects executing code, so a node running under a different one from
+	/// its peers executes a different chain. Nothing else commits to it: a
+	/// node's copy travels in the tip, which implementations are free to keep
+	/// outside the state the storage hash covers, and hogd does. Committing to
+	/// it here is what binds the value a node executes under to the one
+	/// consensus agreed, rather than to whatever its own storage returns.
+	Default_wallet DeployedContractHash
 }
 
 /// ServerAddress is an IP (or hostname) and port address, separated by a
@@ -2735,7 +2748,8 @@ type DbTip struct {
 	/// address with no deployed contract (see
 	/// SystemCallHandler::resolve_runtime). Set at genesis from
 	/// GenesisConfiguration::default_wallet; carried forward verbatim by
-	/// every subsequent commit.
+	/// every subsequent commit, and committed to by this tip's own
+	/// ProposalHeader::config_hash through ConfigHashPreimage.
 	Default_wallet DeployedContractHash
 	/// The execution parameters in force for the block that follows this tip.
 	/// Set at genesis from GenesisConfiguration::network_config; carried forward
@@ -21932,6 +21946,7 @@ func (v *ConfigHashPreimage) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%sstorage_cost_model", name), XDR_StorageCostModelXdr(&v.Storage_cost_model))
 	x.Marshal(x.Sprintf("%snetwork_config", name), XDR_NetworkConfig(&v.Network_config))
+	x.Marshal(x.Sprintf("%sdefault_wallet", name), XDR_DeployedContractHash(&v.Default_wallet))
 }
 func XDR_ConfigHashPreimage(v *ConfigHashPreimage) *ConfigHashPreimage { return v }
 type XdrType_ServerAddress struct {
