@@ -3120,12 +3120,37 @@ const (
 	SchedGatewayIntroMismatchedProtocol SchedGatewayIntroOutcome = 1
 )
 
+// The admission result for one exact SignedTransaction encoding in one
+// gateway submission request. A rejection must not be cached or reused by
+// TransactionHash: signatures are not part of that hash.
+//
+// A successful RPC returns exactly one outcome per decoded transaction, in
+// submission order. A malformed request or cardinality mismatch is an RPC or
+// protocol error; consumers must not infer partial acceptance from it.
+type SchedGatewaySubmitOutcome int32
+const (
+	// The transaction was admitted to the mempool, or the same transaction body
+	// was already pending. This does not mean it was nominated or committed.
+	SchedGatewaySubmitAdmitted SchedGatewaySubmitOutcome = 0
+	// This request definitely did not admit the transaction because
+	// authentication failed against the state observed for this request.
+	SchedGatewaySubmitAuthenticationRejected SchedGatewaySubmitOutcome = 1
+	// This request definitely did not admit the transaction because of a
+	// transient admission condition; retrying it unchanged may succeed.
+	SchedGatewaySubmitRetryable SchedGatewaySubmitOutcome = 2
+	// This request definitely did not admit the transaction because an internal
+	// dependency failed. An RPC failure instead makes admission indeterminate.
+	SchedGatewaySubmitInternalError SchedGatewaySubmitOutcome = 3
+)
+
+type SchedGatewaySubmitOutcomeBatch = []SchedGatewaySubmitOutcome
+
 // Number of transactions currently pending in the mempool.
 type PendingTxCount = int64
 
 type SchedGateway1 interface {
 	Schedgateway_intro(context.Context, ProtocolCommit) (SchedGatewayIntroOutcome, error)
-	Schedgateway_submit_tx_batch(context.Context, ParallelSignedTransactionBatch) error
+	Schedgateway_submit_tx_batch(context.Context, ParallelSignedTransactionBatch) (SchedGatewaySubmitOutcomeBatch, error)
 	Schedgateway_get_tip(context.Context, ) (ExpectedDBTip, error)
 	Schedgateway_lookup_tx(context.Context, TransactionHashBatch) (OptSignedTransactionBatch, error)
 	Schedgateway_pending_tx_count(context.Context, ) (PendingTxCount, error)
@@ -26017,6 +26042,115 @@ func (v SchedGatewayIntroOutcome) XdrValue() interface{} { return v }
 func (v *SchedGatewayIntroOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_SchedGatewayIntroOutcome = *SchedGatewayIntroOutcome
 func XDR_SchedGatewayIntroOutcome(v *SchedGatewayIntroOutcome) *SchedGatewayIntroOutcome { return v }
+var _XdrNames_SchedGatewaySubmitOutcome = map[int32]string{
+	int32(SchedGatewaySubmitAdmitted): "SchedGatewaySubmitAdmitted",
+	int32(SchedGatewaySubmitAuthenticationRejected): "SchedGatewaySubmitAuthenticationRejected",
+	int32(SchedGatewaySubmitRetryable): "SchedGatewaySubmitRetryable",
+	int32(SchedGatewaySubmitInternalError): "SchedGatewaySubmitInternalError",
+}
+var _XdrValues_SchedGatewaySubmitOutcome = map[string]int32{
+	"SchedGatewaySubmitAdmitted": int32(SchedGatewaySubmitAdmitted),
+	"SchedGatewaySubmitAuthenticationRejected": int32(SchedGatewaySubmitAuthenticationRejected),
+	"SchedGatewaySubmitRetryable": int32(SchedGatewaySubmitRetryable),
+	"SchedGatewaySubmitInternalError": int32(SchedGatewaySubmitInternalError),
+}
+func (SchedGatewaySubmitOutcome) XdrEnumNames() map[int32]string {
+	return _XdrNames_SchedGatewaySubmitOutcome
+}
+func (v SchedGatewaySubmitOutcome) String() string {
+	if s, ok := _XdrNames_SchedGatewaySubmitOutcome[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SchedGatewaySubmitOutcome#%d", v)
+}
+func (v *SchedGatewaySubmitOutcome) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SchedGatewaySubmitOutcome[stok]; ok {
+			*v = SchedGatewaySubmitOutcome(val)
+			return nil
+		} else if stok == "SchedGatewaySubmitOutcome" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SchedGatewaySubmitOutcome.", stok))
+	}
+}
+func (v SchedGatewaySubmitOutcome) GetU32() uint32 { return uint32(v) }
+func (v *SchedGatewaySubmitOutcome) SetU32(n uint32) { *v = SchedGatewaySubmitOutcome(n) }
+func (v *SchedGatewaySubmitOutcome) XdrPointer() interface{} { return v }
+func (SchedGatewaySubmitOutcome) XdrTypeName() string { return "SchedGatewaySubmitOutcome" }
+func (v SchedGatewaySubmitOutcome) XdrValue() interface{} { return v }
+func (v *SchedGatewaySubmitOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedGatewaySubmitOutcome = *SchedGatewaySubmitOutcome
+func XDR_SchedGatewaySubmitOutcome(v *SchedGatewaySubmitOutcome) *SchedGatewaySubmitOutcome { return v }
+type _XdrVec_unbounded_SchedGatewaySubmitOutcome []SchedGatewaySubmitOutcome
+func (_XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SchedGatewaySubmitOutcome length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SchedGatewaySubmitOutcome length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SchedGatewaySubmitOutcome) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SchedGatewaySubmitOutcome) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SchedGatewaySubmitOutcome, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SchedGatewaySubmitOutcome(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrTypeName() string { return "SchedGatewaySubmitOutcome<>" }
+func (v *_XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrPointer() interface{} { return (*[]SchedGatewaySubmitOutcome)(v) }
+func (v _XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrValue() interface{} { return ([]SchedGatewaySubmitOutcome)(v) }
+func (v *_XdrVec_unbounded_SchedGatewaySubmitOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedGatewaySubmitOutcomeBatch struct {
+	*_XdrVec_unbounded_SchedGatewaySubmitOutcome
+}
+func XDR_SchedGatewaySubmitOutcomeBatch(v *SchedGatewaySubmitOutcomeBatch) XdrType_SchedGatewaySubmitOutcomeBatch {
+	return XdrType_SchedGatewaySubmitOutcomeBatch{(*_XdrVec_unbounded_SchedGatewaySubmitOutcome)(v)}
+}
+func (XdrType_SchedGatewaySubmitOutcomeBatch) XdrTypeName() string { return "SchedGatewaySubmitOutcomeBatch" }
+func (v XdrType_SchedGatewaySubmitOutcomeBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SchedGatewaySubmitOutcome }
 type XdrType_PendingTxCount struct {
 	XdrType_int64
 }
@@ -26075,7 +26209,7 @@ var _ XdrSrvProc = &xdrSrvProc_Schedgateway_intro{} // XXX
 
 type xdrProc_Schedgateway_submit_tx_batch struct {
 	Arg *ParallelSignedTransactionBatch
-	Res *XdrVoid
+	Res *SchedGatewaySubmitOutcomeBatch
 }
 func (xdrProc_Schedgateway_submit_tx_batch) Prog() uint32 { return 2129111722 }
 func (xdrProc_Schedgateway_submit_tx_batch) Vers() uint32 { return 1 }
@@ -26091,9 +26225,9 @@ func (p *xdrProc_Schedgateway_submit_tx_batch) GetArg() XdrType {
 }
 func (p *xdrProc_Schedgateway_submit_tx_batch) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(XdrVoid)
+		p.Res = new(SchedGatewaySubmitOutcomeBatch)
 	}
-	return XDR_XdrVoid(p.Res)
+	return XDR_SchedGatewaySubmitOutcomeBatch(p.Res)
 }
 var _ XdrProc = &xdrProc_Schedgateway_submit_tx_batch{} // XXX
 
@@ -26111,7 +26245,9 @@ func (p *xdrSrvProc_Schedgateway_submit_tx_batch) SetContext(ctx context.Context
 	p.Ctx = ctx
 }
 func (p *xdrSrvProc_Schedgateway_submit_tx_batch) Do() {
-	err := p.Srv.Schedgateway_submit_tx_batch(p.Ctx, *p.Arg)
+	r, err := p.Srv.Schedgateway_submit_tx_batch(p.Ctx, *p.Arg)
+	p.Res = &r
+
 	if err != nil {
 		panic(err)
 	}
@@ -26319,13 +26455,13 @@ func (c SchedGateway1_Client) Schedgateway_intro(ctx context.Context, a1 Protoco
 	}
 	return *proc.Res, nil
 }
-func (c SchedGateway1_Client) Schedgateway_submit_tx_batch(ctx context.Context, a1 ParallelSignedTransactionBatch) error {
+func (c SchedGateway1_Client) Schedgateway_submit_tx_batch(ctx context.Context, a1 ParallelSignedTransactionBatch) (r SchedGatewaySubmitOutcomeBatch, _ error) {
 	var proc xdrProc_Schedgateway_submit_tx_batch
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
-		return err
+		return r, err
 	}
-	return nil
+	return *proc.Res, nil
 }
 func (c SchedGateway1_Client) Schedgateway_get_tip(ctx context.Context, ) (r ExpectedDBTip, _ error) {
 	var proc xdrProc_Schedgateway_get_tip
