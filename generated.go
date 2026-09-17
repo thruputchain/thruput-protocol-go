@@ -2999,6 +2999,7 @@ const (
 	SchedulerCommitOK SchedulerCommitOutcome = 0
 	SchedulerCommitBlockNotFound SchedulerCommitOutcome = 1
 	SchedulerCommitInvalidConsensusValue SchedulerCommitOutcome = 2
+	SchedulerConcurrentCommit SchedulerCommitOutcome = 3
 )
 
 type SchedulerGetTipOutcome int32
@@ -24435,11 +24436,13 @@ var _XdrNames_SchedulerCommitOutcome = map[int32]string{
 	int32(SchedulerCommitOK): "SchedulerCommitOK",
 	int32(SchedulerCommitBlockNotFound): "SchedulerCommitBlockNotFound",
 	int32(SchedulerCommitInvalidConsensusValue): "SchedulerCommitInvalidConsensusValue",
+	int32(SchedulerConcurrentCommit): "SchedulerConcurrentCommit",
 }
 var _XdrValues_SchedulerCommitOutcome = map[string]int32{
 	"SchedulerCommitOK": int32(SchedulerCommitOK),
 	"SchedulerCommitBlockNotFound": int32(SchedulerCommitBlockNotFound),
 	"SchedulerCommitInvalidConsensusValue": int32(SchedulerCommitInvalidConsensusValue),
+	"SchedulerConcurrentCommit": int32(SchedulerConcurrentCommit),
 }
 func (SchedulerCommitOutcome) XdrEnumNames() map[int32]string {
 	return _XdrNames_SchedulerCommitOutcome
