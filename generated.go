@@ -1380,9 +1380,8 @@ type ProposalHeader struct {
 	Events_hash EventsHash
 }
 
-/// Bytes one incremental SHA-256 buffer may absorb when a configuration does
-/// not state `kConfigParamMaxSHA256BufferBytes`. Consensus-critical, so
-/// frozen: every chain predating the parameter ran under it.
+/// Legacy default for `kConfigParamMaxSHA256BufferBytes`, retained for
+/// configuration hashing. Incremental SHA-256 no longer enforces a byte cap.
 const KSHA256BufferMaxSize = 4096
 
 /// Storage savepoints one transaction may hold when a configuration does not
@@ -21849,12 +21848,9 @@ func (u *ConfigParam) Max_savepoint_depth() *uint32 {
 		return nil
 	}
 }
-/// Bytes one incremental SHA-256 buffer may absorb between resets
-/// (`SHA256Update`), the per-buffer companion of
-/// `kConfigParamMaxSHA256Buffers`. `kSHA256BufferMaxSize` is the value in
-/// force for a configuration that does not state one. Only the byte count
-/// is bounded: the hasher state is constant-size, so nothing else scales
-/// with it.
+/// Legacy cumulative SHA-256 byte limit. Retained for wire compatibility
+/// and configuration hashing; no longer enforced. SHA256Update checks gas
+/// before processing input and keeps constant-size incremental state.
 func (u *ConfigParam) Max_sha256_buffer_bytes() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxSHA256BufferBytes:
