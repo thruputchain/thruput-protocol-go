@@ -1216,11 +1216,18 @@ type TxEmittedEvent struct {
 /// deterministic revert, or the Fault variant when no root output was
 /// produced (e.g., non-deterministic failure).  Downstream indexers and
 /// the receipt-read paths surface this as `return_data`/`abort_data`.
+///
+/// `gas_consumed` is the gas the whole transaction consumed: the root frame,
+/// every frame it invoked, and the pre-execution validation of attached
+/// contracts. On an out-of-gas fault it is the transaction's gas limit. It
+/// is part of the leaf, so the events root commits to it and every
+/// validator's re-execution must reproduce it.
 type TxEventLog struct {
 	// sha256(Transaction)
 	Tx_hash TransactionHash
 	Exec_result ExecResult
 	Root_output InvocationFrameOutput
+	Gas_consumed GasAmount
 	Events []TxEmittedEvent // bound KMaxEventsPerTransaction
 }
 
@@ -13100,6 +13107,7 @@ func (v *TxEventLog) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%stx_hash", name), XDR_TransactionHash(&v.Tx_hash))
 	x.Marshal(x.Sprintf("%sexec_result", name), XDR_ExecResult(&v.Exec_result))
 	x.Marshal(x.Sprintf("%sroot_output", name), XDR_InvocationFrameOutput(&v.Root_output))
+	x.Marshal(x.Sprintf("%sgas_consumed", name), XDR_GasAmount(&v.Gas_consumed))
 	x.Marshal(x.Sprintf("%sevents", name), (*_XdrVec_1000_TxEmittedEvent)(&v.Events))
 }
 func XDR_TxEventLog(v *TxEventLog) *TxEventLog { return v }
