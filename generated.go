@@ -791,28 +791,34 @@ const (
 	/// transaction (committed or concurrent), an exclusive lock could not be
 	/// acquired because other transactions hold the key, or an exclusive-lock
 	/// flag was used on a key type that does not support it.
-	KDbConflictExclusiveLock DbConflictCode = 0
+	ExclusiveLockDenied DbConflictCode = 0
 	/// Two transactions created different item types at the same key.
-	KDbConflictTypeMismatch DbConflictCode = 1
+	TypeMismatch DbConflictCode = 1
 	/// Two transactions wrote irreconcilable values of the same type at the
 	/// same key: different bytestrings, different nnint base values,
 	/// different auth-data bases, or different contract / deployment hashes.
-	KDbConflictValueMismatch DbConflictCode = 2
-	/// A nonnegative int (or balance) would go below zero given the deltas
-	/// in this block, or a newly created balance item cannot cover its own
-	/// storage cost.
-	KDbConflictBoundsExceeded DbConflictCode = 3
+	ValueMismatch DbConflictCode = 2
+	/// A nonnegative int would go below zero given the deltas in this block.
+	/// A native HOG balance that cannot cover its debits reports
+	/// InsufficientFunds instead.
+	BoundsExceeded DbConflictCode = 3
 	/// Integer overflow combining deltas on a nonnegative int or balance.
-	KDbConflictOverflow DbConflictCode = 4
+	Overflow DbConflictCode = 4
 	/// Replay-protection conflict: uniquifier expired, already consumed (in
 	/// a prior block or by a concurrent transaction), or consumed twice by
 	/// this transaction.
-	KDbConflictReplayProtection DbConflictCode = 5
+	ReplayProtection DbConflictCode = 5
 	/// A retrocausal queue already has a consumer in this block.
-	KDbConflictQueueConsumer DbConflictCode = 6
+	QueueConsumer DbConflictCode = 6
 	/// A per-item capacity limit was hit: replay-cache active heights or
 	/// nonces, retrocausal-queue block entries, or auth signer slots.
-	KDbConflictCapacityExceeded DbConflictCode = 7
+	CapacityExceeded DbConflictCode = 7
+	/// The native HOG balance at the diagnostic's address cannot cover the
+	/// debits in this block, or a newly created balance item cannot cover
+	/// its own storage cost. Storage written under a contract's address is
+	/// charged to that contract's balance, so a deployment reports this at
+	/// the new contract's address when it holds no HOG.
+	InsufficientFunds DbConflictCode = 8
 )
 
 /// How much conflict diagnostic detail try_push_new_subtransaction reports
@@ -8844,24 +8850,26 @@ func (c CoordScheduler1_Client) Coordscheduler_notify_vetted(ctx context.Context
 	return nil
 }
 var _XdrNames_DbConflictCode = map[int32]string{
-	int32(KDbConflictExclusiveLock): "kDbConflictExclusiveLock",
-	int32(KDbConflictTypeMismatch): "kDbConflictTypeMismatch",
-	int32(KDbConflictValueMismatch): "kDbConflictValueMismatch",
-	int32(KDbConflictBoundsExceeded): "kDbConflictBoundsExceeded",
-	int32(KDbConflictOverflow): "kDbConflictOverflow",
-	int32(KDbConflictReplayProtection): "kDbConflictReplayProtection",
-	int32(KDbConflictQueueConsumer): "kDbConflictQueueConsumer",
-	int32(KDbConflictCapacityExceeded): "kDbConflictCapacityExceeded",
+	int32(ExclusiveLockDenied): "ExclusiveLockDenied",
+	int32(TypeMismatch): "TypeMismatch",
+	int32(ValueMismatch): "ValueMismatch",
+	int32(BoundsExceeded): "BoundsExceeded",
+	int32(Overflow): "Overflow",
+	int32(ReplayProtection): "ReplayProtection",
+	int32(QueueConsumer): "QueueConsumer",
+	int32(CapacityExceeded): "CapacityExceeded",
+	int32(InsufficientFunds): "InsufficientFunds",
 }
 var _XdrValues_DbConflictCode = map[string]int32{
-	"kDbConflictExclusiveLock": int32(KDbConflictExclusiveLock),
-	"kDbConflictTypeMismatch": int32(KDbConflictTypeMismatch),
-	"kDbConflictValueMismatch": int32(KDbConflictValueMismatch),
-	"kDbConflictBoundsExceeded": int32(KDbConflictBoundsExceeded),
-	"kDbConflictOverflow": int32(KDbConflictOverflow),
-	"kDbConflictReplayProtection": int32(KDbConflictReplayProtection),
-	"kDbConflictQueueConsumer": int32(KDbConflictQueueConsumer),
-	"kDbConflictCapacityExceeded": int32(KDbConflictCapacityExceeded),
+	"ExclusiveLockDenied": int32(ExclusiveLockDenied),
+	"TypeMismatch": int32(TypeMismatch),
+	"ValueMismatch": int32(ValueMismatch),
+	"BoundsExceeded": int32(BoundsExceeded),
+	"Overflow": int32(Overflow),
+	"ReplayProtection": int32(ReplayProtection),
+	"QueueConsumer": int32(QueueConsumer),
+	"CapacityExceeded": int32(CapacityExceeded),
+	"InsufficientFunds": int32(InsufficientFunds),
 }
 func (DbConflictCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_DbConflictCode
