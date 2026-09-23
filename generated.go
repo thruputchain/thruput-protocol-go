@@ -542,9 +542,9 @@ type ConsensusBasis struct {
 }
 
 /// The largest contract code blob a chain admits when its configuration does
-/// not state `kConfigParamMaxContractSizeBytes`. Consensus-critical, so
-/// frozen: every chain predating the parameter ran under it.
-const KDefaultMaxContractSizeBytes = 262144
+/// not state `kConfigParamMaxContractSizeBytes`. Includes the artifact header,
+/// code, and initial memory.
+const KDefaultMaxContractSizeBytes = 524288
 
 /// An opaque blob of executable code.
 ///
@@ -1402,8 +1402,8 @@ const KSHA256BufferMaxSize = 4096
 const KMaxSavepointDepth = 1024
 
 /// Bytes of RV32 code an attached artifact may carry when a configuration
-/// does not state `kConfigParamMaxRv32CodeBytes`. Frozen for the same reason.
-const KDefaultMaxRv32CodeBytes = 65536
+/// does not state `kConfigParamMaxRv32CodeBytes`.
+const KDefaultMaxRv32CodeBytes = 262144
 
 /// Bytes of RV32 guest memory an attached artifact may declare when a
 /// configuration does not state `kConfigParamMaxRv32MemoryBytes`. Frozen for
