@@ -3764,7 +3764,10 @@ const (
 )
 
 /// A bitset of StorageDeltaFlags values.
-type StorageDeltaFlagSet = int32
+///
+/// Unsigned because it holds bits, not a number, even though
+/// StorageDeltaFlags, like every XDR enum, is a signed int.
+type StorageDeltaFlagSet = uint32
 
 /// The combined unit of storage modification sent to the database from the executor.
 /// A delta with a set of flags, applied to a specific entry in the database.
@@ -31652,13 +31655,13 @@ func (v *StorageDeltaFlags) XdrMarshal(x XDR, name string) { x.Marshal(name, v) 
 type XdrType_StorageDeltaFlags = *StorageDeltaFlags
 func XDR_StorageDeltaFlags(v *StorageDeltaFlags) *StorageDeltaFlags { return v }
 type XdrType_StorageDeltaFlagSet struct {
-	XdrType_int32
+	XdrType_uint32
 }
 func XDR_StorageDeltaFlagSet(v *StorageDeltaFlagSet) XdrType_StorageDeltaFlagSet {
-	return XdrType_StorageDeltaFlagSet{XDR_int32(v)}
+	return XdrType_StorageDeltaFlagSet{XDR_uint32(v)}
 }
 func (XdrType_StorageDeltaFlagSet) XdrTypeName() string { return "StorageDeltaFlagSet" }
-func (v XdrType_StorageDeltaFlagSet) XdrUnwrap() XdrType { return v.XdrType_int32 }
+func (v XdrType_StorageDeltaFlagSet) XdrUnwrap() XdrType { return v.XdrType_uint32 }
 type XdrType_FlaggedStorageDelta = *FlaggedStorageDelta
 func (v *FlaggedStorageDelta) XdrPointer() interface{} { return v }
 func (FlaggedStorageDelta) XdrTypeName() string { return "FlaggedStorageDelta" }
