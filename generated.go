@@ -860,14 +860,85 @@ type DbConflictResult struct {
 	_u interface{}
 }
 
-/// Best-effort diagnostic for a transaction that failed nondeterministically
-/// during two-phase commit at proposal time: the executing block height of
-/// the failed attempt plus the first conflicting storage op hog_db reported.
+/// Reason the executor refused a transaction's contract attachments
+/// (Transaction.contracts_to_deploy) at proposal time. Any of them drops the
+/// transaction from the proposal; none is a contract fault. The RV32 codes
+/// name which check of the artifact failed, so an author can tell a
+/// toolchain/node mismatch from an oversized or corrupt build.
+type ContractRejectCode int32
+const (
+	/// The transaction attaches more contracts than the chain's
+	/// max_new_contracts_per_tx permits.
+	ContractRejectTooMany ContractRejectCode = 0
+	/// The contract blob exceeds the chain's max_contract_size_bytes.
+	ContractRejectBlobTooLarge ContractRejectCode = 1
+	/// The attachment is not an RV32 contract. Native contracts are registered
+	/// at genesis; RV32 is the only deployable type.
+	ContractRejectNotDeployable ContractRejectCode = 2
+	/// The same contract is attached more than once.
+	ContractRejectDuplicate ContractRejectCode = 3
+	/// The blob is not a readable RV32 artifact: too short, wrong magic, wrong
+	/// header size, or its length disagrees with the section sizes the header
+	/// declares.
+	ContractRejectMalformedArtifact ContractRejectCode = 4
+	/// The artifact's format version is not the one this node reads.
+	ContractRejectUnsupportedFormat ContractRejectCode = 5
+	/// The artifact's VM profile, flags, entry ABI, or syscall ABI is not one
+	/// this node runs.
+	ContractRejectUnsupportedAbi ContractRejectCode = 6
+	/// The gas schedule (version, digest) stamped into the artifact is not one
+	/// the node accepts: the artifact was lowered by a toolchain whose gas
+	/// schedule differs from the node's.
+	ContractRejectGasScheduleMismatch ContractRejectCode = 7
+	/// The declared guest memory exceeds the chain's max_rv32_memory_bytes.
+	ContractRejectMemoryTooLarge ContractRejectCode = 8
+	/// The code section is empty or exceeds the chain's max_rv32_code_bytes.
+	ContractRejectCodeSizeInvalid ContractRejectCode = 9
+	/// The initial memory image does not fit in the declared guest memory, or
+	/// an empty image declares a nonzero load address.
+	ContractRejectInitialMemoryInvalid ContractRejectCode = 10
+	/// A section's bytes do not match the SHA-256 digest the header records.
+	ContractRejectDigestMismatch ContractRejectCode = 11
+	/// The code does not translate: it contains an unsupported or malformed
+	/// instruction.
+	ContractRejectInvalidProgram ContractRejectCode = 12
+)
+
+/// The first contract attachment the executor refused.
+type ContractRejectDiagnostic struct {
+	/// Position in Transaction.contracts_to_deploy of the refused contract.
+	/// For ContractRejectTooMany, the first position past the limit.
+	Contract_index uint32
+	Code ContractRejectCode
+}
+
+type TxFailureKind int32
+const (
+	/// Two-phase commit could not apply the transaction's storage deltas.
+	TxFailureDbConflict TxFailureKind = 0
+	/// The executor refused a contract attachment before execution.
+	TxFailureContractRejected TxFailureKind = 1
+)
+
+type TxFailureCause struct {
+	// The union discriminant Kind selects among the following arms:
+	//   TxFailureDbConflict:
+	//      Conflict() *DbConflictDiagnostic
+	//   TxFailureContractRejected:
+	//      Contract() *ContractRejectDiagnostic
+	Kind TxFailureKind
+	_u interface{}
+}
+
+/// Best-effort diagnostic for a transaction the proposer excluded from a
+/// proposal: the executing block height of the failed attempt plus why it
+/// failed -- the first conflicting storage op hog_db reported during
+/// two-phase commit, or the first contract attachment the executor refused.
 /// Fixed-size by construction; the wire and caches carry exactly one
 /// diagnostic per failure to bound memory end to end.
 type TxFailureDiagnostic struct {
 	Attempt_height BlockHeight
-	Conflict DbConflictDiagnostic
+	Cause TxFailureCause
 }
 
 /// Input: a batch of items to read, identified by (address, key).
@@ -1850,8 +1921,9 @@ type TxInfoOutcome int32
 const (
 	TxInfoFound TxInfoOutcome = 0
 	TxInfoNotFound TxInfoOutcome = 1
-	/// No committed record, but the transaction failed nondeterministically
-	/// within the last few blocks and the indexer still holds the diagnostic.
+	/// No committed record, but a proposer excluded the transaction within the
+	/// last few blocks (a two-phase-commit conflict or a refused contract
+	/// attachment) and the indexer still holds the diagnostic.
 	/// Best-effort and advisory: reports are dropped freely under load, only
 	/// the proposing node's indexers hear them, and a later retry of the same
 	/// tx may still commit (at which point TxInfoFound wins). Absence of this
@@ -9116,6 +9188,214 @@ func (u *DbConflictResult) XdrRecurse(x XDR, name string) {
 	XdrPanic("invalid Level (%v) in DbConflictResult", u.Level)
 }
 func XDR_DbConflictResult(v *DbConflictResult) *DbConflictResult { return v}
+var _XdrNames_ContractRejectCode = map[int32]string{
+	int32(ContractRejectTooMany): "ContractRejectTooMany",
+	int32(ContractRejectBlobTooLarge): "ContractRejectBlobTooLarge",
+	int32(ContractRejectNotDeployable): "ContractRejectNotDeployable",
+	int32(ContractRejectDuplicate): "ContractRejectDuplicate",
+	int32(ContractRejectMalformedArtifact): "ContractRejectMalformedArtifact",
+	int32(ContractRejectUnsupportedFormat): "ContractRejectUnsupportedFormat",
+	int32(ContractRejectUnsupportedAbi): "ContractRejectUnsupportedAbi",
+	int32(ContractRejectGasScheduleMismatch): "ContractRejectGasScheduleMismatch",
+	int32(ContractRejectMemoryTooLarge): "ContractRejectMemoryTooLarge",
+	int32(ContractRejectCodeSizeInvalid): "ContractRejectCodeSizeInvalid",
+	int32(ContractRejectInitialMemoryInvalid): "ContractRejectInitialMemoryInvalid",
+	int32(ContractRejectDigestMismatch): "ContractRejectDigestMismatch",
+	int32(ContractRejectInvalidProgram): "ContractRejectInvalidProgram",
+}
+var _XdrValues_ContractRejectCode = map[string]int32{
+	"ContractRejectTooMany": int32(ContractRejectTooMany),
+	"ContractRejectBlobTooLarge": int32(ContractRejectBlobTooLarge),
+	"ContractRejectNotDeployable": int32(ContractRejectNotDeployable),
+	"ContractRejectDuplicate": int32(ContractRejectDuplicate),
+	"ContractRejectMalformedArtifact": int32(ContractRejectMalformedArtifact),
+	"ContractRejectUnsupportedFormat": int32(ContractRejectUnsupportedFormat),
+	"ContractRejectUnsupportedAbi": int32(ContractRejectUnsupportedAbi),
+	"ContractRejectGasScheduleMismatch": int32(ContractRejectGasScheduleMismatch),
+	"ContractRejectMemoryTooLarge": int32(ContractRejectMemoryTooLarge),
+	"ContractRejectCodeSizeInvalid": int32(ContractRejectCodeSizeInvalid),
+	"ContractRejectInitialMemoryInvalid": int32(ContractRejectInitialMemoryInvalid),
+	"ContractRejectDigestMismatch": int32(ContractRejectDigestMismatch),
+	"ContractRejectInvalidProgram": int32(ContractRejectInvalidProgram),
+}
+func (ContractRejectCode) XdrEnumNames() map[int32]string {
+	return _XdrNames_ContractRejectCode
+}
+func (v ContractRejectCode) String() string {
+	if s, ok := _XdrNames_ContractRejectCode[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("ContractRejectCode#%d", v)
+}
+func (v *ContractRejectCode) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_ContractRejectCode[stok]; ok {
+			*v = ContractRejectCode(val)
+			return nil
+		} else if stok == "ContractRejectCode" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid ContractRejectCode.", stok))
+	}
+}
+func (v ContractRejectCode) GetU32() uint32 { return uint32(v) }
+func (v *ContractRejectCode) SetU32(n uint32) { *v = ContractRejectCode(n) }
+func (v *ContractRejectCode) XdrPointer() interface{} { return v }
+func (ContractRejectCode) XdrTypeName() string { return "ContractRejectCode" }
+func (v ContractRejectCode) XdrValue() interface{} { return v }
+func (v *ContractRejectCode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_ContractRejectCode = *ContractRejectCode
+func XDR_ContractRejectCode(v *ContractRejectCode) *ContractRejectCode { return v }
+type XdrType_ContractRejectDiagnostic = *ContractRejectDiagnostic
+func (v *ContractRejectDiagnostic) XdrPointer() interface{} { return v }
+func (ContractRejectDiagnostic) XdrTypeName() string { return "ContractRejectDiagnostic" }
+func (v ContractRejectDiagnostic) XdrValue() interface{} { return v }
+func (v *ContractRejectDiagnostic) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ContractRejectDiagnostic) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%scontract_index", name), XDR_uint32(&v.Contract_index))
+	x.Marshal(x.Sprintf("%scode", name), XDR_ContractRejectCode(&v.Code))
+}
+func XDR_ContractRejectDiagnostic(v *ContractRejectDiagnostic) *ContractRejectDiagnostic { return v }
+var _XdrNames_TxFailureKind = map[int32]string{
+	int32(TxFailureDbConflict): "TxFailureDbConflict",
+	int32(TxFailureContractRejected): "TxFailureContractRejected",
+}
+var _XdrValues_TxFailureKind = map[string]int32{
+	"TxFailureDbConflict": int32(TxFailureDbConflict),
+	"TxFailureContractRejected": int32(TxFailureContractRejected),
+}
+func (TxFailureKind) XdrEnumNames() map[int32]string {
+	return _XdrNames_TxFailureKind
+}
+func (v TxFailureKind) String() string {
+	if s, ok := _XdrNames_TxFailureKind[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("TxFailureKind#%d", v)
+}
+func (v *TxFailureKind) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_TxFailureKind[stok]; ok {
+			*v = TxFailureKind(val)
+			return nil
+		} else if stok == "TxFailureKind" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid TxFailureKind.", stok))
+	}
+}
+func (v TxFailureKind) GetU32() uint32 { return uint32(v) }
+func (v *TxFailureKind) SetU32(n uint32) { *v = TxFailureKind(n) }
+func (v *TxFailureKind) XdrPointer() interface{} { return v }
+func (TxFailureKind) XdrTypeName() string { return "TxFailureKind" }
+func (v TxFailureKind) XdrValue() interface{} { return v }
+func (v *TxFailureKind) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_TxFailureKind = *TxFailureKind
+func XDR_TxFailureKind(v *TxFailureKind) *TxFailureKind { return v }
+var _XdrTags_TxFailureCause = map[int32]bool{
+	XdrToI32(TxFailureDbConflict): true,
+	XdrToI32(TxFailureContractRejected): true,
+}
+func (_ TxFailureCause) XdrValidTags() map[int32]bool {
+	return _XdrTags_TxFailureCause
+}
+func (u *TxFailureCause) Conflict() *DbConflictDiagnostic {
+	switch u.Kind {
+	case TxFailureDbConflict:
+		if v, ok := u._u.(*DbConflictDiagnostic); ok {
+			return v
+		} else {
+			var zero DbConflictDiagnostic
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("TxFailureCause.Conflict accessed when Kind == %v", u.Kind)
+		return nil
+	}
+}
+func (u *TxFailureCause) Contract() *ContractRejectDiagnostic {
+	switch u.Kind {
+	case TxFailureContractRejected:
+		if v, ok := u._u.(*ContractRejectDiagnostic); ok {
+			return v
+		} else {
+			var zero ContractRejectDiagnostic
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("TxFailureCause.Contract accessed when Kind == %v", u.Kind)
+		return nil
+	}
+}
+func (u TxFailureCause) XdrValid() bool {
+	switch u.Kind {
+	case TxFailureDbConflict,TxFailureContractRejected:
+		return true
+	}
+	return false
+}
+func (u *TxFailureCause) XdrUnionTag() XdrNum32 {
+	return XDR_TxFailureKind(&u.Kind)
+}
+func (u *TxFailureCause) XdrUnionTagName() string {
+	return "Kind"
+}
+func (u *TxFailureCause) XdrUnionBody() XdrType {
+	switch u.Kind {
+	case TxFailureDbConflict:
+		return XDR_DbConflictDiagnostic(u.Conflict())
+	case TxFailureContractRejected:
+		return XDR_ContractRejectDiagnostic(u.Contract())
+	}
+	return nil
+}
+func (u *TxFailureCause) XdrUnionBodyName() string {
+	switch u.Kind {
+	case TxFailureDbConflict:
+		return "Conflict"
+	case TxFailureContractRejected:
+		return "Contract"
+	}
+	return ""
+}
+type XdrType_TxFailureCause = *TxFailureCause
+func (v *TxFailureCause) XdrPointer() interface{} { return v }
+func (TxFailureCause) XdrTypeName() string { return "TxFailureCause" }
+func (v TxFailureCause) XdrValue() interface{} { return v }
+func (v *TxFailureCause) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *TxFailureCause) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_TxFailureKind(&u.Kind).XdrMarshal(x, x.Sprintf("%skind", name))
+	switch u.Kind {
+	case TxFailureDbConflict:
+		x.Marshal(x.Sprintf("%sconflict", name), XDR_DbConflictDiagnostic(u.Conflict()))
+		return
+	case TxFailureContractRejected:
+		x.Marshal(x.Sprintf("%scontract", name), XDR_ContractRejectDiagnostic(u.Contract()))
+		return
+	}
+	XdrPanic("invalid Kind (%v) in TxFailureCause", u.Kind)
+}
+func XDR_TxFailureCause(v *TxFailureCause) *TxFailureCause { return v}
 type XdrType_TxFailureDiagnostic = *TxFailureDiagnostic
 func (v *TxFailureDiagnostic) XdrPointer() interface{} { return v }
 func (TxFailureDiagnostic) XdrTypeName() string { return "TxFailureDiagnostic" }
@@ -9126,7 +9406,7 @@ func (v *TxFailureDiagnostic) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sattempt_height", name), XDR_BlockHeight(&v.Attempt_height))
-	x.Marshal(x.Sprintf("%sconflict", name), XDR_DbConflictDiagnostic(&v.Conflict))
+	x.Marshal(x.Sprintf("%scause", name), XDR_TxFailureCause(&v.Cause))
 }
 func XDR_TxFailureDiagnostic(v *TxFailureDiagnostic) *TxFailureDiagnostic { return v }
 type _XdrVec_unbounded_AddressAndKey []AddressAndKey
