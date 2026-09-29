@@ -3078,6 +3078,7 @@ const (
 
 type SchedulerTransactionOutcome struct {
 	Status SchedulerTransactionStatus
+	// Identifies the enum represented by error_code. None always has code 0.
 	Error_source SchedulerTransactionErrorSource
 	Error_code int32
 }
