@@ -4363,9 +4363,9 @@ type BlockHeight = int64
 // #[rust(newtype)]
 type ValidatorID = [32]byte
 
-type ValidatorPublicKey = Ed25519PublicKey
+type ValidatorPublicKey = PublicKey
 
-type ValidatorSecretKey = Ed25519SecretKey
+type ValidatorSecretKey = SecretKey
 
 type ValidatorPublicInfo struct {
 	Public_key ValidatorPublicKey
@@ -33652,21 +33652,21 @@ func XDR_ValidatorID(v *ValidatorID) XdrType_ValidatorID {
 func (XdrType_ValidatorID) XdrTypeName() string { return "ValidatorID" }
 func (v XdrType_ValidatorID) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_ValidatorPublicKey struct {
-	XdrType_Ed25519PublicKey
+	XdrType_PublicKey
 }
 func XDR_ValidatorPublicKey(v *ValidatorPublicKey) XdrType_ValidatorPublicKey {
-	return XdrType_ValidatorPublicKey{XDR_Ed25519PublicKey(v)}
+	return XdrType_ValidatorPublicKey{XDR_PublicKey(v)}
 }
 func (XdrType_ValidatorPublicKey) XdrTypeName() string { return "ValidatorPublicKey" }
-func (v XdrType_ValidatorPublicKey) XdrUnwrap() XdrType { return v.XdrType_Ed25519PublicKey }
+func (v XdrType_ValidatorPublicKey) XdrUnwrap() XdrType { return v.XdrType_PublicKey }
 type XdrType_ValidatorSecretKey struct {
-	XdrType_Ed25519SecretKey
+	XdrType_SecretKey
 }
 func XDR_ValidatorSecretKey(v *ValidatorSecretKey) XdrType_ValidatorSecretKey {
-	return XdrType_ValidatorSecretKey{XDR_Ed25519SecretKey(v)}
+	return XdrType_ValidatorSecretKey{XDR_SecretKey(v)}
 }
 func (XdrType_ValidatorSecretKey) XdrTypeName() string { return "ValidatorSecretKey" }
-func (v XdrType_ValidatorSecretKey) XdrUnwrap() XdrType { return v.XdrType_Ed25519SecretKey }
+func (v XdrType_ValidatorSecretKey) XdrUnwrap() XdrType { return v.XdrType_SecretKey }
 type XdrType_ValidatorPublicInfo = *ValidatorPublicInfo
 func (v *ValidatorPublicInfo) XdrPointer() interface{} { return v }
 func (ValidatorPublicInfo) XdrTypeName() string { return "ValidatorPublicInfo" }
