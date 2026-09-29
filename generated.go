@@ -3051,6 +3051,39 @@ type GenesisCeremonyCommit struct {
 	Proposal_txs ProposalTxs
 }
 
+type SchedulerTransactionStatus int32
+const (
+	SchedulerTransactionNotFound SchedulerTransactionStatus = 0
+	SchedulerTransactionPending SchedulerTransactionStatus = 1
+	SchedulerTransactionSucceeded SchedulerTransactionStatus = 2
+	SchedulerTransactionRetry SchedulerTransactionStatus = 3
+	SchedulerTransactionDropped SchedulerTransactionStatus = 4
+)
+
+type SchedulerTransactionErrorSource int32
+const (
+	SchedulerTransactionErrorNone SchedulerTransactionErrorSource = 0
+	SchedulerTransactionErrorAuth SchedulerTransactionErrorSource = 1
+	SchedulerTransactionErrorScheduler SchedulerTransactionErrorSource = 2
+	SchedulerTransactionErrorExecutor SchedulerTransactionErrorSource = 3
+)
+
+type SchedulerErrorCode int32
+const (
+	SchedulerErrorCapacity SchedulerErrorCode = 1
+	SchedulerErrorHogAgeUnavailable SchedulerErrorCode = 2
+	SchedulerErrorExpired SchedulerErrorCode = 3
+	SchedulerErrorInsufficientHogs SchedulerErrorCode = 4
+)
+
+type SchedulerTransactionOutcome struct {
+	Status SchedulerTransactionStatus
+	Error_source SchedulerTransactionErrorSource
+	Error_code int32
+}
+
+type SchedulerTransactionOutcomeBatch = []SchedulerTransactionOutcome
+
 type GenesisCeremonyResult struct {
 	// The union discriminant Outcome selects among the following arms:
 	//   GenesisCeremonyCommitted:
@@ -3073,6 +3106,7 @@ type SchedulerCoord1 interface {
 	Schedcoord_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
 	Schedulercoord_commit_genesis_ceremony(context.Context, GenesisCeremonyRequest) (GenesisCeremonyResult, error)
 	Schedcoord_lookup_transactions(context.Context, TransactionHashBatch) (OptSignedTransactionBatch, error)
+	Schedcoord_lookup_transaction_outcomes(context.Context, TransactionHashBatch) (SchedulerTransactionOutcomeBatch, error)
 }
 
 // ShardCard uniquely describes a database shard instance and its initial
@@ -24684,6 +24718,230 @@ func (v *GenesisCeremonyCommit) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sproposal_txs", name), XDR_ProposalTxs(&v.Proposal_txs))
 }
 func XDR_GenesisCeremonyCommit(v *GenesisCeremonyCommit) *GenesisCeremonyCommit { return v }
+var _XdrNames_SchedulerTransactionStatus = map[int32]string{
+	int32(SchedulerTransactionNotFound): "SchedulerTransactionNotFound",
+	int32(SchedulerTransactionPending): "SchedulerTransactionPending",
+	int32(SchedulerTransactionSucceeded): "SchedulerTransactionSucceeded",
+	int32(SchedulerTransactionRetry): "SchedulerTransactionRetry",
+	int32(SchedulerTransactionDropped): "SchedulerTransactionDropped",
+}
+var _XdrValues_SchedulerTransactionStatus = map[string]int32{
+	"SchedulerTransactionNotFound": int32(SchedulerTransactionNotFound),
+	"SchedulerTransactionPending": int32(SchedulerTransactionPending),
+	"SchedulerTransactionSucceeded": int32(SchedulerTransactionSucceeded),
+	"SchedulerTransactionRetry": int32(SchedulerTransactionRetry),
+	"SchedulerTransactionDropped": int32(SchedulerTransactionDropped),
+}
+func (SchedulerTransactionStatus) XdrEnumNames() map[int32]string {
+	return _XdrNames_SchedulerTransactionStatus
+}
+func (v SchedulerTransactionStatus) String() string {
+	if s, ok := _XdrNames_SchedulerTransactionStatus[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SchedulerTransactionStatus#%d", v)
+}
+func (v *SchedulerTransactionStatus) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SchedulerTransactionStatus[stok]; ok {
+			*v = SchedulerTransactionStatus(val)
+			return nil
+		} else if stok == "SchedulerTransactionStatus" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SchedulerTransactionStatus.", stok))
+	}
+}
+func (v SchedulerTransactionStatus) GetU32() uint32 { return uint32(v) }
+func (v *SchedulerTransactionStatus) SetU32(n uint32) { *v = SchedulerTransactionStatus(n) }
+func (v *SchedulerTransactionStatus) XdrPointer() interface{} { return v }
+func (SchedulerTransactionStatus) XdrTypeName() string { return "SchedulerTransactionStatus" }
+func (v SchedulerTransactionStatus) XdrValue() interface{} { return v }
+func (v *SchedulerTransactionStatus) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedulerTransactionStatus = *SchedulerTransactionStatus
+func XDR_SchedulerTransactionStatus(v *SchedulerTransactionStatus) *SchedulerTransactionStatus { return v }
+var _XdrNames_SchedulerTransactionErrorSource = map[int32]string{
+	int32(SchedulerTransactionErrorNone): "SchedulerTransactionErrorNone",
+	int32(SchedulerTransactionErrorAuth): "SchedulerTransactionErrorAuth",
+	int32(SchedulerTransactionErrorScheduler): "SchedulerTransactionErrorScheduler",
+	int32(SchedulerTransactionErrorExecutor): "SchedulerTransactionErrorExecutor",
+}
+var _XdrValues_SchedulerTransactionErrorSource = map[string]int32{
+	"SchedulerTransactionErrorNone": int32(SchedulerTransactionErrorNone),
+	"SchedulerTransactionErrorAuth": int32(SchedulerTransactionErrorAuth),
+	"SchedulerTransactionErrorScheduler": int32(SchedulerTransactionErrorScheduler),
+	"SchedulerTransactionErrorExecutor": int32(SchedulerTransactionErrorExecutor),
+}
+func (SchedulerTransactionErrorSource) XdrEnumNames() map[int32]string {
+	return _XdrNames_SchedulerTransactionErrorSource
+}
+func (v SchedulerTransactionErrorSource) String() string {
+	if s, ok := _XdrNames_SchedulerTransactionErrorSource[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SchedulerTransactionErrorSource#%d", v)
+}
+func (v *SchedulerTransactionErrorSource) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SchedulerTransactionErrorSource[stok]; ok {
+			*v = SchedulerTransactionErrorSource(val)
+			return nil
+		} else if stok == "SchedulerTransactionErrorSource" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SchedulerTransactionErrorSource.", stok))
+	}
+}
+func (v SchedulerTransactionErrorSource) GetU32() uint32 { return uint32(v) }
+func (v *SchedulerTransactionErrorSource) SetU32(n uint32) { *v = SchedulerTransactionErrorSource(n) }
+func (v *SchedulerTransactionErrorSource) XdrPointer() interface{} { return v }
+func (SchedulerTransactionErrorSource) XdrTypeName() string { return "SchedulerTransactionErrorSource" }
+func (v SchedulerTransactionErrorSource) XdrValue() interface{} { return v }
+func (v *SchedulerTransactionErrorSource) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedulerTransactionErrorSource = *SchedulerTransactionErrorSource
+func XDR_SchedulerTransactionErrorSource(v *SchedulerTransactionErrorSource) *SchedulerTransactionErrorSource { return v }
+var _XdrNames_SchedulerErrorCode = map[int32]string{
+	int32(SchedulerErrorCapacity): "SchedulerErrorCapacity",
+	int32(SchedulerErrorHogAgeUnavailable): "SchedulerErrorHogAgeUnavailable",
+	int32(SchedulerErrorExpired): "SchedulerErrorExpired",
+	int32(SchedulerErrorInsufficientHogs): "SchedulerErrorInsufficientHogs",
+}
+var _XdrValues_SchedulerErrorCode = map[string]int32{
+	"SchedulerErrorCapacity": int32(SchedulerErrorCapacity),
+	"SchedulerErrorHogAgeUnavailable": int32(SchedulerErrorHogAgeUnavailable),
+	"SchedulerErrorExpired": int32(SchedulerErrorExpired),
+	"SchedulerErrorInsufficientHogs": int32(SchedulerErrorInsufficientHogs),
+}
+func (SchedulerErrorCode) XdrEnumNames() map[int32]string {
+	return _XdrNames_SchedulerErrorCode
+}
+func (v SchedulerErrorCode) String() string {
+	if s, ok := _XdrNames_SchedulerErrorCode[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("SchedulerErrorCode#%d", v)
+}
+func (v *SchedulerErrorCode) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_SchedulerErrorCode[stok]; ok {
+			*v = SchedulerErrorCode(val)
+			return nil
+		} else if stok == "SchedulerErrorCode" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid SchedulerErrorCode.", stok))
+	}
+}
+func (v SchedulerErrorCode) GetU32() uint32 { return uint32(v) }
+func (v *SchedulerErrorCode) SetU32(n uint32) { *v = SchedulerErrorCode(n) }
+func (v *SchedulerErrorCode) XdrPointer() interface{} { return v }
+func (SchedulerErrorCode) XdrTypeName() string { return "SchedulerErrorCode" }
+func (v SchedulerErrorCode) XdrValue() interface{} { return v }
+func (v *SchedulerErrorCode) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedulerErrorCode = *SchedulerErrorCode
+func XDR_SchedulerErrorCode(v *SchedulerErrorCode) *SchedulerErrorCode { return v }
+func (v *SchedulerErrorCode) XdrInitialize() {
+	switch SchedulerErrorCode(0) {
+	case SchedulerErrorCapacity, SchedulerErrorHogAgeUnavailable, SchedulerErrorExpired, SchedulerErrorInsufficientHogs:
+	default:
+		if *v == SchedulerErrorCode(0) { *v = SchedulerErrorCapacity }
+	}
+}
+type XdrType_SchedulerTransactionOutcome = *SchedulerTransactionOutcome
+func (v *SchedulerTransactionOutcome) XdrPointer() interface{} { return v }
+func (SchedulerTransactionOutcome) XdrTypeName() string { return "SchedulerTransactionOutcome" }
+func (v SchedulerTransactionOutcome) XdrValue() interface{} { return v }
+func (v *SchedulerTransactionOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *SchedulerTransactionOutcome) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sstatus", name), XDR_SchedulerTransactionStatus(&v.Status))
+	x.Marshal(x.Sprintf("%serror_source", name), XDR_SchedulerTransactionErrorSource(&v.Error_source))
+	x.Marshal(x.Sprintf("%serror_code", name), XDR_int32(&v.Error_code))
+}
+func XDR_SchedulerTransactionOutcome(v *SchedulerTransactionOutcome) *SchedulerTransactionOutcome { return v }
+type _XdrVec_unbounded_SchedulerTransactionOutcome []SchedulerTransactionOutcome
+func (_XdrVec_unbounded_SchedulerTransactionOutcome) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SchedulerTransactionOutcome) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SchedulerTransactionOutcome length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SchedulerTransactionOutcome length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SchedulerTransactionOutcome) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SchedulerTransactionOutcome) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SchedulerTransactionOutcome, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SchedulerTransactionOutcome) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SchedulerTransactionOutcome(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SchedulerTransactionOutcome) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SchedulerTransactionOutcome) XdrTypeName() string { return "SchedulerTransactionOutcome<>" }
+func (v *_XdrVec_unbounded_SchedulerTransactionOutcome) XdrPointer() interface{} { return (*[]SchedulerTransactionOutcome)(v) }
+func (v _XdrVec_unbounded_SchedulerTransactionOutcome) XdrValue() interface{} { return ([]SchedulerTransactionOutcome)(v) }
+func (v *_XdrVec_unbounded_SchedulerTransactionOutcome) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_SchedulerTransactionOutcomeBatch struct {
+	*_XdrVec_unbounded_SchedulerTransactionOutcome
+}
+func XDR_SchedulerTransactionOutcomeBatch(v *SchedulerTransactionOutcomeBatch) XdrType_SchedulerTransactionOutcomeBatch {
+	return XdrType_SchedulerTransactionOutcomeBatch{(*_XdrVec_unbounded_SchedulerTransactionOutcome)(v)}
+}
+func (XdrType_SchedulerTransactionOutcomeBatch) XdrTypeName() string { return "SchedulerTransactionOutcomeBatch" }
+func (v XdrType_SchedulerTransactionOutcomeBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SchedulerTransactionOutcome }
 func (_ GenesisCeremonyResult) XdrValidTags() map[int32]bool {
 	return nil
 }
@@ -25338,6 +25596,53 @@ func (p *xdrSrvProc_Schedcoord_lookup_transactions) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedcoord_lookup_transactions{} // XXX
 
+type xdrProc_Schedcoord_lookup_transaction_outcomes struct {
+	Arg *TransactionHashBatch
+	Res *SchedulerTransactionOutcomeBatch
+}
+func (xdrProc_Schedcoord_lookup_transaction_outcomes) Prog() uint32 { return 1986466065 }
+func (xdrProc_Schedcoord_lookup_transaction_outcomes) Vers() uint32 { return 1 }
+func (xdrProc_Schedcoord_lookup_transaction_outcomes) Proc() uint32 { return 101 }
+func (xdrProc_Schedcoord_lookup_transaction_outcomes) ProgName() string { return "SchedulerCoord" }
+func (xdrProc_Schedcoord_lookup_transaction_outcomes) VersName() string { return "SchedulerCoord1" }
+func (xdrProc_Schedcoord_lookup_transaction_outcomes) ProcName() string { return "schedcoord_lookup_transaction_outcomes" }
+func (p *xdrProc_Schedcoord_lookup_transaction_outcomes) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(TransactionHashBatch)
+	}
+	return XDR_TransactionHashBatch(p.Arg)
+}
+func (p *xdrProc_Schedcoord_lookup_transaction_outcomes) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(SchedulerTransactionOutcomeBatch)
+	}
+	return XDR_SchedulerTransactionOutcomeBatch(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedcoord_lookup_transaction_outcomes{} // XXX
+
+type xdrSrvProc_Schedcoord_lookup_transaction_outcomes struct {
+	xdrProc_Schedcoord_lookup_transaction_outcomes
+	Srv SchedulerCoord1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedcoord_lookup_transaction_outcomes) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedulerCoord1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedcoord_lookup_transaction_outcomes) Do() {
+	r, err := p.Srv.Schedcoord_lookup_transaction_outcomes(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedcoord_lookup_transaction_outcomes{} // XXX
+
 func init() {
 	XdrCatalog[1986466065<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -25363,6 +25668,8 @@ func init() {
 			return &xdrProc_Schedulercoord_commit_genesis_ceremony{}
 		case 100:
 			return &xdrProc_Schedcoord_lookup_transactions{}
+		case 101:
+			return &xdrProc_Schedcoord_lookup_transaction_outcomes{}
 		}
 		return nil
 	}
@@ -25399,6 +25706,8 @@ func (s SchedulerCoord1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedulercoord_commit_genesis_ceremony{ Srv: s.Srv }
 	case 100:  // schedcoord_lookup_transactions
 		return &xdrSrvProc_Schedcoord_lookup_transactions{ Srv: s.Srv }
+	case 101:  // schedcoord_lookup_transaction_outcomes
+		return &xdrSrvProc_Schedcoord_lookup_transaction_outcomes{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -25502,6 +25811,14 @@ func (c SchedulerCoord1_Client) Schedulercoord_commit_genesis_ceremony(ctx conte
 }
 func (c SchedulerCoord1_Client) Schedcoord_lookup_transactions(ctx context.Context, a1 TransactionHashBatch) (r OptSignedTransactionBatch, _ error) {
 	var proc xdrProc_Schedcoord_lookup_transactions
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c SchedulerCoord1_Client) Schedcoord_lookup_transaction_outcomes(ctx context.Context, a1 TransactionHashBatch) (r SchedulerTransactionOutcomeBatch, _ error) {
+	var proc xdrProc_Schedcoord_lookup_transaction_outcomes
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
