@@ -918,6 +918,11 @@ const (
 	/// charged to that contract's balance, so a deployment reports this at
 	/// the new contract's address when it holds no HOG.
 	InsufficientFunds DbConflictCode = 8
+	/// An auth-data change would register a public key in a slot while
+	/// another slot of the same address already holds that key, whether
+	/// committed or set by the same change. The table would count one
+	/// key's weight twice, so the change is refused.
+	DuplicateSigner DbConflictCode = 9
 )
 
 /// How much conflict diagnostic detail try_push_new_subtransaction reports
@@ -9777,6 +9782,7 @@ var _XdrNames_DbConflictCode = map[int32]string{
 	int32(QueueConsumer): "QueueConsumer",
 	int32(CapacityExceeded): "CapacityExceeded",
 	int32(InsufficientFunds): "InsufficientFunds",
+	int32(DuplicateSigner): "DuplicateSigner",
 }
 var _XdrValues_DbConflictCode = map[string]int32{
 	"ExclusiveLockDenied": int32(ExclusiveLockDenied),
@@ -9788,6 +9794,7 @@ var _XdrValues_DbConflictCode = map[string]int32{
 	"QueueConsumer": int32(QueueConsumer),
 	"CapacityExceeded": int32(CapacityExceeded),
 	"InsufficientFunds": int32(InsufficientFunds),
+	"DuplicateSigner": int32(DuplicateSigner),
 }
 func (DbConflictCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_DbConflictCode
