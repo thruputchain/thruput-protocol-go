@@ -3337,16 +3337,36 @@ type Delta struct {
 	Hog_delta Int128_xdr
 }
 
-type HogsTransferred struct {
+// One slice of the native-token balance deltas a committed block finalized.
+//
+// hog_db publishes a block's deltas as a run of chunk_count chunks, all for
+// the same block, after the block is committed. hog_db chooses the chunk
+// size; the wire bounds a chunk only by the link's record cap. The chunks of
+// a run may be sent concurrently and over several connections, so they can
+// arrive in any order; hog_db starts the next block's run only after every
+// chunk of this one is acknowledged, so the mempool never has more than one
+// block's run in flight. An address appears in at most one chunk of a block's
+// run (a shard holds one balance per address) and every delta is nonzero. The
+// mempool treats the block's transfers as complete only once every chunk of
+// the run has arrived; nothing that gates on a block's transfers may open
+// before that.
+type HogsTransferredChunk struct {
 	// The height of the block in which these transfers occurred. The scheduler
 	// uses this height to update average hog ages.
 	Block BlockHeight
+	// This chunk's position in the block's run, from 0, and the run's length.
+	// Every chunk of a run carries the same chunk_count, and each index in
+	// [0, chunk_count) is sent exactly once. A block that finalized no nonzero
+	// delta is a run of one empty chunk, so every committed block still sends
+	// a run.
+	Chunk_index uint32
+	Chunk_count uint32
 	Deltas []Delta
 }
 
 type SchedDb1 interface {
 	Scheddb_intro_shard(context.Context, ShardCard) error
-	Scheddb_hogs_transferred(context.Context, HogsTransferred) error
+	Scheddb_hogs_transferred_chunk(context.Context, HogsTransferredChunk) error
 }
 
 // Uniquely describes an event server instance.
@@ -27059,19 +27079,21 @@ func (_XdrVec_unbounded_Delta) XdrTypeName() string { return "Delta<>" }
 func (v *_XdrVec_unbounded_Delta) XdrPointer() interface{} { return (*[]Delta)(v) }
 func (v _XdrVec_unbounded_Delta) XdrValue() interface{} { return ([]Delta)(v) }
 func (v *_XdrVec_unbounded_Delta) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_HogsTransferred = *HogsTransferred
-func (v *HogsTransferred) XdrPointer() interface{} { return v }
-func (HogsTransferred) XdrTypeName() string { return "HogsTransferred" }
-func (v HogsTransferred) XdrValue() interface{} { return v }
-func (v *HogsTransferred) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *HogsTransferred) XdrRecurse(x XDR, name string) {
+type XdrType_HogsTransferredChunk = *HogsTransferredChunk
+func (v *HogsTransferredChunk) XdrPointer() interface{} { return v }
+func (HogsTransferredChunk) XdrTypeName() string { return "HogsTransferredChunk" }
+func (v HogsTransferredChunk) XdrValue() interface{} { return v }
+func (v *HogsTransferredChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *HogsTransferredChunk) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sblock", name), XDR_BlockHeight(&v.Block))
+	x.Marshal(x.Sprintf("%schunk_index", name), XDR_uint32(&v.Chunk_index))
+	x.Marshal(x.Sprintf("%schunk_count", name), XDR_uint32(&v.Chunk_count))
 	x.Marshal(x.Sprintf("%sdeltas", name), (*_XdrVec_unbounded_Delta)(&v.Deltas))
 }
-func XDR_HogsTransferred(v *HogsTransferred) *HogsTransferred { return v }
+func XDR_HogsTransferredChunk(v *HogsTransferredChunk) *HogsTransferredChunk { return v }
 
 type xdrProc_Scheddb_intro_shard struct {
 	Arg *ShardCard
@@ -27118,36 +27140,36 @@ func (p *xdrSrvProc_Scheddb_intro_shard) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Scheddb_intro_shard{} // XXX
 
-type xdrProc_Scheddb_hogs_transferred struct {
-	Arg *HogsTransferred
+type xdrProc_Scheddb_hogs_transferred_chunk struct {
+	Arg *HogsTransferredChunk
 	Res *XdrVoid
 }
-func (xdrProc_Scheddb_hogs_transferred) Prog() uint32 { return 2129107352 }
-func (xdrProc_Scheddb_hogs_transferred) Vers() uint32 { return 1 }
-func (xdrProc_Scheddb_hogs_transferred) Proc() uint32 { return 2 }
-func (xdrProc_Scheddb_hogs_transferred) ProgName() string { return "SchedDb" }
-func (xdrProc_Scheddb_hogs_transferred) VersName() string { return "SchedDb1" }
-func (xdrProc_Scheddb_hogs_transferred) ProcName() string { return "scheddb_hogs_transferred" }
-func (p *xdrProc_Scheddb_hogs_transferred) GetArg() XdrType {
+func (xdrProc_Scheddb_hogs_transferred_chunk) Prog() uint32 { return 2129107352 }
+func (xdrProc_Scheddb_hogs_transferred_chunk) Vers() uint32 { return 1 }
+func (xdrProc_Scheddb_hogs_transferred_chunk) Proc() uint32 { return 4 }
+func (xdrProc_Scheddb_hogs_transferred_chunk) ProgName() string { return "SchedDb" }
+func (xdrProc_Scheddb_hogs_transferred_chunk) VersName() string { return "SchedDb1" }
+func (xdrProc_Scheddb_hogs_transferred_chunk) ProcName() string { return "scheddb_hogs_transferred_chunk" }
+func (p *xdrProc_Scheddb_hogs_transferred_chunk) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(HogsTransferred)
+		p.Arg = new(HogsTransferredChunk)
 	}
-	return XDR_HogsTransferred(p.Arg)
+	return XDR_HogsTransferredChunk(p.Arg)
 }
-func (p *xdrProc_Scheddb_hogs_transferred) GetRes() XdrType {
+func (p *xdrProc_Scheddb_hogs_transferred_chunk) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Scheddb_hogs_transferred{} // XXX
+var _ XdrProc = &xdrProc_Scheddb_hogs_transferred_chunk{} // XXX
 
-type xdrSrvProc_Scheddb_hogs_transferred struct {
-	xdrProc_Scheddb_hogs_transferred
+type xdrSrvProc_Scheddb_hogs_transferred_chunk struct {
+	xdrProc_Scheddb_hogs_transferred_chunk
 	Srv SchedDb1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Scheddb_hogs_transferred) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Scheddb_hogs_transferred_chunk) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) SchedDb1
 	}); ok {
@@ -27155,21 +27177,21 @@ func (p *xdrSrvProc_Scheddb_hogs_transferred) SetContext(ctx context.Context) {
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Scheddb_hogs_transferred) Do() {
-	err := p.Srv.Scheddb_hogs_transferred(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Scheddb_hogs_transferred_chunk) Do() {
+	err := p.Srv.Scheddb_hogs_transferred_chunk(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Scheddb_hogs_transferred{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Scheddb_hogs_transferred_chunk{} // XXX
 
 func init() {
 	XdrCatalog[2129107352<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 1:
 			return &xdrProc_Scheddb_intro_shard{}
-		case 2:
-			return &xdrProc_Scheddb_hogs_transferred{}
+		case 4:
+			return &xdrProc_Scheddb_hogs_transferred_chunk{}
 		}
 		return nil
 	}
@@ -27186,8 +27208,8 @@ func (s SchedDb1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 1:  // scheddb_intro_shard
 		return &xdrSrvProc_Scheddb_intro_shard{ Srv: s.Srv }
-	case 2:  // scheddb_hogs_transferred
-		return &xdrSrvProc_Scheddb_hogs_transferred{ Srv: s.Srv }
+	case 4:  // scheddb_hogs_transferred_chunk
+		return &xdrSrvProc_Scheddb_hogs_transferred_chunk{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -27211,8 +27233,8 @@ func (c SchedDb1_Client) Scheddb_intro_shard(ctx context.Context, a1 ShardCard) 
 	}
 	return nil
 }
-func (c SchedDb1_Client) Scheddb_hogs_transferred(ctx context.Context, a1 HogsTransferred) error {
-	var proc xdrProc_Scheddb_hogs_transferred
+func (c SchedDb1_Client) Scheddb_hogs_transferred_chunk(ctx context.Context, a1 HogsTransferredChunk) error {
+	var proc xdrProc_Scheddb_hogs_transferred_chunk
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
