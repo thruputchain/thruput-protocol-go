@@ -3508,6 +3508,7 @@ type SchedGateway1 interface {
 	Schedgateway_get_tip(context.Context, ) (ExpectedDBTip, error)
 	Schedgateway_lookup_tx(context.Context, TransactionHashBatch) (OptSignedTransactionBatch, error)
 	Schedgateway_pending_tx_count(context.Context, ) (PendingTxCount, error)
+	Schedgateway_lookup_transaction_outcomes(context.Context, TransactionHashBatch) (SchedulerTransactionOutcomeBatch, error)
 }
 
 type RejectedTransaction struct {
@@ -28175,6 +28176,53 @@ func (p *xdrSrvProc_Schedgateway_pending_tx_count) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Schedgateway_pending_tx_count{} // XXX
 
+type xdrProc_Schedgateway_lookup_transaction_outcomes struct {
+	Arg *TransactionHashBatch
+	Res *SchedulerTransactionOutcomeBatch
+}
+func (xdrProc_Schedgateway_lookup_transaction_outcomes) Prog() uint32 { return 2129111722 }
+func (xdrProc_Schedgateway_lookup_transaction_outcomes) Vers() uint32 { return 1 }
+func (xdrProc_Schedgateway_lookup_transaction_outcomes) Proc() uint32 { return 5 }
+func (xdrProc_Schedgateway_lookup_transaction_outcomes) ProgName() string { return "SchedGateway" }
+func (xdrProc_Schedgateway_lookup_transaction_outcomes) VersName() string { return "SchedGateway1" }
+func (xdrProc_Schedgateway_lookup_transaction_outcomes) ProcName() string { return "schedgateway_lookup_transaction_outcomes" }
+func (p *xdrProc_Schedgateway_lookup_transaction_outcomes) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(TransactionHashBatch)
+	}
+	return XDR_TransactionHashBatch(p.Arg)
+}
+func (p *xdrProc_Schedgateway_lookup_transaction_outcomes) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(SchedulerTransactionOutcomeBatch)
+	}
+	return XDR_SchedulerTransactionOutcomeBatch(p.Res)
+}
+var _ XdrProc = &xdrProc_Schedgateway_lookup_transaction_outcomes{} // XXX
+
+type xdrSrvProc_Schedgateway_lookup_transaction_outcomes struct {
+	xdrProc_Schedgateway_lookup_transaction_outcomes
+	Srv SchedGateway1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Schedgateway_lookup_transaction_outcomes) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) SchedGateway1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Schedgateway_lookup_transaction_outcomes) Do() {
+	r, err := p.Srv.Schedgateway_lookup_transaction_outcomes(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Schedgateway_lookup_transaction_outcomes{} // XXX
+
 func init() {
 	XdrCatalog[2129111722<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -28188,6 +28236,8 @@ func init() {
 			return &xdrProc_Schedgateway_lookup_tx{}
 		case 4:
 			return &xdrProc_Schedgateway_pending_tx_count{}
+		case 5:
+			return &xdrProc_Schedgateway_lookup_transaction_outcomes{}
 		}
 		return nil
 	}
@@ -28212,6 +28262,8 @@ func (s SchedGateway1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Schedgateway_lookup_tx{ Srv: s.Srv }
 	case 4:  // schedgateway_pending_tx_count
 		return &xdrSrvProc_Schedgateway_pending_tx_count{ Srv: s.Srv }
+	case 5:  // schedgateway_lookup_transaction_outcomes
+		return &xdrSrvProc_Schedgateway_lookup_transaction_outcomes{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -28260,6 +28312,14 @@ func (c SchedGateway1_Client) Schedgateway_lookup_tx(ctx context.Context, a1 Tra
 }
 func (c SchedGateway1_Client) Schedgateway_pending_tx_count(ctx context.Context, ) (r PendingTxCount, _ error) {
 	var proc xdrProc_Schedgateway_pending_tx_count
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c SchedGateway1_Client) Schedgateway_lookup_transaction_outcomes(ctx context.Context, a1 TransactionHashBatch) (r SchedulerTransactionOutcomeBatch, _ error) {
+	var proc xdrProc_Schedgateway_lookup_transaction_outcomes
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
