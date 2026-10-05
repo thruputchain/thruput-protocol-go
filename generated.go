@@ -211,8 +211,30 @@ type KeyChange struct {
 
 type KeyChangeBatch = []KeyChange
 
+// A committed block's auth-data changes reach the auth server as a run of
+// chunks, each a KeyChangeChunk, because the one-record form grew with the
+// number of accounts whose auth data a block changed (hogd#3146). hog_db
+// chooses the chunk size; the wire bounds a chunk only by the link's record
+// cap. The chunks of a run may be sent concurrently and over several
+// connections, so they can arrive in any order, and hog_db may have the runs
+// of several heights in flight at once, so the chunks of different heights
+// can interleave. The auth server treats a height's changes as complete only
+// once every chunk of its run has arrived, and applies heights in order.
+type KeyChangeChunk struct {
+	// The height of the block that made these changes.
+	Height BlockHeight
+	// This chunk's position in the height's run, from 0, and the run's length.
+	// Every chunk of a run carries the same chunk_count, and each index in
+	// [0, chunk_count) is sent exactly once. A block that changed no auth data
+	// is a run of one empty chunk, so every committed block still sends a run
+	// and the auth server's height advances with every block.
+	Chunk_index uint32
+	Chunk_count uint32
+	Changes []KeyChange
+}
+
 type AuthDB1 interface {
-	Authdb_forward_key_changes(context.Context, BlockHeight, KeyChangeBatch) error
+	Authdb_forward_key_changes_chunk(context.Context, KeyChangeChunk) error
 }
 
 type DBAuthError int32
@@ -5495,57 +5517,52 @@ func XDR_KeyChangeBatch(v *KeyChangeBatch) XdrType_KeyChangeBatch {
 }
 func (XdrType_KeyChangeBatch) XdrTypeName() string { return "KeyChangeBatch" }
 func (v XdrType_KeyChangeBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_KeyChange }
-
-type xdrProcArg_Authdb_forward_key_changes struct {
-	a1 *BlockHeight
-	a2 *KeyChangeBatch
-}
-func (v *xdrProcArg_Authdb_forward_key_changes) XdrPointer() interface{} { return v }
-func (xdrProcArg_Authdb_forward_key_changes) XdrTypeName() string { return "xdrProcArg_Authdb_forward_key_changes" }
-func (v xdrProcArg_Authdb_forward_key_changes) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Authdb_forward_key_changes) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Authdb_forward_key_changes) XdrRecurse(x XDR, name string) {
+type XdrType_KeyChangeChunk = *KeyChangeChunk
+func (v *KeyChangeChunk) XdrPointer() interface{} { return v }
+func (KeyChangeChunk) XdrTypeName() string { return "KeyChangeChunk" }
+func (v KeyChangeChunk) XdrValue() interface{} { return v }
+func (v *KeyChangeChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *KeyChangeChunk) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	if v.a1 == nil { v.a1 = new(BlockHeight) }
-	XDR_BlockHeight(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(KeyChangeBatch) }
-	XDR_KeyChangeBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
+	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
+	x.Marshal(x.Sprintf("%schunk_index", name), XDR_uint32(&v.Chunk_index))
+	x.Marshal(x.Sprintf("%schunk_count", name), XDR_uint32(&v.Chunk_count))
+	x.Marshal(x.Sprintf("%schanges", name), (*_XdrVec_unbounded_KeyChange)(&v.Changes))
 }
-func XDR_xdrProcArg_Authdb_forward_key_changes(v *xdrProcArg_Authdb_forward_key_changes) *xdrProcArg_Authdb_forward_key_changes { return v }
-var _ XdrType = &xdrProcArg_Authdb_forward_key_changes{} // XXX
+func XDR_KeyChangeChunk(v *KeyChangeChunk) *KeyChangeChunk { return v }
 
-type xdrProc_Authdb_forward_key_changes struct {
-	Arg *xdrProcArg_Authdb_forward_key_changes
+type xdrProc_Authdb_forward_key_changes_chunk struct {
+	Arg *KeyChangeChunk
 	Res *XdrVoid
 }
-func (xdrProc_Authdb_forward_key_changes) Prog() uint32 { return 2326297256 }
-func (xdrProc_Authdb_forward_key_changes) Vers() uint32 { return 1 }
-func (xdrProc_Authdb_forward_key_changes) Proc() uint32 { return 1 }
-func (xdrProc_Authdb_forward_key_changes) ProgName() string { return "AuthDB" }
-func (xdrProc_Authdb_forward_key_changes) VersName() string { return "AuthDB1" }
-func (xdrProc_Authdb_forward_key_changes) ProcName() string { return "authdb_forward_key_changes" }
-func (p *xdrProc_Authdb_forward_key_changes) GetArg() XdrType {
+func (xdrProc_Authdb_forward_key_changes_chunk) Prog() uint32 { return 2326297256 }
+func (xdrProc_Authdb_forward_key_changes_chunk) Vers() uint32 { return 1 }
+func (xdrProc_Authdb_forward_key_changes_chunk) Proc() uint32 { return 2 }
+func (xdrProc_Authdb_forward_key_changes_chunk) ProgName() string { return "AuthDB" }
+func (xdrProc_Authdb_forward_key_changes_chunk) VersName() string { return "AuthDB1" }
+func (xdrProc_Authdb_forward_key_changes_chunk) ProcName() string { return "authdb_forward_key_changes_chunk" }
+func (p *xdrProc_Authdb_forward_key_changes_chunk) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Authdb_forward_key_changes)
+		p.Arg = new(KeyChangeChunk)
 	}
-	return XDR_xdrProcArg_Authdb_forward_key_changes(p.Arg)
+	return XDR_KeyChangeChunk(p.Arg)
 }
-func (p *xdrProc_Authdb_forward_key_changes) GetRes() XdrType {
+func (p *xdrProc_Authdb_forward_key_changes_chunk) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Authdb_forward_key_changes{} // XXX
+var _ XdrProc = &xdrProc_Authdb_forward_key_changes_chunk{} // XXX
 
-type xdrSrvProc_Authdb_forward_key_changes struct {
-	xdrProc_Authdb_forward_key_changes
+type xdrSrvProc_Authdb_forward_key_changes_chunk struct {
+	xdrProc_Authdb_forward_key_changes_chunk
 	Srv AuthDB1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Authdb_forward_key_changes) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Authdb_forward_key_changes_chunk) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) AuthDB1
 	}); ok {
@@ -5553,19 +5570,19 @@ func (p *xdrSrvProc_Authdb_forward_key_changes) SetContext(ctx context.Context) 
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Authdb_forward_key_changes) Do() {
-	err := p.Srv.Authdb_forward_key_changes(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+func (p *xdrSrvProc_Authdb_forward_key_changes_chunk) Do() {
+	err := p.Srv.Authdb_forward_key_changes_chunk(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Authdb_forward_key_changes{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Authdb_forward_key_changes_chunk{} // XXX
 
 func init() {
 	XdrCatalog[2326297256<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
-		case 1:
-			return &xdrProc_Authdb_forward_key_changes{}
+		case 2:
+			return &xdrProc_Authdb_forward_key_changes_chunk{}
 		}
 		return nil
 	}
@@ -5580,8 +5597,8 @@ func (AuthDB1_Server) ProgName() string { return "AuthDB" }
 func (AuthDB1_Server) VersName() string { return "AuthDB1" }
 func (s AuthDB1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
-	case 1:  // authdb_forward_key_changes
-		return &xdrSrvProc_Authdb_forward_key_changes{ Srv: s.Srv }
+	case 2:  // authdb_forward_key_changes_chunk
+		return &xdrSrvProc_Authdb_forward_key_changes_chunk{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -5597,11 +5614,9 @@ func (c AuthDB1_Client) WithContext(ctx context.Context) AuthDB1 {
 	c.Ctx = ctx
 	return c
 }
-func (c AuthDB1_Client) Authdb_forward_key_changes(ctx context.Context, a1 BlockHeight, a2 KeyChangeBatch) error {
-	var proc xdrProc_Authdb_forward_key_changes
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
+func (c AuthDB1_Client) Authdb_forward_key_changes_chunk(ctx context.Context, a1 KeyChangeChunk) error {
+	var proc xdrProc_Authdb_forward_key_changes_chunk
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
