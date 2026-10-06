@@ -377,11 +377,15 @@ const (
 )
 
 type BristleconeSafeVote struct {
+	// The hash of the sender's quorum set (BristleconeQuorumSet) for this vote.
+	Qset_hash BristleconeQuorumSetHash
 	Statement BristleconeSafeStatement
 	Vote BristleconeVoteType
 }
 
 type BristleconeTimelyVote struct {
+	// The hash of the sender's quorum set (BristleconeQuorumSet) for this vote.
+	Qset_hash BristleconeQuorumSetHash
 	Statement BristleconeTimelyStatement
 	Vote BristleconeVoteType
 }
@@ -410,8 +414,6 @@ type BristleconeContent struct {
 type BristleconeNote struct {
 	// The sending party.
 	Party ValidatorID
-	// The hash of the sender's quorum set (BristleconeQuorumSet).
-	Qset_hash BristleconeQuorumSetHash
 	// The slot the content applies to.
 	Slot BristleconeSlot
 	Content BristleconeContent
@@ -6875,6 +6877,7 @@ func (v *BristleconeSafeVote) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%sqset_hash", name), XDR_BristleconeQuorumSetHash(&v.Qset_hash))
 	x.Marshal(x.Sprintf("%sstatement", name), XDR_BristleconeSafeStatement(&v.Statement))
 	x.Marshal(x.Sprintf("%svote", name), XDR_BristleconeVoteType(&v.Vote))
 }
@@ -6888,6 +6891,7 @@ func (v *BristleconeTimelyVote) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
+	x.Marshal(x.Sprintf("%sqset_hash", name), XDR_BristleconeQuorumSetHash(&v.Qset_hash))
 	x.Marshal(x.Sprintf("%sstatement", name), XDR_BristleconeTimelyStatement(&v.Statement))
 	x.Marshal(x.Sprintf("%svote", name), XDR_BristleconeVoteType(&v.Vote))
 }
@@ -7058,7 +7062,6 @@ func (v *BristleconeNote) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sparty", name), XDR_ValidatorID(&v.Party))
-	x.Marshal(x.Sprintf("%sqset_hash", name), XDR_BristleconeQuorumSetHash(&v.Qset_hash))
 	x.Marshal(x.Sprintf("%sslot", name), XDR_BristleconeSlot(&v.Slot))
 	x.Marshal(x.Sprintf("%scontent", name), XDR_BristleconeContent(&v.Content))
 }
