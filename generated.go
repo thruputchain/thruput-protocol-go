@@ -3340,6 +3340,14 @@ type SchedulerTransactionOutcome struct {
 	Error_source SchedulerTransactionErrorSource
 	// The actual error.
 	Error_code int32
+	// For [SchedulerTransactionSucceeded], the committed block height.
+	// For [SchedulerTransactionRetry] or [SchedulerTransactionDropped], the
+	// proposal height for an executor failure, or the current chain height for
+	// an admission/scheduler failure.
+	// For [SchedulerTransactionPending], the current chain height at lookup.
+	// Unspecified for [SchedulerTransactionNotFound].
+	// Zero is a valid height.
+	Height BlockHeight
 }
 
 type SchedulerTransactionOutcomeBatch = []SchedulerTransactionOutcome
@@ -26226,6 +26234,7 @@ func (v *SchedulerTransactionOutcome) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sstatus", name), XDR_SchedulerTransactionStatus(&v.Status))
 	x.Marshal(x.Sprintf("%serror_source", name), XDR_SchedulerTransactionErrorSource(&v.Error_source))
 	x.Marshal(x.Sprintf("%serror_code", name), XDR_int32(&v.Error_code))
+	x.Marshal(x.Sprintf("%sheight", name), XDR_BlockHeight(&v.Height))
 }
 func XDR_SchedulerTransactionOutcome(v *SchedulerTransactionOutcome) *SchedulerTransactionOutcome { return v }
 type _XdrVec_unbounded_SchedulerTransactionOutcome []SchedulerTransactionOutcome
