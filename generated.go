@@ -1111,6 +1111,32 @@ type DbGatewayResult struct {
 	_u interface{}
 }
 
+/// Network-supplied execution and storage rules read at one committed tip.
+/// `tip.network_config` preserves the parameters explicitly stated by the chain.
+/// `effective_config` states every parameter understood by the serving runtime,
+/// resolving omitted values through the same rules used by execution. It is a
+/// resolved reading, not a replacement for the hashed network configuration.
+/// The rules apply to execution following `tip`; they are not a promise about
+/// the block in which a subsequently submitted transaction will be included.
+/// Storage prices are integer native-HOG base units (10^7 units per HOG).
+type DbGatewayConfig struct {
+	Tip DbTip
+	Effective_config NetworkConfig
+	Storage_cost_model StorageCostModelXdr
+}
+
+/// No committed tip: kRPCNotFound. Unreadable rules: kRPCUnrecoverable.
+/// A missing reading must never be represented as zero prices or empty rules.
+type DbGatewayConfigResult struct {
+	// The union discriminant Error selects among the following arms:
+	//   KRPCNone:
+	//      Config() *DbGatewayConfig
+	//   default:
+	//      void
+	Error RPCError
+	_u interface{}
+}
+
 type DbGatewayIntroOutcome int32
 const (
 	DbGatewayIntroSuccess DbGatewayIntroOutcome = 0
@@ -1120,6 +1146,7 @@ const (
 type DbGateway1 interface {
 	Dbgateway_intro(context.Context, ProtocolCommit) (DbGatewayIntroOutcome, error)
 	Dbgateway_get_items(context.Context, AddressAndKeyBatch) (DbGatewayResult, error)
+	Dbgateway_get_config(context.Context, ) (DbGatewayConfigResult, error)
 }
 
 type DbSchedResult int32
@@ -10628,6 +10655,82 @@ func (u *DbGatewayResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_DbGatewayResult(v *DbGatewayResult) *DbGatewayResult { return v}
+type XdrType_DbGatewayConfig = *DbGatewayConfig
+func (v *DbGatewayConfig) XdrPointer() interface{} { return v }
+func (DbGatewayConfig) XdrTypeName() string { return "DbGatewayConfig" }
+func (v DbGatewayConfig) XdrValue() interface{} { return v }
+func (v *DbGatewayConfig) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *DbGatewayConfig) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%stip", name), XDR_DbTip(&v.Tip))
+	x.Marshal(x.Sprintf("%seffective_config", name), XDR_NetworkConfig(&v.Effective_config))
+	x.Marshal(x.Sprintf("%sstorage_cost_model", name), XDR_StorageCostModelXdr(&v.Storage_cost_model))
+}
+func XDR_DbGatewayConfig(v *DbGatewayConfig) *DbGatewayConfig { return v }
+func (_ DbGatewayConfigResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *DbGatewayConfigResult) Config() *DbGatewayConfig {
+	switch u.Error {
+	case KRPCNone:
+		if v, ok := u._u.(*DbGatewayConfig); ok {
+			return v
+		} else {
+			var zero DbGatewayConfig
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("DbGatewayConfigResult.Config accessed when Error == %v", u.Error)
+		return nil
+	}
+}
+func (u DbGatewayConfigResult) XdrValid() bool {
+	return true
+}
+func (u *DbGatewayConfigResult) XdrUnionTag() XdrNum32 {
+	return XDR_RPCError(&u.Error)
+}
+func (u *DbGatewayConfigResult) XdrUnionTagName() string {
+	return "Error"
+}
+func (u *DbGatewayConfigResult) XdrUnionBody() XdrType {
+	switch u.Error {
+	case KRPCNone:
+		return XDR_DbGatewayConfig(u.Config())
+	default:
+		return nil
+	}
+}
+func (u *DbGatewayConfigResult) XdrUnionBodyName() string {
+	switch u.Error {
+	case KRPCNone:
+		return "Config"
+	default:
+		return ""
+	}
+}
+type XdrType_DbGatewayConfigResult = *DbGatewayConfigResult
+func (v *DbGatewayConfigResult) XdrPointer() interface{} { return v }
+func (DbGatewayConfigResult) XdrTypeName() string { return "DbGatewayConfigResult" }
+func (v DbGatewayConfigResult) XdrValue() interface{} { return v }
+func (v *DbGatewayConfigResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *DbGatewayConfigResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
+	switch u.Error {
+	case KRPCNone:
+		x.Marshal(x.Sprintf("%sconfig", name), XDR_DbGatewayConfig(u.Config()))
+		return
+	default:
+		return
+	}
+}
+func XDR_DbGatewayConfigResult(v *DbGatewayConfigResult) *DbGatewayConfigResult { return v}
 var _XdrNames_DbGatewayIntroOutcome = map[int32]string{
 	int32(DbGatewayIntroSuccess): "DbGatewayIntroSuccess",
 	int32(DbGatewayIntroMismatchedProtocol): "DbGatewayIntroMismatchedProtocol",
@@ -10765,6 +10868,53 @@ func (p *xdrSrvProc_Dbgateway_get_items) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbgateway_get_items{} // XXX
 
+type xdrProc_Dbgateway_get_config struct {
+	Arg *XdrVoid
+	Res *DbGatewayConfigResult
+}
+func (xdrProc_Dbgateway_get_config) Prog() uint32 { return 1145194327 }
+func (xdrProc_Dbgateway_get_config) Vers() uint32 { return 1 }
+func (xdrProc_Dbgateway_get_config) Proc() uint32 { return 2 }
+func (xdrProc_Dbgateway_get_config) ProgName() string { return "DbGateway" }
+func (xdrProc_Dbgateway_get_config) VersName() string { return "DbGateway1" }
+func (xdrProc_Dbgateway_get_config) ProcName() string { return "dbgateway_get_config" }
+func (p *xdrProc_Dbgateway_get_config) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(XdrVoid)
+	}
+	return XDR_XdrVoid(p.Arg)
+}
+func (p *xdrProc_Dbgateway_get_config) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(DbGatewayConfigResult)
+	}
+	return XDR_DbGatewayConfigResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Dbgateway_get_config{} // XXX
+
+type xdrSrvProc_Dbgateway_get_config struct {
+	xdrProc_Dbgateway_get_config
+	Srv DbGateway1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Dbgateway_get_config) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DbGateway1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Dbgateway_get_config) Do() {
+	r, err := p.Srv.Dbgateway_get_config(p.Ctx, )
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Dbgateway_get_config{} // XXX
+
 func init() {
 	XdrCatalog[1145194327<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -10772,6 +10922,8 @@ func init() {
 			return &xdrProc_Dbgateway_intro{}
 		case 1:
 			return &xdrProc_Dbgateway_get_items{}
+		case 2:
+			return &xdrProc_Dbgateway_get_config{}
 		}
 		return nil
 	}
@@ -10790,6 +10942,8 @@ func (s DbGateway1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbgateway_intro{ Srv: s.Srv }
 	case 1:  // dbgateway_get_items
 		return &xdrSrvProc_Dbgateway_get_items{ Srv: s.Srv }
+	case 2:  // dbgateway_get_config
+		return &xdrSrvProc_Dbgateway_get_config{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -10816,6 +10970,13 @@ func (c DbGateway1_Client) Dbgateway_intro(ctx context.Context, a1 ProtocolCommi
 func (c DbGateway1_Client) Dbgateway_get_items(ctx context.Context, a1 AddressAndKeyBatch) (r DbGatewayResult, _ error) {
 	var proc xdrProc_Dbgateway_get_items
 	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DbGateway1_Client) Dbgateway_get_config(ctx context.Context, ) (r DbGatewayConfigResult, _ error) {
+	var proc xdrProc_Dbgateway_get_config
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
