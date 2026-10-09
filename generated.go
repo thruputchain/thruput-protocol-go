@@ -27688,7 +27688,7 @@ type xdrProc_Schedevent_prepare_event struct {
 	Arg *EventCard
 	Res *EventPrepareResult
 }
-func (xdrProc_Schedevent_prepare_event) Prog() uint32 { return 2129107352 }
+func (xdrProc_Schedevent_prepare_event) Prog() uint32 { return 2129107350 }
 func (xdrProc_Schedevent_prepare_event) Vers() uint32 { return 1 }
 func (xdrProc_Schedevent_prepare_event) Proc() uint32 { return 1 }
 func (xdrProc_Schedevent_prepare_event) ProgName() string { return "SchedEvent" }
@@ -27735,7 +27735,7 @@ type xdrProc_Schedevent_activate_event struct {
 	Arg *EventRegistrationSnapshot
 	Res *EventActivationResult
 }
-func (xdrProc_Schedevent_activate_event) Prog() uint32 { return 2129107352 }
+func (xdrProc_Schedevent_activate_event) Prog() uint32 { return 2129107350 }
 func (xdrProc_Schedevent_activate_event) Vers() uint32 { return 1 }
 func (xdrProc_Schedevent_activate_event) Proc() uint32 { return 2 }
 func (xdrProc_Schedevent_activate_event) ProgName() string { return "SchedEvent" }
@@ -27779,7 +27779,7 @@ func (p *xdrSrvProc_Schedevent_activate_event) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Schedevent_activate_event{} // XXX
 
 func init() {
-	XdrCatalog[2129107352<<32|1] = func(p uint32) XdrProc {
+	XdrCatalog[2129107350<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 1:
 			return &xdrProc_Schedevent_prepare_event{}
@@ -27793,7 +27793,7 @@ func init() {
 type SchedEvent1_Server struct {
 	Srv SchedEvent1
 }
-func (SchedEvent1_Server) Prog() uint32 { return 2129107352 }
+func (SchedEvent1_Server) Prog() uint32 { return 2129107350 }
 func (SchedEvent1_Server) Vers() uint32 { return 1 }
 func (SchedEvent1_Server) ProgName() string { return "SchedEvent" }
 func (SchedEvent1_Server) VersName() string { return "SchedEvent1" }
