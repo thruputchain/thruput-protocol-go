@@ -2644,6 +2644,9 @@ const (
 	KConfigParamMaxAuthTokenDepth ConfigParamID = 7
 	KConfigParamMaxRv32CodeBytes ConfigParamID = 8
 	KConfigParamMaxRv32MemoryBytes ConfigParamID = 9
+	KConfigParamMaxAuthTokens ConfigParamID = 10
+	KConfigParamMaxCalldataLen ConfigParamID = 11
+	KConfigParamMaxReturnBufferLen ConfigParamID = 12
 )
 
 /// One configuration parameter and the value in force for it.
@@ -2679,6 +2682,12 @@ type ConfigParam struct {
 	//      Max_rv32_code_bytes() *uint32
 	//   KConfigParamMaxRv32MemoryBytes:
 	//      Max_rv32_memory_bytes() *uint32
+	//   KConfigParamMaxAuthTokens:
+	//      Max_auth_tokens() *uint32
+	//   KConfigParamMaxCalldataLen:
+	//      Max_calldata_len() *uint32
+	//   KConfigParamMaxReturnBufferLen:
+	//      Max_return_buffer_len() *uint32
 	Param ConfigParamID
 	_u interface{}
 }
@@ -4236,17 +4245,24 @@ type Blank_rpc_v1 interface {
 /// encoding is planned but not yet enabled.
 type Calldata = []byte
 
-/// Maximum size of data that can be returned from a contract invocation.
+/// The limit in force on a return buffer when a configuration does not
+/// state `kConfigParamMaxReturnBufferLen`.
 ///
-/// Return values larger than this will cause the invocation to revert
-/// with a deterministic error (equivalent to wasm `unreachable`).
+/// Return values larger than the limit in force cause the invocation to
+/// revert with a deterministic error (equivalent to wasm `unreachable`).
 const KMaxReturnBufferLen = 1024
 
 /// Opaque encoded return value from a contract invocation.
 ///
 /// Like Calldata, contracts can encode return values arbitrarily, but the
 /// SDK default uses XDR serialization per RFC 4506 (<https://datatracker.ietf.org/doc/html/rfc4506>).
-type ReturnBuffer = []byte // bound KMaxReturnBufferLen
+///
+/// Unbounded here, as `Calldata` is: what a chain permits is stated by
+/// `kConfigParamMaxReturnBufferLen` and enforced where the Return syscall
+/// writes one, rather than where one is decoded. Nothing decodes a buffer
+/// the local executor did not just build, so a bound here would constrain
+/// what a configuration may state without guarding anything.
+type ReturnBuffer = []byte
 
 /// Specifies a contract method invocation with its parameters.
 ///
@@ -23058,6 +23074,9 @@ var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMaxAuthTokenDepth): "kConfigParamMaxAuthTokenDepth",
 	int32(KConfigParamMaxRv32CodeBytes): "kConfigParamMaxRv32CodeBytes",
 	int32(KConfigParamMaxRv32MemoryBytes): "kConfigParamMaxRv32MemoryBytes",
+	int32(KConfigParamMaxAuthTokens): "kConfigParamMaxAuthTokens",
+	int32(KConfigParamMaxCalldataLen): "kConfigParamMaxCalldataLen",
+	int32(KConfigParamMaxReturnBufferLen): "kConfigParamMaxReturnBufferLen",
 }
 var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
@@ -23070,6 +23089,9 @@ var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxAuthTokenDepth": int32(KConfigParamMaxAuthTokenDepth),
 	"kConfigParamMaxRv32CodeBytes": int32(KConfigParamMaxRv32CodeBytes),
 	"kConfigParamMaxRv32MemoryBytes": int32(KConfigParamMaxRv32MemoryBytes),
+	"kConfigParamMaxAuthTokens": int32(KConfigParamMaxAuthTokens),
+	"kConfigParamMaxCalldataLen": int32(KConfigParamMaxCalldataLen),
+	"kConfigParamMaxReturnBufferLen": int32(KConfigParamMaxReturnBufferLen),
 }
 func (ConfigParamID) XdrEnumNames() map[int32]string {
 	return _XdrNames_ConfigParamID
@@ -23116,6 +23138,9 @@ var _XdrTags_ConfigParam = map[int32]bool{
 	XdrToI32(KConfigParamMaxAuthTokenDepth): true,
 	XdrToI32(KConfigParamMaxRv32CodeBytes): true,
 	XdrToI32(KConfigParamMaxRv32MemoryBytes): true,
+	XdrToI32(KConfigParamMaxAuthTokens): true,
+	XdrToI32(KConfigParamMaxCalldataLen): true,
+	XdrToI32(KConfigParamMaxReturnBufferLen): true,
 }
 func (_ ConfigParam) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigParam
@@ -23345,9 +23370,91 @@ func (u *ConfigParam) Max_rv32_memory_bytes() *uint32 {
 		return nil
 	}
 }
+/// Auth token ids one call may carry in a list: `Invoke`'s
+/// `owned_auth_token_ids_list` and `Return`'s `returned_auth_token_ids`,
+/// each read as a `[u32]` span.
+///
+/// Checked against the span's length before the ids are read, so a list
+/// past the bound is refused without being copied and what a rejected call
+/// costs does not scale with the memory that held it. The ids in a list are
+/// distinct and owned by the frame naming them, so this bounds what one
+/// frame hands another in a single call rather than what a frame may hold.
+///
+/// Neither wire type bounds its list, and no value was in force before this
+/// parameter: a list was limited only by the memory holding it. A
+/// configuration omitting this one is not continuing an older rule.
+func (u *ConfigParam) Max_auth_tokens() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxAuthTokens:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_auth_tokens accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Bytes of calldata one invocation may be given, whether a transaction
+/// supplies it in `Invocation::calldata` or a contract supplies it in
+/// `Invoke`'s `calldata` span.
+///
+/// Checked before the bytes are copied, so an oversized call is refused
+/// rather than materialized. `Calldata` is `opaque<>`, so the wire type
+/// bounds neither form and this is what bounds them in execution.
+/// `kConfigParamMaxReturnBufferLen` bounds the other direction the same
+/// way.
+///
+/// The executor holds a frame's calldata for the life of that frame and
+/// every open frame holds its own, so a chain must keep this within what
+/// `kConfigParamMaxCrossInvokeDepth` frames of it leave room for. No value
+/// was in force before this parameter.
+func (u *ConfigParam) Max_calldata_len() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxCalldataLen:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_calldata_len accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Bytes one invocation frame may return, whether to a calling frame or,
+/// from the root frame, into `TxEventLog::root_output`.
+/// `kMaxReturnBufferLen` is the value in force for a configuration that
+/// does not state one.
+///
+/// Checked where the Return syscall writes a buffer, which is the only
+/// place one is built. A root frame's buffer is committed to by the events
+/// root, so what a chain states here it stores and serves for every
+/// transaction; together with the event bounds it is what keeps a
+/// `TxEventLog` inside the RPC transport message limit.
+func (u *ConfigParam) Max_return_buffer_len() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxReturnBufferLen:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_return_buffer_len accessed when Param == %v", u.Param)
+		return nil
+	}
+}
 func (u ConfigParam) XdrValid() bool {
 	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes:
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes,KConfigParamMaxAuthTokens,KConfigParamMaxCalldataLen,KConfigParamMaxReturnBufferLen:
 		return true
 	}
 	return false
@@ -23380,6 +23487,12 @@ func (u *ConfigParam) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Max_rv32_code_bytes())
 	case KConfigParamMaxRv32MemoryBytes:
 		return XDR_uint32(u.Max_rv32_memory_bytes())
+	case KConfigParamMaxAuthTokens:
+		return XDR_uint32(u.Max_auth_tokens())
+	case KConfigParamMaxCalldataLen:
+		return XDR_uint32(u.Max_calldata_len())
+	case KConfigParamMaxReturnBufferLen:
+		return XDR_uint32(u.Max_return_buffer_len())
 	}
 	return nil
 }
@@ -23405,6 +23518,12 @@ func (u *ConfigParam) XdrUnionBodyName() string {
 		return "Max_rv32_code_bytes"
 	case KConfigParamMaxRv32MemoryBytes:
 		return "Max_rv32_memory_bytes"
+	case KConfigParamMaxAuthTokens:
+		return "Max_auth_tokens"
+	case KConfigParamMaxCalldataLen:
+		return "Max_calldata_len"
+	case KConfigParamMaxReturnBufferLen:
+		return "Max_return_buffer_len"
 	}
 	return ""
 }
@@ -23448,6 +23567,15 @@ func (u *ConfigParam) XdrRecurse(x XDR, name string) {
 		return
 	case KConfigParamMaxRv32MemoryBytes:
 		x.Marshal(x.Sprintf("%smax_rv32_memory_bytes", name), XDR_uint32(u.Max_rv32_memory_bytes()))
+		return
+	case KConfigParamMaxAuthTokens:
+		x.Marshal(x.Sprintf("%smax_auth_tokens", name), XDR_uint32(u.Max_auth_tokens()))
+		return
+	case KConfigParamMaxCalldataLen:
+		x.Marshal(x.Sprintf("%smax_calldata_len", name), XDR_uint32(u.Max_calldata_len()))
+		return
+	case KConfigParamMaxReturnBufferLen:
+		x.Marshal(x.Sprintf("%smax_return_buffer_len", name), XDR_uint32(u.Max_return_buffer_len()))
 		return
 	}
 	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
@@ -34048,7 +34176,7 @@ type XdrType_ReturnBuffer struct {
 	XdrVecOpaque
 }
 func XDR_ReturnBuffer(v *ReturnBuffer) XdrType_ReturnBuffer {
-	return XdrType_ReturnBuffer{XdrVecOpaque{v, KMaxReturnBufferLen}}
+	return XdrType_ReturnBuffer{XdrVecOpaque{v, 0xffffffff}}
 }
 func (XdrType_ReturnBuffer) XdrTypeName() string { return "ReturnBuffer" }
 func (v XdrType_ReturnBuffer) XdrUnwrap() XdrType { return v.XdrVecOpaque }
