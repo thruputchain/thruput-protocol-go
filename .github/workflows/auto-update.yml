@@ -15,30 +15,41 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      # Two keys: one to read the protocol submodule, one to push the
-      # auto-update branch back here. The push must NOT use GITHUB_TOKEN --
-      # commits pushed with it do not start workflow runs, so ci.yml would
-      # never run on the branch this job opens a PR from.
+      # The retained repository write key pushes branches and triggers CI.
+      # The protocol source is read with a separate Contents-only App token.
       - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.10.0
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
-          ssh-private-key: |
-            ${{ secrets.PROTOCOL_DEPLOY_SECRET_KEY }}
-            ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
+          ssh-private-key: ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          submodules: recursive
           ssh-key: ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
 
+      - name: Generate protocol read token
+        id: protocol-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.PROTOCOL_SYNCHRONIZER_APP_ID }}
+          private-key: ${{ secrets.PROTOCOL_SYNCHRONIZER_SECRET_KEY }}
+          owner: thruputchain
+          repositories: thruput-protocol
+          permission-contents: read
+
       - name: Update protocol submodule to latest main
+        env:
+          GH_TOKEN: ${{ steps.protocol-token.outputs.token }}
         run: |
+          git config --global \
+            url."https://x-access-token:${GH_TOKEN}@github.com/thruputchain/thruput-protocol.git".insteadOf \
+            "git@github.com:thruputchain/thruput-protocol.git"
+          git submodule update --init protocol
           git -C protocol fetch origin main
           git -C protocol checkout origin/main
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
@@ -81,7 +92,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin git@github.com:groundhogchain/protocol-go.git
+          git remote set-url origin git@github.com:thruputchain/thruput-protocol-go.git
 
           git checkout -b "$BRANCH"
           git add -A
@@ -98,7 +109,7 @@ jobs:
               --title "Auto-update protocol to ${PROTOCOL_SHA}" \
               --body "Automated protocol submodule bump and regeneration.
 
-          Protocol: groundhogchain/protocol@${PROTOCOL_SHA}" || true
+          Protocol: thruputchain/thruput-protocol@${PROTOCOL_SHA}" || true
           fi
 
           # Auto-merge completes as whoever enabled it, so enabling it with a
