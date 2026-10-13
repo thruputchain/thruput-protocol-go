@@ -17,35 +17,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Checkout runs BEFORE the ssh-agent step, which is not the order the
-      # other repos use, and the order matters here.
-      #
-      # webfactory/ssh-agent installs a global insteadOf mapping derived from
-      # each deploy key's comment. insteadOf matches on string prefix, and
-      # https://github.com/groundhogchain/protocol is a prefix of
-      # .../protocol-go -- so with the agent started first, git rewrites this
-      # repository's own origin onto the protocol deploy key and the fetch
-      # fails with "Repository not found".
-      #
-      # protocol-rs and hogd solve the same collision by also putting a
-      # self-access key in the agent. Checking out first avoids needing one:
-      # origin stays on the HTTPS + GITHUB_TOKEN path, and only the submodule
-      # fetch below goes over SSH.
+      # Keep checkout before the agent, with credentials disabled: the
+      # protocol key's URL prefix can also match this repository.
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.10.0
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
           ssh-private-key: ${{ secrets.PROTOCOL_DEPLOY_SECRET_KEY }}
 
-      # .gitmodules pins protocol by ssh:// URL, and build.sh reads
+      # .gitmodules pins protocol by an SSH URL, and build.sh reads
       # protocol/*.x, so the submodule is not optional here.
       - name: Check out the protocol submodule
         run: git submodule update --init protocol
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 

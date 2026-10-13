@@ -3,7 +3,7 @@ name: Notify consumers
 on:
   push:
     branches: [main]
-  # Manual escape hatch, kept for catching groundhog-go up by hand.
+  # Manual escape hatch, kept for catching thruput-go up by hand.
   #
   # The push trigger above used to be inert for the commits that mattered
   # most: auto-update merged its PR with GITHUB_TOKEN, and a merge performed
@@ -28,19 +28,21 @@ jobs:
         with:
           app-id: ${{ vars.PROTOCOL_SYNCHRONIZER_APP_ID }}
           private-key: ${{ secrets.PROTOCOL_SYNCHRONIZER_SECRET_KEY }}
-          owner: groundhogchain
-          repositories: groundhog-go
+          owner: thruputchain
+          repositories: thruput-go
+          permission-actions: write
 
       # Fires on every push to main, not only the auto-update bumps.
-      # groundhog-go pins this repository by commit, so any main commit is a
+      # thruput-go pins this repository by commit, so any main commit is a
       # real pointer move for it, and its own workflow no-ops when there is
       # nothing to bump.
       #
-      # This does not loop: groundhog-go notifies nobody. Its pointer in hogd
+      # This does not loop: thruput-go notifies nobody. Its pointer in hogd
       # is still moved by hand.
-      - name: Trigger groundhog-go auto-update
+      - name: Trigger thruput-go auto-update
         run: |
           gh workflow run auto-update.yml \
-            --repo groundhogchain/groundhog-go
+            --repo thruputchain/thruput-go \
+            --ref main
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
