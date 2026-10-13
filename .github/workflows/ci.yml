@@ -17,7 +17,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Checkout the caller before loading the protocol-only read key.
+      # Keep checkout before the agent, with credentials disabled: the
+      # protocol key's URL prefix can also match this repository.
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -28,7 +29,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.PROTOCOL_DEPLOY_SECRET_KEY }}
 
-      # .gitmodules pins protocol by ssh:// URL, and build.sh reads
+      # .gitmodules pins protocol by an SSH URL, and build.sh reads
       # protocol/*.x, so the submodule is not optional here.
       - name: Check out the protocol submodule
         run: git submodule update --init protocol
