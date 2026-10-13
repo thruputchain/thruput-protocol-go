@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: auto-update-protocol
+  group: qualify-private-protocol-go
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +25,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ssh-key: ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
+          fetch-depth: 2 # Include the reviewed parent to restore its workflow before commit.
 
       - name: Generate protocol read token
         id: protocol-token
@@ -44,8 +45,8 @@ jobs:
             url."https://x-access-token:${GH_TOKEN}@github.com/thruputchain/thruput-protocol.git".insteadOf \
             "git@github.com:thruputchain/thruput-protocol.git"
           git submodule update --init protocol
-          git -C protocol fetch origin main
-          git -C protocol checkout origin/main
+          git -C protocol fetch origin b586e8844b4ae981cb68567c59e5d10514420fba
+          git -C protocol checkout b586e8844b4ae981cb68567c59e5d10514420fba
 
       - name: Install Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -87,13 +88,14 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           PROTOCOL_SHA=$(git -C protocol rev-parse --short HEAD)
-          BRANCH="auto-update/protocol"
+          BRANCH="qualification/private-protocol-source"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin git@github.com:thruputchain/thruput-protocol-go.git
 
           git checkout -b "$BRANCH"
+          git show 8ebc218fec5e8a61f0c1ed743a7bc59fa0ee7e61:.github/workflows/auto-update.yml > .github/workflows/auto-update.yml
           git add -A
           # commit.sh writes "bump to protocol@<short-sha>", the same message
           # the manual bump-groundhog-go path produces.
@@ -105,15 +107,13 @@ jobs:
             echo "Updated existing PR: $EXISTING_PR"
           else
             gh pr create \
-              --title "Auto-update protocol to ${PROTOCOL_SHA}" \
-              --body "Automated protocol submodule bump and regeneration.
+              --draft --base repair-private-protocol-routing \
+              --title "Qualify private protocol updater at ${PROTOCOL_SHA}" \
+              --body "Isolated private-source checkout, regeneration, retained write-key push and updater PAT qualification. Source code is unchanged from main; this pins the reviewed notification repair commit to exercise PR creation. Production workflow restored in the generated branch. Do not merge.
 
-          Protocol: thruputchain/thruput-protocol@${PROTOCOL_SHA}" || true
+          Protocol: thruputchain/thruput-protocol@${PROTOCOL_SHA}"
           fi
 
-          # Auto-merge completes as whoever enabled it, so enabling it with a
-          # token other than GITHUB_TOKEN is what lets the merge commit start
-          # notify-consumers.
-          gh pr merge "$BRANCH" --auto --squash
+          # Qualification PR stays draft; no auto-merge is enabled.
         env:
           GH_TOKEN: ${{ secrets.PROTOCOL_GO_AUTO_UPDATE_PAT }}
