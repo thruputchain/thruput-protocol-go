@@ -124,12 +124,19 @@ const (
 	KSourceAddressAuthData AuthClaimType = 0
 	/// Requires a signature from a specific public key.
 	///
-	/// Used for accounts identified by a pubkey preimage (pubkey + nonce).
+	/// Used for accounts identified by a pubkey preimage (pubkey hash + nonce).
 	KPubkeySignature AuthClaimType = 1
 )
 
+/// The preimage of a standalone-pubkey account's address:
+/// `sha256(cxs(DomainSeparator("PubkeyAccount")) || cxs(PubkeyAccountPreimage))`.
+///
+/// It names the key by its [`PublicKeyHash`] rather than holding the key, so
+/// that the auth claim contracts read stays small whatever the scheme. The
+/// key itself travels with the signatures, as
+/// [`SignedTransaction::pubkey_claim_key`] in transaction.x.
 type PubkeyAccountPreimage struct {
-	Pubkey PublicKey
+	Pubkey_hash PublicKeyHash
 	Nonce uint64
 }
 
@@ -4410,6 +4417,14 @@ type SignedTransaction struct {
 	/// These signatures must satisfy the auth_claim in the transaction.
 	/// The signatures are over the [`Transaction`] object.
 	Signatures []DecoratedSignature
+	/// The public key a `kPubkeySignature` auth claim names by hash.
+	///
+	/// Present exactly when the auth claim is `kPubkeySignature`, and then its
+	/// [`PublicKeyHash`] must equal the claim's `pubkey_preimage.pubkey_hash`.
+	/// It sits outside the signed [`Transaction`] because the claim already
+	/// commits to it by hash; keeping it out of the claim keeps the claim that
+	/// contracts read the same size for every scheme.
+	Pubkey_claim_key *PublicKey
 }
 
 /// A batch of transactions (without signatures).
@@ -4535,17 +4550,35 @@ type Ed25519PublicKey = [32]byte
 /// Represents a 64-byte Ed25519 secret key.
 type Ed25519SecretKey = [64]byte
 
+/// Represents an ML-DSA-65 (FIPS 204) signature.
+///
+/// Not every byte string of this length is a well-formed signature;
+/// verification rejects malformed ones like any other invalid signature.
+type MlDsa65Signature = [3309]byte
+
+/// Represents an ML-DSA-65 (FIPS 204) public key.
+type MlDsa65PublicKey = [1952]byte
+
 /// Represents the cryptographic scheme used for a signature or public key.
 type CryptographicScheme int32
 const (
 	Ed25519 CryptographicScheme = 0
+	/// ML-DSA-65 (FIPS 204), pure ML-DSA (not HashML-DSA) with an empty
+	/// context string.
+	MlDsa65 CryptographicScheme = 1
 )
 
 /// Union of a Signature type over the various cryptographic schemes.
+///
+/// The ML-DSA arms of Signature and PublicKey are boxed in C++ (heap
+/// allocated), so that Ed25519 signatures and keys, which are most of them,
+/// do not each take the size of the largest ML-DSA value in memory.
 type Signature struct {
 	// The union discriminant Scheme selects among the following arms:
 	//   Ed25519:
 	//      Ed25519() *Ed25519Signature
+	//   MlDsa65:
+	//      Mldsa65() *MlDsa65Signature
 	Scheme CryptographicScheme
 	_u interface{}
 }
@@ -4555,11 +4588,22 @@ type PublicKey struct {
 	// The union discriminant Scheme selects among the following arms:
 	//   Ed25519:
 	//      Ed25519() *Ed25519PublicKey
+	//   MlDsa65:
+	//      Mldsa65() *MlDsa65PublicKey
 	Scheme CryptographicScheme
 	_u interface{}
 }
 
+/// SHA-256 hash committing to a [`PublicKey`], scheme included:
+/// `sha256(cxs(DomainSeparator("PublicKey")) || cxs(PublicKey))`.
+///
+/// A fixed-size stand-in for public keys of any scheme, so that types
+/// exposed to contracts do not grow with the largest key.
+type PublicKeyHash = [32]byte
+
 /// Union of a SecretKey type over the various cryptographic schemes.
+///
+/// There is no ML-DSA variant: nodes never sign with ML-DSA.
 type SecretKey struct {
 	// The union discriminant Scheme selects among the following arms:
 	//   Ed25519:
@@ -4956,7 +5000,7 @@ func (v *PubkeyAccountPreimage) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%spubkey", name), XDR_PublicKey(&v.Pubkey))
+	x.Marshal(x.Sprintf("%spubkey_hash", name), XDR_PublicKeyHash(&v.Pubkey_hash))
 	x.Marshal(x.Sprintf("%snonce", name), XDR_uint64(&v.Nonce))
 }
 func XDR_PubkeyAccountPreimage(v *PubkeyAccountPreimage) *PubkeyAccountPreimage { return v }
@@ -34489,6 +34533,77 @@ func (_XdrVec_unbounded_DecoratedSignature) XdrTypeName() string { return "Decor
 func (v *_XdrVec_unbounded_DecoratedSignature) XdrPointer() interface{} { return (*[]DecoratedSignature)(v) }
 func (v _XdrVec_unbounded_DecoratedSignature) XdrValue() interface{} { return ([]DecoratedSignature)(v) }
 func (v *_XdrVec_unbounded_DecoratedSignature) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type _XdrPtr_PublicKey struct {
+	p **PublicKey
+}
+type _ptrflag_PublicKey _XdrPtr_PublicKey
+func (v _ptrflag_PublicKey) String() string {
+	if *v.p == nil {
+		return "nil"
+	}
+	return "non-nil"
+}
+func (v _ptrflag_PublicKey) Scan(ss fmt.ScanState, r rune) error {
+	tok, err := ss.Token(true, func(c rune) bool {
+		return c == '-' || (c >= 'a' && c <= 'z')
+	})
+	if err != nil {
+		return err
+	}
+	switch string(tok) {
+	case "nil":
+		v.SetU32(0)
+	case "non-nil":
+		v.SetU32(1)
+	default:
+		return XdrError("PublicKey flag should be \"nil\" or \"non-nil\"")
+	}
+	return nil
+}
+func (v _ptrflag_PublicKey) GetU32() uint32 {
+	if *v.p == nil {
+		return 0
+	}
+	return 1
+}
+func (v _ptrflag_PublicKey) SetU32(nv uint32) {
+	switch nv {
+	case 0:
+		*v.p = nil
+	case 1:
+		if *v.p == nil {
+			*v.p = new(PublicKey)
+		}
+	default:
+		XdrPanic("*PublicKey present flag value %d should be 0 or 1", nv)
+	}
+}
+func (_ptrflag_PublicKey) XdrTypeName() string { return "PublicKey?" }
+func (v _ptrflag_PublicKey) XdrPointer() interface{} { return nil }
+func (v _ptrflag_PublicKey) XdrValue() interface{} { return v.GetU32() != 0 }
+func (v _ptrflag_PublicKey) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _ptrflag_PublicKey) XdrBound() uint32 { return 1 }
+func (v _XdrPtr_PublicKey) GetPresent() bool { return *v.p != nil }
+func (v _XdrPtr_PublicKey) SetPresent(present bool) {
+	if !present {
+		*v.p = nil
+	} else if *v.p == nil {
+		*v.p = new(PublicKey)
+	}
+}
+func (v _XdrPtr_PublicKey) XdrMarshalValue(x XDR, name string) {
+	if *v.p != nil {
+		XDR_PublicKey(*v.p).XdrMarshal(x, name)
+	}
+}
+func (v _XdrPtr_PublicKey) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v _XdrPtr_PublicKey) XdrRecurse(x XDR, name string) {
+	x.Marshal(name, _ptrflag_PublicKey(v))
+	v.XdrMarshalValue(x, name)
+}
+func (_XdrPtr_PublicKey) XdrTypeName() string { return "PublicKey*" }
+func (v _XdrPtr_PublicKey) XdrPointer() interface{} { return v.p }
+func (v _XdrPtr_PublicKey) XdrValue() interface{} { return *v.p }
 type XdrType_SignedTransaction = *SignedTransaction
 func (v *SignedTransaction) XdrPointer() interface{} { return v }
 func (SignedTransaction) XdrTypeName() string { return "SignedTransaction" }
@@ -34500,6 +34615,7 @@ func (v *SignedTransaction) XdrRecurse(x XDR, name string) {
 	}
 	x.Marshal(x.Sprintf("%stx", name), XDR_Transaction(&v.Tx))
 	x.Marshal(x.Sprintf("%ssignatures", name), (*_XdrVec_unbounded_DecoratedSignature)(&v.Signatures))
+	x.Marshal(x.Sprintf("%spubkey_claim_key", name), _XdrPtr_PublicKey{&v.Pubkey_claim_key})
 }
 func XDR_SignedTransaction(v *SignedTransaction) *SignedTransaction { return v }
 type _XdrVec_unbounded_Transaction []Transaction
@@ -34949,11 +35065,57 @@ func XDR_Ed25519SecretKey(v *Ed25519SecretKey) XdrType_Ed25519SecretKey {
 }
 func (XdrType_Ed25519SecretKey) XdrTypeName() string { return "Ed25519SecretKey" }
 func (v XdrType_Ed25519SecretKey) XdrUnwrap() XdrType { return v._XdrArray_64_opaque }
+type _XdrArray_3309_opaque [3309]byte
+func (v *_XdrArray_3309_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_3309_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_3309_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_3309_opaque) XdrPointer() interface{} { return (*[3309]byte)(v) }
+func (v *_XdrArray_3309_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_3309_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_3309_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_3309_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 3309 // Force error if not const or doesn't fit
+	return bound
+}
+type XdrType_MlDsa65Signature struct {
+	*_XdrArray_3309_opaque
+}
+func XDR_MlDsa65Signature(v *MlDsa65Signature) XdrType_MlDsa65Signature {
+	return XdrType_MlDsa65Signature{(*_XdrArray_3309_opaque)(v)}
+}
+func (XdrType_MlDsa65Signature) XdrTypeName() string { return "MlDsa65Signature" }
+func (v XdrType_MlDsa65Signature) XdrUnwrap() XdrType { return v._XdrArray_3309_opaque }
+type _XdrArray_1952_opaque [1952]byte
+func (v *_XdrArray_1952_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_1952_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_1952_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_1952_opaque) XdrPointer() interface{} { return (*[1952]byte)(v) }
+func (v *_XdrArray_1952_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_1952_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_1952_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_1952_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 1952 // Force error if not const or doesn't fit
+	return bound
+}
+type XdrType_MlDsa65PublicKey struct {
+	*_XdrArray_1952_opaque
+}
+func XDR_MlDsa65PublicKey(v *MlDsa65PublicKey) XdrType_MlDsa65PublicKey {
+	return XdrType_MlDsa65PublicKey{(*_XdrArray_1952_opaque)(v)}
+}
+func (XdrType_MlDsa65PublicKey) XdrTypeName() string { return "MlDsa65PublicKey" }
+func (v XdrType_MlDsa65PublicKey) XdrUnwrap() XdrType { return v._XdrArray_1952_opaque }
 var _XdrNames_CryptographicScheme = map[int32]string{
 	int32(Ed25519): "Ed25519",
+	int32(MlDsa65): "MlDsa65",
 }
 var _XdrValues_CryptographicScheme = map[string]int32{
 	"Ed25519": int32(Ed25519),
+	"MlDsa65": int32(MlDsa65),
 }
 func (CryptographicScheme) XdrEnumNames() map[int32]string {
 	return _XdrNames_CryptographicScheme
@@ -34991,6 +35153,7 @@ type XdrType_CryptographicScheme = *CryptographicScheme
 func XDR_CryptographicScheme(v *CryptographicScheme) *CryptographicScheme { return v }
 var _XdrTags_Signature = map[int32]bool{
 	XdrToI32(Ed25519): true,
+	XdrToI32(MlDsa65): true,
 }
 func (_ Signature) XdrValidTags() map[int32]bool {
 	return _XdrTags_Signature
@@ -35010,9 +35173,25 @@ func (u *Signature) Ed25519() *Ed25519Signature {
 		return nil
 	}
 }
+// #[cpp(box)]
+func (u *Signature) Mldsa65() *MlDsa65Signature {
+	switch u.Scheme {
+	case MlDsa65:
+		if v, ok := u._u.(*MlDsa65Signature); ok {
+			return v
+		} else {
+			var zero MlDsa65Signature
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("Signature.Mldsa65 accessed when Scheme == %v", u.Scheme)
+		return nil
+	}
+}
 func (u Signature) XdrValid() bool {
 	switch u.Scheme {
-	case Ed25519:
+	case Ed25519,MlDsa65:
 		return true
 	}
 	return false
@@ -35027,6 +35206,8 @@ func (u *Signature) XdrUnionBody() XdrType {
 	switch u.Scheme {
 	case Ed25519:
 		return XDR_Ed25519Signature(u.Ed25519())
+	case MlDsa65:
+		return XDR_MlDsa65Signature(u.Mldsa65())
 	}
 	return nil
 }
@@ -35034,6 +35215,8 @@ func (u *Signature) XdrUnionBodyName() string {
 	switch u.Scheme {
 	case Ed25519:
 		return "Ed25519"
+	case MlDsa65:
+		return "Mldsa65"
 	}
 	return ""
 }
@@ -35051,12 +35234,16 @@ func (u *Signature) XdrRecurse(x XDR, name string) {
 	case Ed25519:
 		x.Marshal(x.Sprintf("%sed25519", name), XDR_Ed25519Signature(u.Ed25519()))
 		return
+	case MlDsa65:
+		x.Marshal(x.Sprintf("%smldsa65", name), XDR_MlDsa65Signature(u.Mldsa65()))
+		return
 	}
 	XdrPanic("invalid Scheme (%v) in Signature", u.Scheme)
 }
 func XDR_Signature(v *Signature) *Signature { return v}
 var _XdrTags_PublicKey = map[int32]bool{
 	XdrToI32(Ed25519): true,
+	XdrToI32(MlDsa65): true,
 }
 func (_ PublicKey) XdrValidTags() map[int32]bool {
 	return _XdrTags_PublicKey
@@ -35076,9 +35263,25 @@ func (u *PublicKey) Ed25519() *Ed25519PublicKey {
 		return nil
 	}
 }
+// #[cpp(box)]
+func (u *PublicKey) Mldsa65() *MlDsa65PublicKey {
+	switch u.Scheme {
+	case MlDsa65:
+		if v, ok := u._u.(*MlDsa65PublicKey); ok {
+			return v
+		} else {
+			var zero MlDsa65PublicKey
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("PublicKey.Mldsa65 accessed when Scheme == %v", u.Scheme)
+		return nil
+	}
+}
 func (u PublicKey) XdrValid() bool {
 	switch u.Scheme {
-	case Ed25519:
+	case Ed25519,MlDsa65:
 		return true
 	}
 	return false
@@ -35093,6 +35296,8 @@ func (u *PublicKey) XdrUnionBody() XdrType {
 	switch u.Scheme {
 	case Ed25519:
 		return XDR_Ed25519PublicKey(u.Ed25519())
+	case MlDsa65:
+		return XDR_MlDsa65PublicKey(u.Mldsa65())
 	}
 	return nil
 }
@@ -35100,6 +35305,8 @@ func (u *PublicKey) XdrUnionBodyName() string {
 	switch u.Scheme {
 	case Ed25519:
 		return "Ed25519"
+	case MlDsa65:
+		return "Mldsa65"
 	}
 	return ""
 }
@@ -35117,10 +35324,21 @@ func (u *PublicKey) XdrRecurse(x XDR, name string) {
 	case Ed25519:
 		x.Marshal(x.Sprintf("%sed25519", name), XDR_Ed25519PublicKey(u.Ed25519()))
 		return
+	case MlDsa65:
+		x.Marshal(x.Sprintf("%smldsa65", name), XDR_MlDsa65PublicKey(u.Mldsa65()))
+		return
 	}
 	XdrPanic("invalid Scheme (%v) in PublicKey", u.Scheme)
 }
 func XDR_PublicKey(v *PublicKey) *PublicKey { return v}
+type XdrType_PublicKeyHash struct {
+	*_XdrArray_32_opaque
+}
+func XDR_PublicKeyHash(v *PublicKeyHash) XdrType_PublicKeyHash {
+	return XdrType_PublicKeyHash{(*_XdrArray_32_opaque)(v)}
+}
+func (XdrType_PublicKeyHash) XdrTypeName() string { return "PublicKeyHash" }
+func (v XdrType_PublicKeyHash) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 var _XdrTags_SecretKey = map[int32]bool{
 	XdrToI32(Ed25519): true,
 }
