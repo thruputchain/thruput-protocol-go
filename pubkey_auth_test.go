@@ -63,16 +63,58 @@ func xdrU32(v uint32) []byte {
 	return binary.BigEndian.AppendUint32(nil, v)
 }
 
-// domainSeparated computes sha256(cxs(DomainSeparator(tag)) || encoded), the
+// cxsUint is the canonical compact (CXS) encoding of an unsigned integer: one
+// byte up to 62, else a header byte then the shortest of 1, 2, 4 or 8
+// little-endian bytes.
+func cxsUint(v uint64) []byte {
+	switch {
+	case v <= 62:
+		return []byte{byte(v)}
+	case v <= 0xff:
+		return []byte{0x3f, byte(v)}
+	case v <= 0xffff:
+		return binary.LittleEndian.AppendUint16([]byte{0x7f}, uint16(v))
+	case v <= 0xffffffff:
+		return binary.LittleEndian.AppendUint32([]byte{0xbf}, uint32(v))
+	default:
+		return binary.LittleEndian.AppendUint64([]byte{0xff}, v)
+	}
+}
+
+// cxsDomainSeparator is cxs(DomainSeparator(name)): the ExtensionPoint
+// discriminant 0, then the name as a CXS opaque<>.
+func cxsDomainSeparator(name string) []byte {
+	return append(append([]byte{0}, cxsUint(uint64(len(name)))...), name...)
+}
+
+// cxsPublicKey is cxs(PublicKey): the scheme, then the raw key.
+func cxsPublicKey(key *PublicKey) []byte {
+	out := cxsUint(uint64(key.Scheme))
+	switch key.Scheme {
+	case Ed25519:
+		return append(out, key.Ed25519()[:]...)
+	case MlDsa65:
+		return append(out, key.Mldsa65()[:]...)
+	}
+	panic("unknown scheme")
+}
+
+func cxsPubkeyAccountPreimage(preimage *PubkeyAccountPreimage) []byte {
+	return append(append([]byte{}, preimage.Pubkey_hash[:]...), cxsUint(preimage.Nonce)...)
+}
+
+// domainSeparated computes sha256(cxs(DomainSeparator(name)) || encoded), the
 // construction preimage.x describes.
-func domainSeparated(tag string, encoded []byte) [32]byte {
-	sep := DomainSeparator{Domain_separator: []byte(tag)}
-	h := sha256.New()
-	h.Write(marshalGoldenXdr(XDR_DomainSeparator(&sep)))
-	h.Write(encoded)
-	var out [32]byte
-	copy(out[:], h.Sum(nil))
-	return out
+func domainSeparated(name string, encoded []byte) [32]byte {
+	return sha256.Sum256(append(cxsDomainSeparator(name), encoded...))
+}
+
+func publicKeyHash(key *PublicKey) PublicKeyHash {
+	return domainSeparated("PublicKey", cxsPublicKey(key))
+}
+
+func pubkeyAccountAddress(preimage *PubkeyAccountPreimage) [32]byte {
+	return domainSeparated("PubkeyAccount", cxsPubkeyAccountPreimage(preimage))
 }
 
 func TestPublicKeyMlDsa65Arm(t *testing.T) {
@@ -107,7 +149,7 @@ func TestSignatureMlDsa65Arm(t *testing.T) {
 func TestPubkeyAccountPreimage(t *testing.T) {
 	for _, key := range []PublicKey{ed25519TestKey(), mlDsa65TestKey()} {
 		t.Run(key.Scheme.String(), func(t *testing.T) {
-			keyHash := PublicKeyHash(domainSeparated("PublicKey", marshalGoldenXdr(XDR_PublicKey(&key))))
+			keyHash := publicKeyHash(&key)
 
 			var claim AuthClaim
 			claim.Claim_type = KPubkeySignature
@@ -133,10 +175,11 @@ func TestPubkeyAccountPreimage(t *testing.T) {
 			assertRoundTrip(t, claimBytes, &decodedClaim)
 
 			// Keys of different schemes must not share a hash, which the
-			// scheme tag inside cxs(PublicKey) guarantees.
+			// scheme tag inside cxs(PublicKey) guarantees. The key bytes are
+			// left as they are; only the tag changes.
 			other := key
 			other.Scheme = Ed25519 + MlDsa65 - key.Scheme
-			if PublicKeyHash(domainSeparated("PublicKey", marshalGoldenXdr(XDR_PublicKey(&other)))) == keyHash {
+			if publicKeyHash(&other) == keyHash {
 				t.Fatal("PublicKeyHash does not commit to the scheme")
 			}
 		})
