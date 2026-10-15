@@ -4570,9 +4570,9 @@ const (
 
 /// Union of a Signature type over the various cryptographic schemes.
 ///
-/// The ML-DSA arms of Signature and PublicKey are boxed in C++ (heap
-/// allocated), so that Ed25519 signatures and keys, which are most of them,
-/// do not each take the size of the largest ML-DSA value in memory.
+/// The ML-DSA arms of Signature and PublicKey are boxed (heap allocated) in
+/// both C++ and Rust, so that Ed25519 signatures and keys, which are most of
+/// them, do not each take the size of the largest ML-DSA value in memory.
 type Signature struct {
 	// The union discriminant Scheme selects among the following arms:
 	//   Ed25519:
@@ -35173,7 +35173,7 @@ func (u *Signature) Ed25519() *Ed25519Signature {
 		return nil
 	}
 }
-// #[cpp(box)]
+// #[rust(box_ptr)], #[cpp(box)]
 func (u *Signature) Mldsa65() *MlDsa65Signature {
 	switch u.Scheme {
 	case MlDsa65:
@@ -35263,7 +35263,7 @@ func (u *PublicKey) Ed25519() *Ed25519PublicKey {
 		return nil
 	}
 }
-// #[cpp(box)]
+// #[rust(box_ptr)], #[cpp(box)]
 func (u *PublicKey) Mldsa65() *MlDsa65PublicKey {
 	switch u.Scheme {
 	case MlDsa65:
