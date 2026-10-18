@@ -1,4 +1,4 @@
-module github.com/groundhogchain/protocol-go
+module github.com/thruputchain/thruput-protocol-go
 
 go 1.24.0
 
