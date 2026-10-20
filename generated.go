@@ -2331,8 +2331,9 @@ type BlockTransactionQuery struct {
 	Order IterationOrder
 	/// Empty on the initial call. Non-empty to continue at the same height;
 	/// `order` is ignored when a cursor is supplied because the cursor carries it.
-	/// Malformed, stale, or height-mismatched cursors produce an empty page with
-	/// an empty cursor.
+	/// Malformed, wrong-block, or height-mismatched cursors return
+	/// IndexerQueryInvalidCursor. A valid continuation whose block is not yet
+	/// indexed returns IndexerQueryHistoryUnavailable.
 	Cursor PaginationCursor
 	/// Clamped server-side to [1, 200]; 0 means server default (50).
 	Limit uint32
@@ -2361,6 +2362,15 @@ const (
 	/// Unrecoverable backend failure (corrupt record, storage error).
 	/// Details are in the indexer's logs.
 	IndexerQueryInternalFailure IndexerQueryOutcome = 2
+	/// The supplied continuation is malformed, unsupported, or inconsistent
+	/// with the query or its indexed block identity/position. Not exhaustion.
+	/// No automatic restart is implied. Cursor validation depends on the method;
+	/// this outcome does not promise query binding for every cursor format.
+	IndexerQueryInvalidCursor IndexerQueryOutcome = 3
+	/// The indexer cannot serve the history required by a continuation: its
+	/// serving watermark is below the cursor's saved bound, or its target block
+	/// is not yet indexed. Preserve the cursor; do not silently narrow the walk.
+	IndexerQueryHistoryUnavailable IndexerQueryOutcome = 4
 )
 
 type EventPageResult struct {
@@ -20880,11 +20890,15 @@ var _XdrNames_IndexerQueryOutcome = map[int32]string{
 	int32(IndexerQueryOk): "IndexerQueryOk",
 	int32(IndexerQueryNotReady): "IndexerQueryNotReady",
 	int32(IndexerQueryInternalFailure): "IndexerQueryInternalFailure",
+	int32(IndexerQueryInvalidCursor): "IndexerQueryInvalidCursor",
+	int32(IndexerQueryHistoryUnavailable): "IndexerQueryHistoryUnavailable",
 }
 var _XdrValues_IndexerQueryOutcome = map[string]int32{
 	"IndexerQueryOk": int32(IndexerQueryOk),
 	"IndexerQueryNotReady": int32(IndexerQueryNotReady),
 	"IndexerQueryInternalFailure": int32(IndexerQueryInternalFailure),
+	"IndexerQueryInvalidCursor": int32(IndexerQueryInvalidCursor),
+	"IndexerQueryHistoryUnavailable": int32(IndexerQueryHistoryUnavailable),
 }
 func (IndexerQueryOutcome) XdrEnumNames() map[int32]string {
 	return _XdrNames_IndexerQueryOutcome
