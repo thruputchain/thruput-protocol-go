@@ -23666,10 +23666,10 @@ func (u *ConfigParam) Max_return_buffer_len() *uint32 {
 /// bounding the root bounds every frame.
 ///
 /// Hog availability bounded a transaction's budget before this parameter,
-/// and nothing else did, so a configuration omitting this one continues
-/// that rule: the value in force is the largest `GasAmount`, which no
-/// budget exceeds. A `GasAmount` rather than an `unsigned int` so that a
-/// chain may state any budget a transaction can.
+/// and nothing else did. A configuration omitting this one does not
+/// continue that rule: the value in force is `1,000,000,000`. A `GasAmount`
+/// rather than an `unsigned int` so that a chain may state any budget a
+/// transaction can.
 func (u *ConfigParam) Max_tx_gas() *GasAmount {
 	switch u.Param {
 	case KConfigParamMaxTxGas:
