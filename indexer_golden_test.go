@@ -62,15 +62,19 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	txBytes := marshalGoldenXdr(XDR_Transaction(&body.Signed_tx.Tx))
 	txHash := TransactionHash(sha256.Sum256(txBytes))
 	payload.Event_logs[0].Tx_hash = txHash
-	hashBytes := marshalGoldenXdr(XDR_TransactionHash(&txHash))
+	// ProposalTxs names each transaction by its exact signed encoding, while
+	// Txs_hash below stays the txset root over TransactionHash.
+	signedTxBytes := marshalGoldenXdr(XDR_SignedTransaction(&body.Signed_tx))
+	signedTxHash := SignedTransactionHash(sha256.Sum256(signedTxBytes))
+	signedHashBytes := marshalGoldenXdr(XDR_SignedTransactionHash(&signedTxHash))
 	nondeterministicBytes := marshalGoldenXdr(
 		XDR_NondeterministicProposalData(&body.Nondeterministic_proposal_data),
 	)
 	proposalTxs := ProposalTxs{}
-	proposalTxs.Hash = ParallelBatch{
+	proposalTxs.Signed_hash = ParallelBatch{
 		Segment_tokens: []uint32{1},
-		Segment_bytes:  []uint32{uint32(len(hashBytes))},
-		Xdr:            hashBytes,
+		Segment_bytes:  []uint32{uint32(len(signedHashBytes))},
+		Xdr:            signedHashBytes,
 	}
 	proposalTxs.Nondeterministic_data = ParallelBatch{
 		Segment_tokens: []uint32{1},
@@ -79,7 +83,7 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	}
 	value.Proposal_header.Txs_hash = goldenHash("27598ad0dd4cd1086c482fa514032f6a7dfa80b64d321eabd1f62230c38d6c05")
 	value.Proposal_header.Events_hash = goldenHash("ee0de519ec7a425065d237c05b6d3ef5aac59231a4a2251e221917064a04b86c")
-	value.Proposal_txs_hash = goldenHash("e9bd73b5065f50e84df2faf032f7220dc3a44885a062e9872f48cd251df6232c")
+	value.Proposal_txs_hash = goldenHash("10326f5184cf53e2ebe46ebecf03650fbf5dd5afb20a245829eb7ad3247a0aa5")
 	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
 		panic("proposal tx compatibility hash mismatch")
 	}
@@ -125,13 +129,13 @@ func goldenParallelBatchHash(batch ParallelBatch) SHA256Hash {
 
 func goldenProposalTxsHash(txs ProposalTxs) ProposalTxsHash {
 	base := txs
-	base.Hash = ParallelBatch{}
+	base.Signed_hash = ParallelBatch{}
 	base.Nondeterministic_data = ParallelBatch{}
 	result := ProposalTxsHash(sha256.Sum256(marshalGoldenXdr(XDR_ProposalTxs(&base))))
-	hash := goldenParallelBatchHash(txs.Hash)
+	signedHash := goldenParallelBatchHash(txs.Signed_hash)
 	nondeterministicHash := goldenParallelBatchHash(txs.Nondeterministic_data)
 	for i := range result {
-		result[i] ^= hash[i] ^ nondeterministicHash[i]
+		result[i] ^= signedHash[i] ^ nondeterministicHash[i]
 	}
 	return result
 }
@@ -145,8 +149,11 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	digest := sha256.Sum256(encoded.Bytes())
 	// 588 since SignedTransaction gained the optional pubkey_claim_key: four
 	// more bytes for the absent key at the end of the one transaction body.
+	// The digest moved again, at the same length, when ProposalTxs began
+	// naming transactions by SignedTransactionHash, which changed the
+	// fixture's Proposal_txs_hash.
 	const expectedByteLength = 588
-	const expectedDigest = "909aa1d522918b0f7f779f00ac6b072412a1d45e252be7a6e6ae5ab1dcd8c499"
+	const expectedDigest = "7f68008e8dbf78b4054ab30555a735bd50a9ee696572c1423bf7b4170697eb8f"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}
