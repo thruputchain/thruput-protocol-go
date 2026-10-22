@@ -218,15 +218,16 @@ type KeyChange struct {
 
 type KeyChangeBatch = []KeyChange
 
-// A committed block's auth-data changes reach the auth server as a run of
-// chunks, each a KeyChangeChunk, because the one-record form grew with the
-// number of accounts whose auth data a block changed (hogd#3146). hog_db
-// chooses the chunk size; the wire bounds a chunk only by the link's record
-// cap. The chunks of a run may be sent concurrently and over several
-// connections, so they can arrive in any order, and hog_db may have the runs
-// of several heights in flight at once, so the chunks of different heights
-// can interleave. The auth server treats a height's changes as complete only
-// once every chunk of its run has arrived, and applies heights in order.
+// A committed block's auth-data changes travel as a run of chunks, each a
+// KeyChangeChunk, from hog_db to the auth server and on from the auth server
+// to the mempool, because the one-record form grew with the number of
+// accounts whose auth data a block changed (hogd#3146). The sender chooses
+// the chunk size; the wire bounds a chunk only by the link's record cap. The
+// chunks of a run may be sent concurrently and over several connections, so
+// they can arrive in any order, and a sender may have the runs of several
+// heights in flight at once, so the chunks of different heights can
+// interleave. A receiver treats a height's changes as complete only once
+// every chunk of its run has arrived, and applies heights in order.
 type KeyChangeChunk struct {
 	// The height of the block that made these changes.
 	Height BlockHeight
@@ -234,7 +235,7 @@ type KeyChangeChunk struct {
 	// Every chunk of a run carries the same chunk_count, and each index in
 	// [0, chunk_count) is sent exactly once. A block that changed no auth data
 	// is a run of one empty chunk, so every committed block still sends a run
-	// and the auth server's height advances with every block.
+	// and each receiver's height advances with every block.
 	Chunk_index uint32
 	Chunk_count uint32
 	Changes []KeyChange
@@ -309,7 +310,7 @@ type IntroAuthResult struct {
 
 type MempoolAuth1 interface {
 	Mempoolauth_intro_auth(context.Context, AuthCard) (IntroAuthResult, error)
-	Mempoolauth_auth_data_changed(context.Context, BlockHeight, KeyChangeBatch) error
+	Mempoolauth_auth_data_changed_chunk(context.Context, KeyChangeChunk) error
 }
 
 // #[rust(const=u32)]
@@ -1682,7 +1683,8 @@ type ProposalHeader struct {
 	Block_timepoint TimePoint
 	/// The height of this block.
 	Block_height BlockHeight
-	/// The Merkle root hash of the transactions.
+	/// The Merkle root hash of the set of the block's
+	/// [`SignedTransactionHash`]es.
 	Txs_hash TxsHash
 	/// The hash of the storage contents after this block is applied.
 	Storage_hash StorageShortHash
@@ -2908,7 +2910,7 @@ type ParallelBatch struct {
 type ParallelSignedTransactionBatch = ParallelBatch
 
 // #[rust(newtype)]
-type ParallelTransactionHashBatch = ParallelBatch
+type ParallelSignedTransactionHashBatch = ParallelBatch
 
 // #[rust(newtype)]
 type ParallelNondeterministicProposalDataBatch = ParallelBatch
@@ -2932,14 +2934,18 @@ type DomainSeparator struct {
 /// Transaction-side payload for a proposal.
 ///
 /// This is the payload a `ConsensusValue` commits to through
-/// `ProposalTxsHash`. The signed transaction bodies travel separately, since
-/// nodes usually already hold them from transaction dissemination.
+/// `ProposalTxsHash`. The signed transactions travel separately, since nodes
+/// usually already hold them from transaction dissemination. Because the
+/// payload names each transaction by its [`SignedTransactionHash`], a node
+/// that holds a different signing of a body treats that transaction as
+/// missing and fetches the proposer's encoding.
 ///
 /// Travels on network.
 type ProposalTxs struct {
 	Ext ExtensionPoint
-	/// Hashes of the block's transactions, in execution order.
-	Hash ParallelTransactionHashBatch
+	/// Signed hashes of the block's transactions, in execution order: the
+	/// exact encodings the block executes.
+	Signed_hash ParallelSignedTransactionHashBatch
 	/// Nondeterministic choices captured by the proposer, replayed by
 	/// validators so re-execution reproduces the header outputs exactly.
 	Nondeterministic_data ParallelNondeterministicProposalDataBatch
@@ -2973,7 +2979,7 @@ type PrevProposalSummary struct {
 }
 
 type MissingTransactions struct {
-	Transaction_hashes []TransactionHash
+	Signed_tx_hashes []SignedTransactionHash
 	Consensus_value ConsensusValue
 }
 
@@ -3319,7 +3325,7 @@ type SchedulerValidationResult struct {
 	//   SchedulerValidationOK:
 	//      Block() *SchedulerValidationBlock
 	//   SchedulerValidationMissingTxs:
-	//      Missing_tx_hashes() *[]TransactionHash
+	//      Missing_signed_tx_hashes() *[]SignedTransactionHash
 	//   SchedulerValidationDbFailed, SchedulerValidationExecutorFailed, SchedulerValidationInvalid, SchedulerValidationTooLateToValidate, SchedulerValidationUnknownParentBlock, SchedulerValidationMalformed:
 	//      void
 	Outcome SchedulerValidationOutcome
@@ -3466,7 +3472,7 @@ type SchedulerCoord1 interface {
 	Schedcoord_get_tip(context.Context, ) (SchedulerGetTipResult, error)
 	Schedcoord_load_genesis_configuration(context.Context, GenesisConfiguration) (DbSchedResult, error)
 	Schedulercoord_commit_genesis_ceremony(context.Context, GenesisCeremonyRequest) (GenesisCeremonyResult, error)
-	Schedcoord_lookup_transactions(context.Context, TransactionHashBatch) (OptSignedTransactionBatch, error)
+	Schedcoord_lookup_transactions(context.Context, SignedTransactionHashBatch) (OptSignedTransactionBatch, error)
 	Schedcoord_lookup_transaction_outcomes(context.Context, TransactionHashBatch) (SchedulerTransactionOutcomeBatch, error)
 }
 
@@ -4459,26 +4465,44 @@ type DecoratedSignature struct {
 	Signature Signature
 }
 
-/// Hash of a transaction, used as its unique identifier network-wide.
+/// Hash of a transaction body, the identifier users, events and indexers
+/// know a transaction by.
 ///
 /// This is the SHA-256 hash of the XDR-encoded [`Transaction`] -- the same
 /// object the signatures are over. It deliberately covers neither the
 /// signatures wrapped around it by [`SignedTransaction`] nor the
 /// nondeterministic data attached to it by [`ProposedTransaction`]:
 ///
-///  - Excluding the signatures makes the identifier stable under signature
-///    malleability, so a third party cannot change the identity of an
-///    in-flight transaction by re-encoding its signatures.
+///  - Excluding the signatures keeps the identifier fixed however the body
+///    is signed, so a submitter can look up its transaction without knowing
+///    which signing a block carried.
 ///  - Excluding the proposal data keeps the identifier computable by the
 ///    submitter at signing time. Nondeterministic proposal data does not
 ///    exist until a proposer has executed the transaction, so an identifier
 ///    covering it could not be used to look up one's own transaction.
 ///
-/// Uniqueness across blocks therefore rests on replay protection -- the
+/// Proposals do not name transactions by this hash: they commit to each
+/// transaction's exact signed encoding by [`SignedTransactionHash`].
+///
+/// Uniqueness across blocks rests on replay protection -- the
 /// [`Uniquifier`] every [`Transaction`] carries -- rather than on anything
 /// in the preimage: two distinct commits can never share a hash, because
 /// the same [`Transaction`] cannot commit twice.
 type TransactionHash = SHA256Hash
+
+/// Hash of one exact signed encoding of a transaction.
+///
+/// This is the SHA-256 hash of the canonical XDR of a [`SignedTransaction`]:
+/// the [`Transaction`], its signatures and its `pubkey_claim_key`. Two
+/// signings of one body share a [`TransactionHash`] but not a
+/// [`SignedTransactionHash`].
+///
+/// Proposals name their transactions by this hash, so every validator
+/// executes the encoding the proposer chose rather than whichever signing of
+/// the body it happens to hold. A validator that holds a different signing
+/// treats the transaction as missing and fetches the proposer's. It is not a
+/// lookup key for users: re-signing a body changes it.
+type SignedTransactionHash = SHA256Hash
 
 /// A transaction with cryptographic signatures.
 ///
@@ -4518,6 +4542,9 @@ type OptSignedTransactionBatch = []OptSignedTransaction
 
 /// A batch of transaction hashes.
 type TransactionHashBatch = []TransactionHash
+
+/// A batch of signed transaction hashes.
+type SignedTransactionHashBatch = []SignedTransactionHash
 
 /// Nondeterministic data captured during transaction execution by the proposer.
 ///
@@ -6539,56 +6566,36 @@ func (p *xdrSrvProc_Mempoolauth_intro_auth) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Mempoolauth_intro_auth{} // XXX
 
-type xdrProcArg_Mempoolauth_auth_data_changed struct {
-	a1 *BlockHeight
-	a2 *KeyChangeBatch
-}
-func (v *xdrProcArg_Mempoolauth_auth_data_changed) XdrPointer() interface{} { return v }
-func (xdrProcArg_Mempoolauth_auth_data_changed) XdrTypeName() string { return "xdrProcArg_Mempoolauth_auth_data_changed" }
-func (v xdrProcArg_Mempoolauth_auth_data_changed) XdrValue() interface{} { return v }
-func (v *xdrProcArg_Mempoolauth_auth_data_changed) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *xdrProcArg_Mempoolauth_auth_data_changed) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	if v.a1 == nil { v.a1 = new(BlockHeight) }
-	XDR_BlockHeight(v.a1).XdrMarshal(x, x.Sprintf("%sa1", name))
-	if v.a2 == nil { v.a2 = new(KeyChangeBatch) }
-	XDR_KeyChangeBatch(v.a2).XdrMarshal(x, x.Sprintf("%sa2", name))
-}
-func XDR_xdrProcArg_Mempoolauth_auth_data_changed(v *xdrProcArg_Mempoolauth_auth_data_changed) *xdrProcArg_Mempoolauth_auth_data_changed { return v }
-var _ XdrType = &xdrProcArg_Mempoolauth_auth_data_changed{} // XXX
-
-type xdrProc_Mempoolauth_auth_data_changed struct {
-	Arg *xdrProcArg_Mempoolauth_auth_data_changed
+type xdrProc_Mempoolauth_auth_data_changed_chunk struct {
+	Arg *KeyChangeChunk
 	Res *XdrVoid
 }
-func (xdrProc_Mempoolauth_auth_data_changed) Prog() uint32 { return 2326297258 }
-func (xdrProc_Mempoolauth_auth_data_changed) Vers() uint32 { return 1 }
-func (xdrProc_Mempoolauth_auth_data_changed) Proc() uint32 { return 1 }
-func (xdrProc_Mempoolauth_auth_data_changed) ProgName() string { return "MempoolAuth" }
-func (xdrProc_Mempoolauth_auth_data_changed) VersName() string { return "MempoolAuth1" }
-func (xdrProc_Mempoolauth_auth_data_changed) ProcName() string { return "mempoolauth_auth_data_changed" }
-func (p *xdrProc_Mempoolauth_auth_data_changed) GetArg() XdrType {
+func (xdrProc_Mempoolauth_auth_data_changed_chunk) Prog() uint32 { return 2326297258 }
+func (xdrProc_Mempoolauth_auth_data_changed_chunk) Vers() uint32 { return 1 }
+func (xdrProc_Mempoolauth_auth_data_changed_chunk) Proc() uint32 { return 2 }
+func (xdrProc_Mempoolauth_auth_data_changed_chunk) ProgName() string { return "MempoolAuth" }
+func (xdrProc_Mempoolauth_auth_data_changed_chunk) VersName() string { return "MempoolAuth1" }
+func (xdrProc_Mempoolauth_auth_data_changed_chunk) ProcName() string { return "mempoolauth_auth_data_changed_chunk" }
+func (p *xdrProc_Mempoolauth_auth_data_changed_chunk) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(xdrProcArg_Mempoolauth_auth_data_changed)
+		p.Arg = new(KeyChangeChunk)
 	}
-	return XDR_xdrProcArg_Mempoolauth_auth_data_changed(p.Arg)
+	return XDR_KeyChangeChunk(p.Arg)
 }
-func (p *xdrProc_Mempoolauth_auth_data_changed) GetRes() XdrType {
+func (p *xdrProc_Mempoolauth_auth_data_changed_chunk) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Mempoolauth_auth_data_changed{} // XXX
+var _ XdrProc = &xdrProc_Mempoolauth_auth_data_changed_chunk{} // XXX
 
-type xdrSrvProc_Mempoolauth_auth_data_changed struct {
-	xdrProc_Mempoolauth_auth_data_changed
+type xdrSrvProc_Mempoolauth_auth_data_changed_chunk struct {
+	xdrProc_Mempoolauth_auth_data_changed_chunk
 	Srv MempoolAuth1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Mempoolauth_auth_data_changed) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Mempoolauth_auth_data_changed_chunk) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) MempoolAuth1
 	}); ok {
@@ -6596,21 +6603,21 @@ func (p *xdrSrvProc_Mempoolauth_auth_data_changed) SetContext(ctx context.Contex
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Mempoolauth_auth_data_changed) Do() {
-	err := p.Srv.Mempoolauth_auth_data_changed(p.Ctx, *p.Arg.a1, *p.Arg.a2)
+func (p *xdrSrvProc_Mempoolauth_auth_data_changed_chunk) Do() {
+	err := p.Srv.Mempoolauth_auth_data_changed_chunk(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Mempoolauth_auth_data_changed{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Mempoolauth_auth_data_changed_chunk{} // XXX
 
 func init() {
 	XdrCatalog[2326297258<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
 			return &xdrProc_Mempoolauth_intro_auth{}
-		case 1:
-			return &xdrProc_Mempoolauth_auth_data_changed{}
+		case 2:
+			return &xdrProc_Mempoolauth_auth_data_changed_chunk{}
 		}
 		return nil
 	}
@@ -6627,8 +6634,8 @@ func (s MempoolAuth1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 0:  // mempoolauth_intro_auth
 		return &xdrSrvProc_Mempoolauth_intro_auth{ Srv: s.Srv }
-	case 1:  // mempoolauth_auth_data_changed
-		return &xdrSrvProc_Mempoolauth_auth_data_changed{ Srv: s.Srv }
+	case 2:  // mempoolauth_auth_data_changed_chunk
+		return &xdrSrvProc_Mempoolauth_auth_data_changed_chunk{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -6652,11 +6659,9 @@ func (c MempoolAuth1_Client) Mempoolauth_intro_auth(ctx context.Context, a1 Auth
 	}
 	return *proc.Res, nil
 }
-func (c MempoolAuth1_Client) Mempoolauth_auth_data_changed(ctx context.Context, a1 BlockHeight, a2 KeyChangeBatch) error {
-	var proc xdrProc_Mempoolauth_auth_data_changed
-	proc.GetArg()
-	proc.Arg.a1 = &a1
-	proc.Arg.a2 = &a2
+func (c MempoolAuth1_Client) Mempoolauth_auth_data_changed_chunk(ctx context.Context, a1 KeyChangeChunk) error {
+	var proc xdrProc_Mempoolauth_auth_data_changed_chunk
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
 	}
@@ -24251,14 +24256,14 @@ func XDR_ParallelSignedTransactionBatch(v *ParallelSignedTransactionBatch) XdrTy
 }
 func (XdrType_ParallelSignedTransactionBatch) XdrTypeName() string { return "ParallelSignedTransactionBatch" }
 func (v XdrType_ParallelSignedTransactionBatch) XdrUnwrap() XdrType { return v.XdrType_ParallelBatch }
-type XdrType_ParallelTransactionHashBatch struct {
+type XdrType_ParallelSignedTransactionHashBatch struct {
 	XdrType_ParallelBatch
 }
-func XDR_ParallelTransactionHashBatch(v *ParallelTransactionHashBatch) XdrType_ParallelTransactionHashBatch {
-	return XdrType_ParallelTransactionHashBatch{XDR_ParallelBatch(v)}
+func XDR_ParallelSignedTransactionHashBatch(v *ParallelSignedTransactionHashBatch) XdrType_ParallelSignedTransactionHashBatch {
+	return XdrType_ParallelSignedTransactionHashBatch{XDR_ParallelBatch(v)}
 }
-func (XdrType_ParallelTransactionHashBatch) XdrTypeName() string { return "ParallelTransactionHashBatch" }
-func (v XdrType_ParallelTransactionHashBatch) XdrUnwrap() XdrType { return v.XdrType_ParallelBatch }
+func (XdrType_ParallelSignedTransactionHashBatch) XdrTypeName() string { return "ParallelSignedTransactionHashBatch" }
+func (v XdrType_ParallelSignedTransactionHashBatch) XdrUnwrap() XdrType { return v.XdrType_ParallelBatch }
 type XdrType_ParallelNondeterministicProposalDataBatch struct {
 	XdrType_ParallelBatch
 }
@@ -24332,7 +24337,7 @@ func (v *ProposalTxs) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
-	x.Marshal(x.Sprintf("%shash", name), XDR_ParallelTransactionHashBatch(&v.Hash))
+	x.Marshal(x.Sprintf("%ssigned_hash", name), XDR_ParallelSignedTransactionHashBatch(&v.Signed_hash))
 	x.Marshal(x.Sprintf("%snondeterministic_data", name), XDR_ParallelNondeterministicProposalDataBatch(&v.Nondeterministic_data))
 }
 func XDR_ProposalTxs(v *ProposalTxs) *ProposalTxs { return v }
@@ -24448,20 +24453,20 @@ func (v *PrevProposalSummary) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%svalue_hash", name), XDR_ConsensusValueHash(&v.Value_hash))
 }
 func XDR_PrevProposalSummary(v *PrevProposalSummary) *PrevProposalSummary { return v }
-type _XdrVec_unbounded_TransactionHash []TransactionHash
-func (_XdrVec_unbounded_TransactionHash) XdrBound() uint32 {
+type _XdrVec_unbounded_SignedTransactionHash []SignedTransactionHash
+func (_XdrVec_unbounded_SignedTransactionHash) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_TransactionHash) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_SignedTransactionHash) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_TransactionHash length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_TransactionHash length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_SignedTransactionHash length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_TransactionHash) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_TransactionHash) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_SignedTransactionHash) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SignedTransactionHash) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -24478,31 +24483,31 @@ func (v *_XdrVec_unbounded_TransactionHash) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]TransactionHash, int(length), newcap)
+	nv := make([]SignedTransactionHash, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_TransactionHash) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_TransactionHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_SignedTransactionHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_TransactionHash) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_TransactionHash) XdrTypeName() string { return "TransactionHash<>" }
-func (v *_XdrVec_unbounded_TransactionHash) XdrPointer() interface{} { return (*[]TransactionHash)(v) }
-func (v _XdrVec_unbounded_TransactionHash) XdrValue() interface{} { return ([]TransactionHash)(v) }
-func (v *_XdrVec_unbounded_TransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (_XdrVec_unbounded_SignedTransactionHash) XdrTypeName() string { return "SignedTransactionHash<>" }
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrPointer() interface{} { return (*[]SignedTransactionHash)(v) }
+func (v _XdrVec_unbounded_SignedTransactionHash) XdrValue() interface{} { return ([]SignedTransactionHash)(v) }
+func (v *_XdrVec_unbounded_SignedTransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_MissingTransactions = *MissingTransactions
 func (v *MissingTransactions) XdrPointer() interface{} { return v }
 func (MissingTransactions) XdrTypeName() string { return "MissingTransactions" }
@@ -24512,7 +24517,7 @@ func (v *MissingTransactions) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
-	x.Marshal(x.Sprintf("%stransaction_hashes", name), (*_XdrVec_unbounded_TransactionHash)(&v.Transaction_hashes))
+	x.Marshal(x.Sprintf("%ssigned_tx_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(&v.Signed_tx_hashes))
 	x.Marshal(x.Sprintf("%sconsensus_value", name), XDR_ConsensusValue(&v.Consensus_value))
 }
 func XDR_MissingTransactions(v *MissingTransactions) *MissingTransactions { return v }
@@ -26133,18 +26138,20 @@ func (u *SchedulerValidationResult) Block() *SchedulerValidationBlock {
 		return nil
 	}
 }
-func (u *SchedulerValidationResult) Missing_tx_hashes() *[]TransactionHash {
+// The proposal's transactions this mempool does not hold in the proposed
+// encoding, including bodies it holds under a different signing.
+func (u *SchedulerValidationResult) Missing_signed_tx_hashes() *[]SignedTransactionHash {
 	switch u.Outcome {
 	case SchedulerValidationMissingTxs:
-		if v, ok := u._u.(*[]TransactionHash); ok {
+		if v, ok := u._u.(*[]SignedTransactionHash); ok {
 			return v
 		} else {
-			var zero []TransactionHash
+			var zero []SignedTransactionHash
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("SchedulerValidationResult.Missing_tx_hashes accessed when Outcome == %v", u.Outcome)
+		XdrPanic("SchedulerValidationResult.Missing_signed_tx_hashes accessed when Outcome == %v", u.Outcome)
 		return nil
 	}
 }
@@ -26166,7 +26173,7 @@ func (u *SchedulerValidationResult) XdrUnionBody() XdrType {
 	case SchedulerValidationOK:
 		return XDR_SchedulerValidationBlock(u.Block())
 	case SchedulerValidationMissingTxs:
-		return (*_XdrVec_unbounded_TransactionHash)(u.Missing_tx_hashes())
+		return (*_XdrVec_unbounded_SignedTransactionHash)(u.Missing_signed_tx_hashes())
 	case SchedulerValidationDbFailed, SchedulerValidationExecutorFailed, SchedulerValidationInvalid, SchedulerValidationTooLateToValidate, SchedulerValidationUnknownParentBlock, SchedulerValidationMalformed:
 		return nil
 	}
@@ -26177,7 +26184,7 @@ func (u *SchedulerValidationResult) XdrUnionBodyName() string {
 	case SchedulerValidationOK:
 		return "Block"
 	case SchedulerValidationMissingTxs:
-		return "Missing_tx_hashes"
+		return "Missing_signed_tx_hashes"
 	case SchedulerValidationDbFailed, SchedulerValidationExecutorFailed, SchedulerValidationInvalid, SchedulerValidationTooLateToValidate, SchedulerValidationUnknownParentBlock, SchedulerValidationMalformed:
 		return ""
 	}
@@ -26198,7 +26205,7 @@ func (u *SchedulerValidationResult) XdrRecurse(x XDR, name string) {
 		x.Marshal(x.Sprintf("%sblock", name), XDR_SchedulerValidationBlock(u.Block()))
 		return
 	case SchedulerValidationMissingTxs:
-		x.Marshal(x.Sprintf("%smissing_tx_hashes", name), (*_XdrVec_unbounded_TransactionHash)(u.Missing_tx_hashes()))
+		x.Marshal(x.Sprintf("%smissing_signed_tx_hashes", name), (*_XdrVec_unbounded_SignedTransactionHash)(u.Missing_signed_tx_hashes()))
 		return
 	case SchedulerValidationDbFailed, SchedulerValidationExecutorFailed, SchedulerValidationInvalid, SchedulerValidationTooLateToValidate, SchedulerValidationUnknownParentBlock, SchedulerValidationMalformed:
 		return
@@ -27276,7 +27283,7 @@ func (p *xdrSrvProc_Schedulercoord_commit_genesis_ceremony) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Schedulercoord_commit_genesis_ceremony{} // XXX
 
 type xdrProc_Schedcoord_lookup_transactions struct {
-	Arg *TransactionHashBatch
+	Arg *SignedTransactionHashBatch
 	Res *OptSignedTransactionBatch
 }
 func (xdrProc_Schedcoord_lookup_transactions) Prog() uint32 { return 1986466065 }
@@ -27287,9 +27294,9 @@ func (xdrProc_Schedcoord_lookup_transactions) VersName() string { return "Schedu
 func (xdrProc_Schedcoord_lookup_transactions) ProcName() string { return "schedcoord_lookup_transactions" }
 func (p *xdrProc_Schedcoord_lookup_transactions) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(TransactionHashBatch)
+		p.Arg = new(SignedTransactionHashBatch)
 	}
-	return XDR_TransactionHashBatch(p.Arg)
+	return XDR_SignedTransactionHashBatch(p.Arg)
 }
 func (p *xdrProc_Schedcoord_lookup_transactions) GetRes() XdrType {
 	if p.Res == nil {
@@ -27535,7 +27542,7 @@ func (c SchedulerCoord1_Client) Schedulercoord_commit_genesis_ceremony(ctx conte
 	}
 	return *proc.Res, nil
 }
-func (c SchedulerCoord1_Client) Schedcoord_lookup_transactions(ctx context.Context, a1 TransactionHashBatch) (r OptSignedTransactionBatch, _ error) {
+func (c SchedulerCoord1_Client) Schedcoord_lookup_transactions(ctx context.Context, a1 SignedTransactionHashBatch) (r OptSignedTransactionBatch, _ error) {
 	var proc xdrProc_Schedcoord_lookup_transactions
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
@@ -34679,6 +34686,14 @@ func XDR_TransactionHash(v *TransactionHash) XdrType_TransactionHash {
 }
 func (XdrType_TransactionHash) XdrTypeName() string { return "TransactionHash" }
 func (v XdrType_TransactionHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_SignedTransactionHash struct {
+	XdrType_SHA256Hash
+}
+func XDR_SignedTransactionHash(v *SignedTransactionHash) XdrType_SignedTransactionHash {
+	return XdrType_SignedTransactionHash{XDR_SHA256Hash(v)}
+}
+func (XdrType_SignedTransactionHash) XdrTypeName() string { return "SignedTransactionHash" }
+func (v XdrType_SignedTransactionHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
 type _XdrVec_unbounded_DecoratedSignature []DecoratedSignature
 func (_XdrVec_unbounded_DecoratedSignature) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -35032,6 +35047,61 @@ func XDR_OptSignedTransactionBatch(v *OptSignedTransactionBatch) XdrType_OptSign
 }
 func (XdrType_OptSignedTransactionBatch) XdrTypeName() string { return "OptSignedTransactionBatch" }
 func (v XdrType_OptSignedTransactionBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_OptSignedTransaction }
+type _XdrVec_unbounded_TransactionHash []TransactionHash
+func (_XdrVec_unbounded_TransactionHash) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_TransactionHash) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_TransactionHash length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_TransactionHash length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_TransactionHash) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_TransactionHash) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]TransactionHash, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_TransactionHash) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_TransactionHash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_TransactionHash) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_TransactionHash) XdrTypeName() string { return "TransactionHash<>" }
+func (v *_XdrVec_unbounded_TransactionHash) XdrPointer() interface{} { return (*[]TransactionHash)(v) }
+func (v _XdrVec_unbounded_TransactionHash) XdrValue() interface{} { return ([]TransactionHash)(v) }
+func (v *_XdrVec_unbounded_TransactionHash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
 type XdrType_TransactionHashBatch struct {
 	*_XdrVec_unbounded_TransactionHash
 }
@@ -35040,6 +35110,14 @@ func XDR_TransactionHashBatch(v *TransactionHashBatch) XdrType_TransactionHashBa
 }
 func (XdrType_TransactionHashBatch) XdrTypeName() string { return "TransactionHashBatch" }
 func (v XdrType_TransactionHashBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_TransactionHash }
+type XdrType_SignedTransactionHashBatch struct {
+	*_XdrVec_unbounded_SignedTransactionHash
+}
+func XDR_SignedTransactionHashBatch(v *SignedTransactionHashBatch) XdrType_SignedTransactionHashBatch {
+	return XdrType_SignedTransactionHashBatch{(*_XdrVec_unbounded_SignedTransactionHash)(v)}
+}
+func (XdrType_SignedTransactionHashBatch) XdrTypeName() string { return "SignedTransactionHashBatch" }
+func (v XdrType_SignedTransactionHashBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_SignedTransactionHash }
 type XdrType_NondeterministicProposalData = *NondeterministicProposalData
 func (v *NondeterministicProposalData) XdrPointer() interface{} { return v }
 func (NondeterministicProposalData) XdrTypeName() string { return "NondeterministicProposalData" }
