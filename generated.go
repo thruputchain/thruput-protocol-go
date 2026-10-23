@@ -746,7 +746,7 @@ type ContractType int32
 const (
 	/// Precompiled native contract implemented directly in Rust.
 	///
-	/// Used for system contracts like the native HogToken.
+	/// Used for system contracts like the native token.
 	/// Cheaper to invoke than a deployed RV32 contract, but users cannot
 	/// deploy new ones.
 	KNative ContractType = 1
@@ -2920,7 +2920,7 @@ const KCIControlServerPort = 11111
 // These define the native contract IDs within the Contract struct.
 type HogexecPrecompiledNativeContracts int32
 const (
-	KNativeContractHogToken HogexecPrecompiledNativeContracts = 0
+	KNativeContractNativeToken HogexecPrecompiledNativeContracts = 0
 	// Native contract ID 1 is retired and must remain unused.
 	KNativeContractDefaultWallet HogexecPrecompiledNativeContracts = 2
 )
@@ -24273,11 +24273,11 @@ func XDR_ParallelNondeterministicProposalDataBatch(v *ParallelNondeterministicPr
 func (XdrType_ParallelNondeterministicProposalDataBatch) XdrTypeName() string { return "ParallelNondeterministicProposalDataBatch" }
 func (v XdrType_ParallelNondeterministicProposalDataBatch) XdrUnwrap() XdrType { return v.XdrType_ParallelBatch }
 var _XdrNames_HogexecPrecompiledNativeContracts = map[int32]string{
-	int32(KNativeContractHogToken): "kNativeContractHogToken",
+	int32(KNativeContractNativeToken): "kNativeContractNativeToken",
 	int32(KNativeContractDefaultWallet): "kNativeContractDefaultWallet",
 }
 var _XdrValues_HogexecPrecompiledNativeContracts = map[string]int32{
-	"kNativeContractHogToken": int32(KNativeContractHogToken),
+	"kNativeContractNativeToken": int32(KNativeContractNativeToken),
 	"kNativeContractDefaultWallet": int32(KNativeContractDefaultWallet),
 }
 func (HogexecPrecompiledNativeContracts) XdrEnumNames() map[int32]string {
