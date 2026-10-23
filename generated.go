@@ -978,7 +978,7 @@ const (
 	/// different auth-data bases, or different contract / deployment hashes.
 	ValueMismatch DbConflictCode = 2
 	/// A nonnegative int would go below zero given the deltas in this block.
-	/// A native HOG balance that cannot cover its debits reports
+	/// A native-token balance that cannot cover its debits reports
 	/// InsufficientFunds instead.
 	BoundsExceeded DbConflictCode = 3
 	/// Integer overflow combining deltas on a nonnegative int or balance.
@@ -992,11 +992,11 @@ const (
 	/// A per-item capacity limit was hit: replay-cache active heights or
 	/// nonces, retrocausal-queue block entries, or auth signer slots.
 	CapacityExceeded DbConflictCode = 7
-	/// The native HOG balance at the diagnostic's address cannot cover the
+	/// The native-token balance at the diagnostic's address cannot cover the
 	/// debits in this block, or a newly created balance item cannot cover
 	/// its own storage cost. Storage written under a contract's address is
 	/// charged to that contract's balance, so a deployment reports this at
-	/// the new contract's address when it holds no HOG.
+	/// the new contract's address when it holds no native tokens.
 	InsufficientFunds DbConflictCode = 8
 	/// An auth-data change would register a public key in a slot while
 	/// another slot of the same address already holds that key, whether
@@ -1133,7 +1133,7 @@ type AddressAndKeyBatch = []AddressAndKey
 /// The success case carries the WireStorageItem; kRPCNotFound is the
 /// legitimate outcome for an item that does not exist in the committed
 /// snapshot (e.g., a balance item for an address that has never received
-/// hogs); other errors indicate server-side failures.  Defined locally
+/// native tokens); other errors indicate server-side failures.  Defined locally
 /// rather than reusing `ExpectedStorageItem` from executor_to_db_rpc so
 /// this program has no cross-dependency on the executor-side RPC.
 type DbGatewayItemResult struct {
@@ -1174,7 +1174,7 @@ type DbGatewayResult struct {
 /// resolved reading, not a replacement for the hashed network configuration.
 /// The rules apply to execution following `tip`; they are not a promise about
 /// the block in which a subsequently submitted transaction will be included.
-/// Storage prices are integer native-HOG base units (10^7 units per HOG).
+/// Storage prices are integer native-token base units (10^7 per token).
 type DbGatewayConfig struct {
 	Tip DbTip
 	Effective_config NetworkConfig
@@ -1212,33 +1212,33 @@ const (
 	DbSchedResultInvalidParentId DbSchedResult = 2
 )
 
-const KHogAgeGroupToSchedule = 0
+const KNativeTokenAgeGroupToSchedule = 0
 
-const KHogAgeGroupAlreadyScheduled = 1
+const KNativeTokenAgeGroupAlreadyScheduled = 1
 
-const KHogAgeGroupReceived = 2
+const KNativeTokenAgeGroupReceived = 2
 
-const KHogAgeNumGroups = 3
+const KNativeTokenAgeNumGroups = 3
 
-type HogAge struct {
+type NativeTokenAge struct {
 	Address ContractAddress
-	Num_hogs [KHogAgeNumGroups]Uint128_xdr
-	Average_ages [KHogAgeNumGroups]BlockHeight
+	Num_native_tokens [KNativeTokenAgeNumGroups]Uint128_xdr
+	Average_ages [KNativeTokenAgeNumGroups]BlockHeight
 }
 
-type HogAgeBatch = []HogAge
+type NativeTokenAgeBatch = []NativeTokenAge
 
-type HogAgeResult struct {
+type NativeTokenAgeResult struct {
 	// The union discriminant Result selects among the following arms:
 	//   DbSchedResultOK:
-	//      Hog_age() *HogAge
+	//      Native_token_age() *NativeTokenAge
 	//   default:
 	//      void
 	Result DbSchedResult
 	_u interface{}
 }
 
-type HogAgeResults = []HogAgeResult
+type NativeTokenAgeResults = []NativeTokenAgeResult
 
 type DbAddressAuthDataBatchResult struct {
 	// The union discriminant Result selects among the following arms:
@@ -1284,8 +1284,8 @@ type DbTipResult struct {
 type DbSched1 interface {
 	Dbsched_null(context.Context, ) error
 	Dbsched_get_address_auth_data(context.Context, BlockID, ContractAddressBatch) (DbAddressAuthDataBatchResult, error)
-	Dbsched_get_hog_ages(context.Context, ContractAddressBatch) (HogAgeResults, error)
-	Dbsched_write_hog_ages(context.Context, HogAgeBatch) (DbSchedResult, error)
+	Dbsched_get_native_token_ages(context.Context, ContractAddressBatch) (NativeTokenAgeResults, error)
+	Dbsched_write_native_token_ages(context.Context, NativeTokenAgeBatch) (DbSchedResult, error)
 	Dbsched_create_snapshot(context.Context, BlockID, BlockID, BlockExecutionMode) (DbSchedResult, error)
 	Dbsched_commit_snapshot(context.Context, BlockID, ConsensusValue) (DbBlockResult, error)
 	Dbsched_close_snapshot(context.Context, BlockID) (DbBlockResult, error)
@@ -3416,12 +3416,12 @@ type SchedulerErrorCode int32
 const (
 	// The mempool had no capacity to admit the transaction.
 	SchedulerErrorCapacity SchedulerErrorCode = 1
-	// The scheduler could not obtain the account's average hog age.
-	SchedulerErrorHogAgeUnavailable SchedulerErrorCode = 2
+	// The scheduler could not obtain the account's average native-token age.
+	SchedulerErrorNativeTokenAgeUnavailable SchedulerErrorCode = 2
 	// The transaction's expiry block height is earlier than the current block.
 	SchedulerErrorExpired SchedulerErrorCode = 3
-	// The transaction's gas limit exceeds all hogs available to the account.
-	SchedulerErrorInsufficientHogs SchedulerErrorCode = 4
+	// The transaction's gas limit exceeds the account's available native tokens.
+	SchedulerErrorInsufficientNativeTokens SchedulerErrorCode = 4
 )
 
 type SchedulerTransactionOutcome struct {
@@ -3492,7 +3492,7 @@ type ShardCard struct {
 
 type Delta struct {
 	Address ContractAddress
-	Hog_delta Int128_xdr
+	Native_token_delta Int128_xdr
 }
 
 // One slice of the native-token balance deltas a committed block finalized.
@@ -3508,9 +3508,9 @@ type Delta struct {
 // mempool treats the block's transfers as complete only once every chunk of
 // the run has arrived; nothing that gates on a block's transfers may open
 // before that.
-type HogsTransferredChunk struct {
+type NativeTokensTransferredChunk struct {
 	// The height of the block in which these transfers occurred. The scheduler
-	// uses this height to update average hog ages.
+	// uses this height to update average native-token ages.
 	Block BlockHeight
 	// This chunk's position in the block's run, from 0, and the run's length.
 	// Every chunk of a run carries the same chunk_count, and each index in
@@ -3524,7 +3524,7 @@ type HogsTransferredChunk struct {
 
 type SchedDb1 interface {
 	Scheddb_intro_shard(context.Context, ShardCard) error
-	Scheddb_hogs_transferred_chunk(context.Context, HogsTransferredChunk) error
+	Scheddb_native_tokens_transferred_chunk(context.Context, NativeTokensTransferredChunk) error
 }
 
 // Uniquely describes an event server instance.
@@ -4782,7 +4782,7 @@ const (
 	ContractData StorageKeyType = 0
 	/// Native token balance.
 	///
-	/// Stores the free balance of the native HOG token for this address.
+	/// Stores the free balance of the native token for this address.
 	FreeNativeTokenBalance StorageKeyType = 1
 	/// Address authorization data.
 	///
@@ -4822,11 +4822,8 @@ type StorageKey struct {
 	_u interface{}
 }
 
-// #[rust(const=u64)]
-const KTotalHogSupply = 62_500_000_000
-
 // #[rust(const=u32)]
-const KHogDivisibility = 10_000_000
+const KNativeTokenDivisibility = 10_000_000
 
 /// In the global storage, every item is indexed by a unique [contract address + storage key] pair.
 type AddressAndKey struct {
@@ -11264,34 +11261,34 @@ func (v *_XdrArray_3_BlockHeight) XdrPointer() interface{} { return (*[3]BlockHe
 func (_XdrArray_3_BlockHeight) XdrTypeName() string { return "BlockHeight[]" }
 func (v *_XdrArray_3_BlockHeight) XdrValue() interface{} { return v[:] }
 func (v *_XdrArray_3_BlockHeight) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_HogAge = *HogAge
-func (v *HogAge) XdrPointer() interface{} { return v }
-func (HogAge) XdrTypeName() string { return "HogAge" }
-func (v HogAge) XdrValue() interface{} { return v }
-func (v *HogAge) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *HogAge) XdrRecurse(x XDR, name string) {
+type XdrType_NativeTokenAge = *NativeTokenAge
+func (v *NativeTokenAge) XdrPointer() interface{} { return v }
+func (NativeTokenAge) XdrTypeName() string { return "NativeTokenAge" }
+func (v NativeTokenAge) XdrValue() interface{} { return v }
+func (v *NativeTokenAge) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NativeTokenAge) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%saddress", name), XDR_ContractAddress(&v.Address))
-	x.Marshal(x.Sprintf("%snum_hogs", name), (*_XdrArray_3_Uint128_xdr)(&v.Num_hogs))
+	x.Marshal(x.Sprintf("%snum_native_tokens", name), (*_XdrArray_3_Uint128_xdr)(&v.Num_native_tokens))
 	x.Marshal(x.Sprintf("%saverage_ages", name), (*_XdrArray_3_BlockHeight)(&v.Average_ages))
 }
-func XDR_HogAge(v *HogAge) *HogAge { return v }
-type _XdrVec_unbounded_HogAge []HogAge
-func (_XdrVec_unbounded_HogAge) XdrBound() uint32 {
+func XDR_NativeTokenAge(v *NativeTokenAge) *NativeTokenAge { return v }
+type _XdrVec_unbounded_NativeTokenAge []NativeTokenAge
+func (_XdrVec_unbounded_NativeTokenAge) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_HogAge) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_NativeTokenAge) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_HogAge length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_NativeTokenAge length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_HogAge length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_NativeTokenAge length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_HogAge) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_HogAge) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_NativeTokenAge) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_NativeTokenAge) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -11308,115 +11305,115 @@ func (v *_XdrVec_unbounded_HogAge) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]HogAge, int(length), newcap)
+	nv := make([]NativeTokenAge, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_HogAge) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_NativeTokenAge) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_HogAge(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_NativeTokenAge(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_HogAge) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_NativeTokenAge) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_HogAge) XdrTypeName() string { return "HogAge<>" }
-func (v *_XdrVec_unbounded_HogAge) XdrPointer() interface{} { return (*[]HogAge)(v) }
-func (v _XdrVec_unbounded_HogAge) XdrValue() interface{} { return ([]HogAge)(v) }
-func (v *_XdrVec_unbounded_HogAge) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_HogAgeBatch struct {
-	*_XdrVec_unbounded_HogAge
+func (_XdrVec_unbounded_NativeTokenAge) XdrTypeName() string { return "NativeTokenAge<>" }
+func (v *_XdrVec_unbounded_NativeTokenAge) XdrPointer() interface{} { return (*[]NativeTokenAge)(v) }
+func (v _XdrVec_unbounded_NativeTokenAge) XdrValue() interface{} { return ([]NativeTokenAge)(v) }
+func (v *_XdrVec_unbounded_NativeTokenAge) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_NativeTokenAgeBatch struct {
+	*_XdrVec_unbounded_NativeTokenAge
 }
-func XDR_HogAgeBatch(v *HogAgeBatch) XdrType_HogAgeBatch {
-	return XdrType_HogAgeBatch{(*_XdrVec_unbounded_HogAge)(v)}
+func XDR_NativeTokenAgeBatch(v *NativeTokenAgeBatch) XdrType_NativeTokenAgeBatch {
+	return XdrType_NativeTokenAgeBatch{(*_XdrVec_unbounded_NativeTokenAge)(v)}
 }
-func (XdrType_HogAgeBatch) XdrTypeName() string { return "HogAgeBatch" }
-func (v XdrType_HogAgeBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_HogAge }
-func (_ HogAgeResult) XdrValidTags() map[int32]bool {
+func (XdrType_NativeTokenAgeBatch) XdrTypeName() string { return "NativeTokenAgeBatch" }
+func (v XdrType_NativeTokenAgeBatch) XdrUnwrap() XdrType { return v._XdrVec_unbounded_NativeTokenAge }
+func (_ NativeTokenAgeResult) XdrValidTags() map[int32]bool {
 	return nil
 }
-func (u *HogAgeResult) Hog_age() *HogAge {
+func (u *NativeTokenAgeResult) Native_token_age() *NativeTokenAge {
 	switch u.Result {
 	case DbSchedResultOK:
-		if v, ok := u._u.(*HogAge); ok {
+		if v, ok := u._u.(*NativeTokenAge); ok {
 			return v
 		} else {
-			var zero HogAge
+			var zero NativeTokenAge
 			u._u = &zero
 			return &zero
 		}
 	default:
-		XdrPanic("HogAgeResult.Hog_age accessed when Result == %v", u.Result)
+		XdrPanic("NativeTokenAgeResult.Native_token_age accessed when Result == %v", u.Result)
 		return nil
 	}
 }
-func (u HogAgeResult) XdrValid() bool {
+func (u NativeTokenAgeResult) XdrValid() bool {
 	return true
 }
-func (u *HogAgeResult) XdrUnionTag() XdrNum32 {
+func (u *NativeTokenAgeResult) XdrUnionTag() XdrNum32 {
 	return XDR_DbSchedResult(&u.Result)
 }
-func (u *HogAgeResult) XdrUnionTagName() string {
+func (u *NativeTokenAgeResult) XdrUnionTagName() string {
 	return "Result"
 }
-func (u *HogAgeResult) XdrUnionBody() XdrType {
+func (u *NativeTokenAgeResult) XdrUnionBody() XdrType {
 	switch u.Result {
 	case DbSchedResultOK:
-		return XDR_HogAge(u.Hog_age())
+		return XDR_NativeTokenAge(u.Native_token_age())
 	default:
 		return nil
 	}
 }
-func (u *HogAgeResult) XdrUnionBodyName() string {
+func (u *NativeTokenAgeResult) XdrUnionBodyName() string {
 	switch u.Result {
 	case DbSchedResultOK:
-		return "Hog_age"
+		return "Native_token_age"
 	default:
 		return ""
 	}
 }
-type XdrType_HogAgeResult = *HogAgeResult
-func (v *HogAgeResult) XdrPointer() interface{} { return v }
-func (HogAgeResult) XdrTypeName() string { return "HogAgeResult" }
-func (v HogAgeResult) XdrValue() interface{} { return v }
-func (v *HogAgeResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (u *HogAgeResult) XdrRecurse(x XDR, name string) {
+type XdrType_NativeTokenAgeResult = *NativeTokenAgeResult
+func (v *NativeTokenAgeResult) XdrPointer() interface{} { return v }
+func (NativeTokenAgeResult) XdrTypeName() string { return "NativeTokenAgeResult" }
+func (v NativeTokenAgeResult) XdrValue() interface{} { return v }
+func (v *NativeTokenAgeResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *NativeTokenAgeResult) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
 	XDR_DbSchedResult(&u.Result).XdrMarshal(x, x.Sprintf("%sresult", name))
 	switch u.Result {
 	case DbSchedResultOK:
-		x.Marshal(x.Sprintf("%shog_age", name), XDR_HogAge(u.Hog_age()))
+		x.Marshal(x.Sprintf("%snative_token_age", name), XDR_NativeTokenAge(u.Native_token_age()))
 		return
 	default:
 		return
 	}
 }
-func XDR_HogAgeResult(v *HogAgeResult) *HogAgeResult { return v}
-type _XdrVec_unbounded_HogAgeResult []HogAgeResult
-func (_XdrVec_unbounded_HogAgeResult) XdrBound() uint32 {
+func XDR_NativeTokenAgeResult(v *NativeTokenAgeResult) *NativeTokenAgeResult { return v}
+type _XdrVec_unbounded_NativeTokenAgeResult []NativeTokenAgeResult
+func (_XdrVec_unbounded_NativeTokenAgeResult) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
 	return bound
 }
-func (_XdrVec_unbounded_HogAgeResult) XdrCheckLen(length uint32) {
+func (_XdrVec_unbounded_NativeTokenAgeResult) XdrCheckLen(length uint32) {
 	if length > uint32(4294967295) {
-		XdrPanic("_XdrVec_unbounded_HogAgeResult length %d exceeds bound 4294967295", length)
+		XdrPanic("_XdrVec_unbounded_NativeTokenAgeResult length %d exceeds bound 4294967295", length)
 	} else if int(length) < 0 {
-		XdrPanic("_XdrVec_unbounded_HogAgeResult length %d exceeds max int", length)
+		XdrPanic("_XdrVec_unbounded_NativeTokenAgeResult length %d exceeds max int", length)
 	}
 }
-func (v _XdrVec_unbounded_HogAgeResult) GetVecLen() uint32 { return uint32(len(v)) }
-func (v *_XdrVec_unbounded_HogAgeResult) SetVecLen(length uint32) {
+func (v _XdrVec_unbounded_NativeTokenAgeResult) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_NativeTokenAgeResult) SetVecLen(length uint32) {
 	v.XdrCheckLen(length)
 	if int(length) <= cap(*v) {
 		if int(length) != len(*v) {
@@ -11433,39 +11430,39 @@ func (v *_XdrVec_unbounded_HogAgeResult) SetVecLen(length uint32) {
 		}
 		newcap = int(bound)
 	}
-	nv := make([]HogAgeResult, int(length), newcap)
+	nv := make([]NativeTokenAgeResult, int(length), newcap)
 	copy(nv, *v)
 	*v = nv
 }
-func (v *_XdrVec_unbounded_HogAgeResult) XdrMarshalN(x XDR, name string, n uint32) {
+func (v *_XdrVec_unbounded_NativeTokenAgeResult) XdrMarshalN(x XDR, name string, n uint32) {
 	v.XdrCheckLen(n)
 	for i := 0; i < int(n); i++ {
 		if (i >= len(*v)) {
 			v.SetVecLen(uint32(i+1))
 		}
-		XDR_HogAgeResult(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+		XDR_NativeTokenAgeResult(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
 	}
 	if int(n) < len(*v) {
 		*v = (*v)[:int(n)]
 	}
 }
-func (v *_XdrVec_unbounded_HogAgeResult) XdrRecurse(x XDR, name string) {
+func (v *_XdrVec_unbounded_NativeTokenAgeResult) XdrRecurse(x XDR, name string) {
 	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
 	x.Marshal(name, &size)
 	v.XdrMarshalN(x, name, size.Size)
 }
-func (_XdrVec_unbounded_HogAgeResult) XdrTypeName() string { return "HogAgeResult<>" }
-func (v *_XdrVec_unbounded_HogAgeResult) XdrPointer() interface{} { return (*[]HogAgeResult)(v) }
-func (v _XdrVec_unbounded_HogAgeResult) XdrValue() interface{} { return ([]HogAgeResult)(v) }
-func (v *_XdrVec_unbounded_HogAgeResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_HogAgeResults struct {
-	*_XdrVec_unbounded_HogAgeResult
+func (_XdrVec_unbounded_NativeTokenAgeResult) XdrTypeName() string { return "NativeTokenAgeResult<>" }
+func (v *_XdrVec_unbounded_NativeTokenAgeResult) XdrPointer() interface{} { return (*[]NativeTokenAgeResult)(v) }
+func (v _XdrVec_unbounded_NativeTokenAgeResult) XdrValue() interface{} { return ([]NativeTokenAgeResult)(v) }
+func (v *_XdrVec_unbounded_NativeTokenAgeResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_NativeTokenAgeResults struct {
+	*_XdrVec_unbounded_NativeTokenAgeResult
 }
-func XDR_HogAgeResults(v *HogAgeResults) XdrType_HogAgeResults {
-	return XdrType_HogAgeResults{(*_XdrVec_unbounded_HogAgeResult)(v)}
+func XDR_NativeTokenAgeResults(v *NativeTokenAgeResults) XdrType_NativeTokenAgeResults {
+	return XdrType_NativeTokenAgeResults{(*_XdrVec_unbounded_NativeTokenAgeResult)(v)}
 }
-func (XdrType_HogAgeResults) XdrTypeName() string { return "HogAgeResults" }
-func (v XdrType_HogAgeResults) XdrUnwrap() XdrType { return v._XdrVec_unbounded_HogAgeResult }
+func (XdrType_NativeTokenAgeResults) XdrTypeName() string { return "NativeTokenAgeResults" }
+func (v XdrType_NativeTokenAgeResults) XdrUnwrap() XdrType { return v._XdrVec_unbounded_NativeTokenAgeResult }
 type _XdrVec_unbounded_AddressAuthData []AddressAuthData
 func (_XdrVec_unbounded_AddressAuthData) XdrBound() uint32 {
 	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
@@ -11874,36 +11871,36 @@ func (p *xdrSrvProc_Dbsched_get_address_auth_data) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbsched_get_address_auth_data{} // XXX
 
-type xdrProc_Dbsched_get_hog_ages struct {
+type xdrProc_Dbsched_get_native_token_ages struct {
 	Arg *ContractAddressBatch
-	Res *HogAgeResults
+	Res *NativeTokenAgeResults
 }
-func (xdrProc_Dbsched_get_hog_ages) Prog() uint32 { return 2290646759 }
-func (xdrProc_Dbsched_get_hog_ages) Vers() uint32 { return 1 }
-func (xdrProc_Dbsched_get_hog_ages) Proc() uint32 { return 2 }
-func (xdrProc_Dbsched_get_hog_ages) ProgName() string { return "DbSched" }
-func (xdrProc_Dbsched_get_hog_ages) VersName() string { return "DbSched1" }
-func (xdrProc_Dbsched_get_hog_ages) ProcName() string { return "dbsched_get_hog_ages" }
-func (p *xdrProc_Dbsched_get_hog_ages) GetArg() XdrType {
+func (xdrProc_Dbsched_get_native_token_ages) Prog() uint32 { return 2290646759 }
+func (xdrProc_Dbsched_get_native_token_ages) Vers() uint32 { return 1 }
+func (xdrProc_Dbsched_get_native_token_ages) Proc() uint32 { return 2 }
+func (xdrProc_Dbsched_get_native_token_ages) ProgName() string { return "DbSched" }
+func (xdrProc_Dbsched_get_native_token_ages) VersName() string { return "DbSched1" }
+func (xdrProc_Dbsched_get_native_token_ages) ProcName() string { return "dbsched_get_native_token_ages" }
+func (p *xdrProc_Dbsched_get_native_token_ages) GetArg() XdrType {
 	if p.Arg == nil {
 		p.Arg = new(ContractAddressBatch)
 	}
 	return XDR_ContractAddressBatch(p.Arg)
 }
-func (p *xdrProc_Dbsched_get_hog_ages) GetRes() XdrType {
+func (p *xdrProc_Dbsched_get_native_token_ages) GetRes() XdrType {
 	if p.Res == nil {
-		p.Res = new(HogAgeResults)
+		p.Res = new(NativeTokenAgeResults)
 	}
-	return XDR_HogAgeResults(p.Res)
+	return XDR_NativeTokenAgeResults(p.Res)
 }
-var _ XdrProc = &xdrProc_Dbsched_get_hog_ages{} // XXX
+var _ XdrProc = &xdrProc_Dbsched_get_native_token_ages{} // XXX
 
-type xdrSrvProc_Dbsched_get_hog_ages struct {
-	xdrProc_Dbsched_get_hog_ages
+type xdrSrvProc_Dbsched_get_native_token_ages struct {
+	xdrProc_Dbsched_get_native_token_ages
 	Srv DbSched1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Dbsched_get_hog_ages) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Dbsched_get_native_token_ages) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) DbSched1
 	}); ok {
@@ -11911,46 +11908,46 @@ func (p *xdrSrvProc_Dbsched_get_hog_ages) SetContext(ctx context.Context) {
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Dbsched_get_hog_ages) Do() {
-	r, err := p.Srv.Dbsched_get_hog_ages(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Dbsched_get_native_token_ages) Do() {
+	r, err := p.Srv.Dbsched_get_native_token_ages(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Dbsched_get_hog_ages{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Dbsched_get_native_token_ages{} // XXX
 
-type xdrProc_Dbsched_write_hog_ages struct {
-	Arg *HogAgeBatch
+type xdrProc_Dbsched_write_native_token_ages struct {
+	Arg *NativeTokenAgeBatch
 	Res *DbSchedResult
 }
-func (xdrProc_Dbsched_write_hog_ages) Prog() uint32 { return 2290646759 }
-func (xdrProc_Dbsched_write_hog_ages) Vers() uint32 { return 1 }
-func (xdrProc_Dbsched_write_hog_ages) Proc() uint32 { return 3 }
-func (xdrProc_Dbsched_write_hog_ages) ProgName() string { return "DbSched" }
-func (xdrProc_Dbsched_write_hog_ages) VersName() string { return "DbSched1" }
-func (xdrProc_Dbsched_write_hog_ages) ProcName() string { return "dbsched_write_hog_ages" }
-func (p *xdrProc_Dbsched_write_hog_ages) GetArg() XdrType {
+func (xdrProc_Dbsched_write_native_token_ages) Prog() uint32 { return 2290646759 }
+func (xdrProc_Dbsched_write_native_token_ages) Vers() uint32 { return 1 }
+func (xdrProc_Dbsched_write_native_token_ages) Proc() uint32 { return 3 }
+func (xdrProc_Dbsched_write_native_token_ages) ProgName() string { return "DbSched" }
+func (xdrProc_Dbsched_write_native_token_ages) VersName() string { return "DbSched1" }
+func (xdrProc_Dbsched_write_native_token_ages) ProcName() string { return "dbsched_write_native_token_ages" }
+func (p *xdrProc_Dbsched_write_native_token_ages) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(HogAgeBatch)
+		p.Arg = new(NativeTokenAgeBatch)
 	}
-	return XDR_HogAgeBatch(p.Arg)
+	return XDR_NativeTokenAgeBatch(p.Arg)
 }
-func (p *xdrProc_Dbsched_write_hog_ages) GetRes() XdrType {
+func (p *xdrProc_Dbsched_write_native_token_ages) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(DbSchedResult)
 	}
 	return XDR_DbSchedResult(p.Res)
 }
-var _ XdrProc = &xdrProc_Dbsched_write_hog_ages{} // XXX
+var _ XdrProc = &xdrProc_Dbsched_write_native_token_ages{} // XXX
 
-type xdrSrvProc_Dbsched_write_hog_ages struct {
-	xdrProc_Dbsched_write_hog_ages
+type xdrSrvProc_Dbsched_write_native_token_ages struct {
+	xdrProc_Dbsched_write_native_token_ages
 	Srv DbSched1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Dbsched_write_hog_ages) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Dbsched_write_native_token_ages) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) DbSched1
 	}); ok {
@@ -11958,15 +11955,15 @@ func (p *xdrSrvProc_Dbsched_write_hog_ages) SetContext(ctx context.Context) {
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Dbsched_write_hog_ages) Do() {
-	r, err := p.Srv.Dbsched_write_hog_ages(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Dbsched_write_native_token_ages) Do() {
+	r, err := p.Srv.Dbsched_write_native_token_ages(p.Ctx, *p.Arg)
 	p.Res = &r
 
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Dbsched_write_hog_ages{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Dbsched_write_native_token_ages{} // XXX
 
 type xdrProcArg_Dbsched_create_snapshot struct {
 	a1 *BlockID
@@ -12321,9 +12318,9 @@ func init() {
 		case 1:
 			return &xdrProc_Dbsched_get_address_auth_data{}
 		case 2:
-			return &xdrProc_Dbsched_get_hog_ages{}
+			return &xdrProc_Dbsched_get_native_token_ages{}
 		case 3:
-			return &xdrProc_Dbsched_write_hog_ages{}
+			return &xdrProc_Dbsched_write_native_token_ages{}
 		case 5:
 			return &xdrProc_Dbsched_create_snapshot{}
 		case 6:
@@ -12354,10 +12351,10 @@ func (s DbSched1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbsched_null{ Srv: s.Srv }
 	case 1:  // dbsched_get_address_auth_data
 		return &xdrSrvProc_Dbsched_get_address_auth_data{ Srv: s.Srv }
-	case 2:  // dbsched_get_hog_ages
-		return &xdrSrvProc_Dbsched_get_hog_ages{ Srv: s.Srv }
-	case 3:  // dbsched_write_hog_ages
-		return &xdrSrvProc_Dbsched_write_hog_ages{ Srv: s.Srv }
+	case 2:  // dbsched_get_native_token_ages
+		return &xdrSrvProc_Dbsched_get_native_token_ages{ Srv: s.Srv }
+	case 3:  // dbsched_write_native_token_ages
+		return &xdrSrvProc_Dbsched_write_native_token_ages{ Srv: s.Srv }
 	case 5:  // dbsched_create_snapshot
 		return &xdrSrvProc_Dbsched_create_snapshot{ Srv: s.Srv }
 	case 6:  // dbsched_commit_snapshot
@@ -12402,16 +12399,16 @@ func (c DbSched1_Client) Dbsched_get_address_auth_data(ctx context.Context, a1 B
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_get_hog_ages(ctx context.Context, a1 ContractAddressBatch) (r HogAgeResults, _ error) {
-	var proc xdrProc_Dbsched_get_hog_ages
+func (c DbSched1_Client) Dbsched_get_native_token_ages(ctx context.Context, a1 ContractAddressBatch) (r NativeTokenAgeResults, _ error) {
+	var proc xdrProc_Dbsched_get_native_token_ages
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
 	return *proc.Res, nil
 }
-func (c DbSched1_Client) Dbsched_write_hog_ages(ctx context.Context, a1 HogAgeBatch) (r DbSchedResult, _ error) {
-	var proc xdrProc_Dbsched_write_hog_ages
+func (c DbSched1_Client) Dbsched_write_native_token_ages(ctx context.Context, a1 NativeTokenAgeBatch) (r DbSchedResult, _ error) {
+	var proc xdrProc_Dbsched_write_native_token_ages
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
@@ -23670,11 +23667,11 @@ func (u *ConfigParam) Max_return_buffer_len() *uint32 {
 /// Subinvocations are already capped at their caller's remaining gas, so
 /// bounding the root bounds every frame.
 ///
-/// Hog availability bounded a transaction's budget before this parameter,
-/// and nothing else did. A configuration omitting this one does not
-/// continue that rule: the value in force is `1,000,000,000`. A `GasAmount`
-/// rather than an `unsigned int` so that a chain may state any budget a
-/// transaction can.
+/// Native-token availability bounded a transaction's budget before this
+/// parameter, and nothing else did. A configuration omitting this one does
+/// not continue that rule: the value in force is `1,000,000,000`. A
+/// `GasAmount` rather than an `unsigned int` so that a chain may state any
+/// budget a transaction can.
 func (u *ConfigParam) Max_tx_gas() *GasAmount {
 	switch u.Param {
 	case KConfigParamMaxTxGas:
@@ -26546,15 +26543,15 @@ type XdrType_SchedulerTransactionErrorSource = *SchedulerTransactionErrorSource
 func XDR_SchedulerTransactionErrorSource(v *SchedulerTransactionErrorSource) *SchedulerTransactionErrorSource { return v }
 var _XdrNames_SchedulerErrorCode = map[int32]string{
 	int32(SchedulerErrorCapacity): "SchedulerErrorCapacity",
-	int32(SchedulerErrorHogAgeUnavailable): "SchedulerErrorHogAgeUnavailable",
+	int32(SchedulerErrorNativeTokenAgeUnavailable): "SchedulerErrorNativeTokenAgeUnavailable",
 	int32(SchedulerErrorExpired): "SchedulerErrorExpired",
-	int32(SchedulerErrorInsufficientHogs): "SchedulerErrorInsufficientHogs",
+	int32(SchedulerErrorInsufficientNativeTokens): "SchedulerErrorInsufficientNativeTokens",
 }
 var _XdrValues_SchedulerErrorCode = map[string]int32{
 	"SchedulerErrorCapacity": int32(SchedulerErrorCapacity),
-	"SchedulerErrorHogAgeUnavailable": int32(SchedulerErrorHogAgeUnavailable),
+	"SchedulerErrorNativeTokenAgeUnavailable": int32(SchedulerErrorNativeTokenAgeUnavailable),
 	"SchedulerErrorExpired": int32(SchedulerErrorExpired),
-	"SchedulerErrorInsufficientHogs": int32(SchedulerErrorInsufficientHogs),
+	"SchedulerErrorInsufficientNativeTokens": int32(SchedulerErrorInsufficientNativeTokens),
 }
 func (SchedulerErrorCode) XdrEnumNames() map[int32]string {
 	return _XdrNames_SchedulerErrorCode
@@ -26592,7 +26589,7 @@ type XdrType_SchedulerErrorCode = *SchedulerErrorCode
 func XDR_SchedulerErrorCode(v *SchedulerErrorCode) *SchedulerErrorCode { return v }
 func (v *SchedulerErrorCode) XdrInitialize() {
 	switch SchedulerErrorCode(0) {
-	case SchedulerErrorCapacity, SchedulerErrorHogAgeUnavailable, SchedulerErrorExpired, SchedulerErrorInsufficientHogs:
+	case SchedulerErrorCapacity, SchedulerErrorNativeTokenAgeUnavailable, SchedulerErrorExpired, SchedulerErrorInsufficientNativeTokens:
 	default:
 		if *v == SchedulerErrorCode(0) { *v = SchedulerErrorCapacity }
 	}
@@ -27585,7 +27582,7 @@ func (v *Delta) XdrRecurse(x XDR, name string) {
 		name = x.Sprintf("%s.", name)
 	}
 	x.Marshal(x.Sprintf("%saddress", name), XDR_ContractAddress(&v.Address))
-	x.Marshal(x.Sprintf("%shog_delta", name), XDR_Int128_xdr(&v.Hog_delta))
+	x.Marshal(x.Sprintf("%snative_token_delta", name), XDR_Int128_xdr(&v.Native_token_delta))
 }
 func XDR_Delta(v *Delta) *Delta { return v }
 type _XdrVec_unbounded_Delta []Delta
@@ -27643,12 +27640,12 @@ func (_XdrVec_unbounded_Delta) XdrTypeName() string { return "Delta<>" }
 func (v *_XdrVec_unbounded_Delta) XdrPointer() interface{} { return (*[]Delta)(v) }
 func (v _XdrVec_unbounded_Delta) XdrValue() interface{} { return ([]Delta)(v) }
 func (v *_XdrVec_unbounded_Delta) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-type XdrType_HogsTransferredChunk = *HogsTransferredChunk
-func (v *HogsTransferredChunk) XdrPointer() interface{} { return v }
-func (HogsTransferredChunk) XdrTypeName() string { return "HogsTransferredChunk" }
-func (v HogsTransferredChunk) XdrValue() interface{} { return v }
-func (v *HogsTransferredChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *HogsTransferredChunk) XdrRecurse(x XDR, name string) {
+type XdrType_NativeTokensTransferredChunk = *NativeTokensTransferredChunk
+func (v *NativeTokensTransferredChunk) XdrPointer() interface{} { return v }
+func (NativeTokensTransferredChunk) XdrTypeName() string { return "NativeTokensTransferredChunk" }
+func (v NativeTokensTransferredChunk) XdrValue() interface{} { return v }
+func (v *NativeTokensTransferredChunk) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *NativeTokensTransferredChunk) XdrRecurse(x XDR, name string) {
 	if name != "" {
 		name = x.Sprintf("%s.", name)
 	}
@@ -27657,7 +27654,7 @@ func (v *HogsTransferredChunk) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%schunk_count", name), XDR_uint32(&v.Chunk_count))
 	x.Marshal(x.Sprintf("%sdeltas", name), (*_XdrVec_unbounded_Delta)(&v.Deltas))
 }
-func XDR_HogsTransferredChunk(v *HogsTransferredChunk) *HogsTransferredChunk { return v }
+func XDR_NativeTokensTransferredChunk(v *NativeTokensTransferredChunk) *NativeTokensTransferredChunk { return v }
 
 type xdrProc_Scheddb_intro_shard struct {
 	Arg *ShardCard
@@ -27704,36 +27701,36 @@ func (p *xdrSrvProc_Scheddb_intro_shard) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Scheddb_intro_shard{} // XXX
 
-type xdrProc_Scheddb_hogs_transferred_chunk struct {
-	Arg *HogsTransferredChunk
+type xdrProc_Scheddb_native_tokens_transferred_chunk struct {
+	Arg *NativeTokensTransferredChunk
 	Res *XdrVoid
 }
-func (xdrProc_Scheddb_hogs_transferred_chunk) Prog() uint32 { return 2129107352 }
-func (xdrProc_Scheddb_hogs_transferred_chunk) Vers() uint32 { return 1 }
-func (xdrProc_Scheddb_hogs_transferred_chunk) Proc() uint32 { return 4 }
-func (xdrProc_Scheddb_hogs_transferred_chunk) ProgName() string { return "SchedDb" }
-func (xdrProc_Scheddb_hogs_transferred_chunk) VersName() string { return "SchedDb1" }
-func (xdrProc_Scheddb_hogs_transferred_chunk) ProcName() string { return "scheddb_hogs_transferred_chunk" }
-func (p *xdrProc_Scheddb_hogs_transferred_chunk) GetArg() XdrType {
+func (xdrProc_Scheddb_native_tokens_transferred_chunk) Prog() uint32 { return 2129107352 }
+func (xdrProc_Scheddb_native_tokens_transferred_chunk) Vers() uint32 { return 1 }
+func (xdrProc_Scheddb_native_tokens_transferred_chunk) Proc() uint32 { return 4 }
+func (xdrProc_Scheddb_native_tokens_transferred_chunk) ProgName() string { return "SchedDb" }
+func (xdrProc_Scheddb_native_tokens_transferred_chunk) VersName() string { return "SchedDb1" }
+func (xdrProc_Scheddb_native_tokens_transferred_chunk) ProcName() string { return "scheddb_native_tokens_transferred_chunk" }
+func (p *xdrProc_Scheddb_native_tokens_transferred_chunk) GetArg() XdrType {
 	if p.Arg == nil {
-		p.Arg = new(HogsTransferredChunk)
+		p.Arg = new(NativeTokensTransferredChunk)
 	}
-	return XDR_HogsTransferredChunk(p.Arg)
+	return XDR_NativeTokensTransferredChunk(p.Arg)
 }
-func (p *xdrProc_Scheddb_hogs_transferred_chunk) GetRes() XdrType {
+func (p *xdrProc_Scheddb_native_tokens_transferred_chunk) GetRes() XdrType {
 	if p.Res == nil {
 		p.Res = new(XdrVoid)
 	}
 	return XDR_XdrVoid(p.Res)
 }
-var _ XdrProc = &xdrProc_Scheddb_hogs_transferred_chunk{} // XXX
+var _ XdrProc = &xdrProc_Scheddb_native_tokens_transferred_chunk{} // XXX
 
-type xdrSrvProc_Scheddb_hogs_transferred_chunk struct {
-	xdrProc_Scheddb_hogs_transferred_chunk
+type xdrSrvProc_Scheddb_native_tokens_transferred_chunk struct {
+	xdrProc_Scheddb_native_tokens_transferred_chunk
 	Srv SchedDb1
 	Ctx context.Context
 }
-func (p *xdrSrvProc_Scheddb_hogs_transferred_chunk) SetContext(ctx context.Context) {
+func (p *xdrSrvProc_Scheddb_native_tokens_transferred_chunk) SetContext(ctx context.Context) {
 	if wc, ok := p.Srv.(interface {
 		WithContext(context.Context) SchedDb1
 	}); ok {
@@ -27741,13 +27738,13 @@ func (p *xdrSrvProc_Scheddb_hogs_transferred_chunk) SetContext(ctx context.Conte
 	}
 	p.Ctx = ctx
 }
-func (p *xdrSrvProc_Scheddb_hogs_transferred_chunk) Do() {
-	err := p.Srv.Scheddb_hogs_transferred_chunk(p.Ctx, *p.Arg)
+func (p *xdrSrvProc_Scheddb_native_tokens_transferred_chunk) Do() {
+	err := p.Srv.Scheddb_native_tokens_transferred_chunk(p.Ctx, *p.Arg)
 	if err != nil {
 		panic(err)
 	}
 }
-var _ XdrSrvProc = &xdrSrvProc_Scheddb_hogs_transferred_chunk{} // XXX
+var _ XdrSrvProc = &xdrSrvProc_Scheddb_native_tokens_transferred_chunk{} // XXX
 
 func init() {
 	XdrCatalog[2129107352<<32|1] = func(p uint32) XdrProc {
@@ -27755,7 +27752,7 @@ func init() {
 		case 1:
 			return &xdrProc_Scheddb_intro_shard{}
 		case 4:
-			return &xdrProc_Scheddb_hogs_transferred_chunk{}
+			return &xdrProc_Scheddb_native_tokens_transferred_chunk{}
 		}
 		return nil
 	}
@@ -27772,8 +27769,8 @@ func (s SchedDb1_Server) GetProc(p uint32) XdrSrvProc {
 	switch p {
 	case 1:  // scheddb_intro_shard
 		return &xdrSrvProc_Scheddb_intro_shard{ Srv: s.Srv }
-	case 4:  // scheddb_hogs_transferred_chunk
-		return &xdrSrvProc_Scheddb_hogs_transferred_chunk{ Srv: s.Srv }
+	case 4:  // scheddb_native_tokens_transferred_chunk
+		return &xdrSrvProc_Scheddb_native_tokens_transferred_chunk{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -27797,8 +27794,8 @@ func (c SchedDb1_Client) Scheddb_intro_shard(ctx context.Context, a1 ShardCard) 
 	}
 	return nil
 }
-func (c SchedDb1_Client) Scheddb_hogs_transferred_chunk(ctx context.Context, a1 HogsTransferredChunk) error {
-	var proc xdrProc_Scheddb_hogs_transferred_chunk
+func (c SchedDb1_Client) Scheddb_native_tokens_transferred_chunk(ctx context.Context, a1 NativeTokensTransferredChunk) error {
+	var proc xdrProc_Scheddb_native_tokens_transferred_chunk
 	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return err
