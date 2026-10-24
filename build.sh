@@ -13,7 +13,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 # Files to exclude from XDR generation (space-separated list of filenames, e.g., "file1.x file2.x")
-EXCLUDE_FILES="transaction_trace.x ffi_enums.x invoke_flag.x invoke_args.x executor_to_db_rpc.x groundhog_contract_spec.x repair2.x view.x view_gateway.x discovery2.x multiplex2.x"
+EXCLUDE_FILES="transaction_trace.x ffi_enums.x invoke_flag.x invoke_args.x executor_to_db_rpc.x contract_spec.x repair2.x view.x view_gateway.x discovery2.x multiplex2.x"
 
 # generate pkg.go
 
