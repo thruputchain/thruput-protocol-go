@@ -34,18 +34,15 @@ type PublicKeyConfigOpt = *PublicKeyConfig
 
 /// Default required weight for a newly initialized address.
 ///
-/// When an address is first created (e.g., from a public key hash),
-/// the auth data is initialized with these defaults.
+/// An address has no [`AddressAuthData`] until a change registers a key or
+/// writes a threshold for it. The row that change creates requires this
+/// weight unless the change writes a threshold of its own.
 const KDefaultNewAddressRequiredWeight = 1
 
-/// Default accepted keys bitmap for a newly initialized address.
+/// The key ID a `kPubkeySignature` claim's single signature must carry.
 ///
-/// `0xFFFFFFFF` means all key slots are initially acceptable.
-const KDefaultNewAddressAcceptedKeys = 0xFFFFFFFF
-
-/// Default key ID for the initial key of a newly initialized address.
-///
-/// The public key used to derive the address is installed as key 0.
+/// Nothing is installed under it: an address authorized by a pubkey claim has
+/// no [`AddressAuthData`] at all.
 const KDefaultNewAddressKeyID = 0
 
 /// The complete authorization configuration for an address.
@@ -55,10 +52,11 @@ const KDefaultNewAddressKeyID = 0
 /// - The set of public keys and their weights
 /// - The minimum weight threshold required to authorize a transaction
 ///
-/// When a transaction is submitted, its `AuthClaims` are verified against
-/// this data to determine if the transaction is properly authorized.
+/// When a transaction is submitted with a `kSourceAddressAuthData`
+/// [`AuthClaim`], the claim is verified against this data to determine if the
+/// transaction is properly authorized.
 ///
-/// This is the type stored at storage key `AddressAuthData`.
+/// This is the type stored at storage key type `AuthData`.
 ///
 /// # TODO
 ///
@@ -100,26 +98,28 @@ type Weight = uint32
 ///
 /// Each bit position corresponds to a key ID (bit 0 = key 0, bit 1 = key 1, etc.).
 /// Used to specify which keys are acceptable for satisfying an auth claim.
+/// Only bits below `kMaxSigners` may be set; a bitmap with a higher bit set
+/// is `kAuthMalformed`.
 type BitMap = uint32
 
 /// Identifier for a public key within an address's key set.
 ///
-/// Valid range is 0-31 (must fit in one byte for CXS encoding).
-/// This is why `kMaxSigners` is constrained to be <= 31.
+/// Valid range is 0 to `kMaxSigners - 1` (0-20).
 type KeyID = uint32
 
 /// Maximum number of signers that can be configured on an address.
 ///
 /// This matches Stellar's `MAX_SIGNERS` (20) plus 1 for the primary key.
-/// Must be <= 31 to fit in the `BitMap` representation.
+/// Must be <= 32 so that every key ID has a bit in a [`BitMap`].
 const KMaxSigners = 21
 
 /// Discriminator for the different types of authorization claims.
 type AuthClaimType int32
 const (
 	/// Requires a set of signatures from the source address's auth data.
-	/// The runtime checks whether there are sufficient signatures associated with the address
-	/// to satisfy the address auth data's required weight.
+	/// The runtime checks whether the signing keys' weights sum to at least the
+	/// larger of the auth data's required weight and the claim's own
+	/// `required_weight`.
 	// TODO(geoff): consider surfacing the data about which keys signed in a syscall.
 	KSourceAddressAuthData AuthClaimType = 0
 	/// Requires a signature from a specific public key.
@@ -152,7 +152,10 @@ type AuthClaim struct {
 	_u interface{}
 }
 /// The transaction is signed by the keys in the source address's auth data.
-/// The bitmap specifies which are allowed to be used to sign the transaction.
+/// The bitmap specifies which are allowed to be used to sign the transaction,
+/// and the signatures must be listed in strictly increasing `public_key_id`
+/// order. `required_weight` can only raise the auth data's threshold: the
+/// signing weight must reach the larger of the two.
 type XdrAnon_AuthClaim_Source_address_claim struct {
 	Allowed_keys BitMap
 	Required_weight Weight
@@ -744,7 +747,7 @@ type ContractBlob struct {
 /// rather than silently decode as a live contract type.
 type ContractType int32
 const (
-	/// Precompiled native contract implemented directly in Rust.
+	/// Precompiled native contract implemented natively by the node.
 	///
 	/// Used for system contracts like the native token.
 	/// Cheaper to invoke than a deployed RV32 contract, but users cannot
@@ -835,89 +838,32 @@ type ContractDeploymentHashPreimage struct {
 	Contract_hash SHA256Hash
 }
 
-/// Valid identifier string following RFC 4506.
-///
-/// Must be a letter followed by an optional sequence of letters, digits,
-/// or underscores. Cannot be an XDR keyword (e.g., `"struct"`, `"union"`, `"enum"`).
-///
-/// # Examples
-///
-/// - `"transfer"`
-/// - `"approve"`
-/// - `"get_balance"`
-type Identifier = string
-
-/// Semantic version string following semver.org specification.
-///
-/// Format: `MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]`
-///
-/// # Examples
-///
-/// - `"0.1.3"`
-/// - `"1.0.0"`
-/// - `"2.1.4-alpha"`
-/// - `"1.0.0-alpha+001"`
-type SemVer = string
-
-/// Hash preimage for deriving contract interface identifiers.
-///
-/// Contract entrypoints can be arbitrary 8 byte identifiers (the [`ContractEntrypointID`] type).
-///  By default, the SDK
-/// for Groundhog contracts follows the following scheme for allocating those
-/// identifiers, although this scheme is not a strict requirement.
-///
-/// Contract interfaces define a set of methods (entrypoints) with a name
-/// and version. The first 6 bytes of `SHA256(ContractInterfaceIDPreimage)`
-/// serve as a namespace prefix for all methods in that interface.
-///
-/// This allows:
-/// - Interface versioning (same methods, different versions)
-/// - Collision resistance (different interfaces, same method names)
-/// - Stable method IDs across implementations
-///
-/// # Example
-///
-/// An interface `"ERC20"` version `"1.0.0"` will have a unique 6-byte
-/// prefix, and all methods (`transfer`, `approve`, etc.) will share that prefix.
-type ContractInterfaceIDPreimage struct {
-	/// Name of the contract interface.
-	///
-	/// Should be descriptive and unique (e.g., `"ERC20"`, `"Governance"`, `"Oracle"`).
-	Name Identifier
-	/// Semantic version of the interface.
-	///
-	/// Allows evolving interfaces while maintaining compatibility.
-	Vers SemVer
-}
-
 /// 8-byte identifier for a contract method (entrypoint).
 ///
 /// Entrypoint IDs uniquely identify which method to invoke on a contract.
-/// By default, the SDK computes these as follows.
+/// A contract may use any 8 bytes; the protocol attaches no meaning to them.
+/// By default, the SDK derives them from the interface name, the major
+/// version of the interface, and the method name:
 ///
 /// ```text
-/// Bytes 0-5: SHA256(ContractInterfaceIDPreimage)[0..6]
-/// Bytes 6-7: Method-specific ID chosen by interface author
+/// SHA256(name || "::" || major || "::" || method)[0..8]
 /// ```
 ///
-/// This two-level scheme provides:
-/// 1. Interface-level namespace (6 bytes) - prevents collisions between interfaces
-/// 2. Method-level identifier (2 bytes) - identifies specific method within interface
-///
-/// By default, the SDK lexicographically sorts method names and allocates the
-/// last 2 bytes based on that order (first method gets 0x0000, second gets 0x0001, etc.).
+/// `major` is the semver compatibility prefix of the interface version: the
+/// leading components up to and including the first nonzero one (`"1"` for
+/// `"1.4.2"`, `"0.2"` for `"0.2.7"`, `"0.0.3"` for `"0.0.3"`). Versions that
+/// share it therefore share entrypoint IDs, and the `"::"` separators keep
+/// distinct (name, major, method) triples from concatenating to the same
+/// preimage.
 ///
 /// # Example
 ///
-/// For `"ERC20"` v1.0.0 interface:
+/// For an `"ERC20"` interface at version `"1.0.0"`, `transfer` is
+/// `SHA256("ERC20::1::transfer")[0..8]`.
 ///
-/// ```text
-/// SHA256("ERC20" || "1.0.0")[0..6] = 0xabcdef012345 (6-byte prefix)
-///
-/// Methods sorted lexicographically:
-/// approve  -> method ID = 0x0000 -> Full entrypoint = 0xabcdef0123450000
-/// transfer -> method ID = 0x0001 -> Full entrypoint = 0xabcdef0123450001
-/// ```
+/// Interface IDs use the same prefix under a domain tag,
+/// `SHA256("groundhog-interface::" || name || "::" || major)[0..8]`, so they
+/// never coincide with an entrypoint ID.
 type ContractEntrypointID = [8]byte
 
 /// Hash and metadata for a contract deployed at an address.
@@ -943,15 +889,6 @@ type DeployedContractHash struct {
 	/// instantiate without a database lookup. When the contract module is
 	/// already cached, this avoids loading the contract bytecode entirely.
 	Contract_type ContractType
-}
-
-/// Metadata associated with an address.
-///
-/// Currently only stores information about the deployed contract, if any.
-/// This is the type stored at storage key `AddressMetadata`.
-type AddressMetadata struct {
-	/// Information about the contract deployed at this address.
-	Deployed_contract DeployedContractHash
 }
 
 type CoordScheduler1 interface {
@@ -1539,7 +1476,7 @@ type ExecResult int32
 const (
 	ExecResultOK ExecResult = 0
 	// Transaction execution (during proposal or validation) failed.
-	// Specifically, the root frame returned Deterministic.
+	// Specifically, the root frame failed with Deterministic or OutOfGas.
 	// the error is deterministic and can be replayed in validation.
 	// Transactions with this error code can be included in the block.
 	ExecResultTxDeterministicError ExecResult = 1
@@ -1651,10 +1588,11 @@ const (
 /// Inputs fixed before executing a candidate block.
 ///
 /// Supplied by the coordinator when it asks the scheduler to build a proposal;
-/// the parent block is identified by the surrounding RPC. Both fields are
-/// copied into the resulting `ProposalHeader`.
+/// the parent block is identified by the surrounding RPC. `proposer` and
+/// `block_timepoint` are copied into the resulting [`ProposalHeader`].
 type ProposalContext struct {
-	// Network protocol version.
+	/// Network protocol version. `ProposalHeader` has no protocol field; the
+	/// block's version is `ConsensusValue::protocol`.
 	Protocol Protocol
 	/// Block proposer. Nodes missing block data fetch it from the proposer.
 	Proposer ValidatorID
@@ -1675,7 +1613,8 @@ type ProposalHeader struct {
 	/// The hash of the network name, separating this network's blocks from
 	/// those of other networks.
 	Network_hash NetworkHash
-	/// The hash of the post-block network configuration.
+	/// The hash of the post-block [`ConfigHashPreimage`]: the storage cost
+	/// model, network configuration and default wallet.
 	Config_hash ConfigHash
 	/// Block proposer. Nodes missing block data fetch it from the proposer.
 	Proposer ValidatorID
@@ -1698,7 +1637,8 @@ type ProposalHeader struct {
 const KSHA256BufferMaxSize = 4096
 
 /// Storage savepoints one transaction may hold when a configuration does not
-/// state `kConfigParamMaxSavepointDepth`. Frozen for the same reason.
+/// state `kConfigParamMaxSavepointDepth`. Frozen: changing it changes the
+/// rules for every configuration that omits the parameter.
 const KMaxSavepointDepth = 1024
 
 /// Bytes of RV32 code an attached artifact may carry when a configuration
@@ -1707,7 +1647,7 @@ const KDefaultMaxRv32CodeBytes = 262144
 
 /// Bytes of RV32 guest memory an attached artifact may declare when a
 /// configuration does not state `kConfigParamMaxRv32MemoryBytes`. Frozen for
-/// the same reason.
+/// the same reason as `kMaxSavepointDepth`.
 const KDefaultMaxRv32MemoryBytes = 65536
 
 type HogXID = string
@@ -1830,11 +1770,12 @@ type IdentifiedEventBatch = []IdentifiedEvent
 
 type TxInfoBatch = []TxInfo
 
-/// Max contracts per filter and max filters per query.  Matches Soroban
-/// getEvents' limit of 5; designed to be low enough that the merge-walk
-/// stays cheap even on degenerate inputs.
+/// Max contracts per filter.  Matches Soroban getEvents' limit of 5;
+/// designed to be low enough that the merge-walk stays cheap even on
+/// degenerate inputs.
 const KMaxContractAddressesPerEventFilter = 5
 
+/// Max filters per query, chosen like `kMaxContractAddressesPerEventFilter`.
 const KMaxEventFiltersPerQuery = 5
 
 type ContractAddressList = []ContractAddress // bound KMaxContractAddressesPerEventFilter
@@ -1856,11 +1797,12 @@ type EventTopicFilter struct {
 }
 
 /// A single event-filter predicate: events must be emitted by one of
-/// `contract_addresses` AND match the topic constraints.  Required
-/// non-empty contract_addresses — the indexer has no topic-indexed
-/// column family and can't efficiently serve "any contract" scans.
-/// (When such an index is added, the gateway relaxes the non-empty
-/// check; the XDR stays the same.)
+/// `contract_addresses` AND match the topic constraints.  The indexer has
+/// no topic-indexed column family and can't efficiently serve "any
+/// contract" scans, so a query with no filters, or with any filter whose
+/// contract_addresses is empty, matches nothing: it returns an empty page,
+/// or IndexerQueryInvalidCursor if it carries a cursor.  (When such an
+/// index is added, the indexer can relax this; the XDR stays the same.)
 type EventFilter struct {
 	Contract_addresses ContractAddressList
 	Topics EventTopicFilter
@@ -1985,7 +1927,11 @@ type BlockTransactionQuery struct {
 type TransactionRefPage struct {
 	Refs TransactionRefBatch
 	Cursor PaginationCursor
+	/// Highest block the indexer serves.
 	Latest_block BlockHeight
+	/// Lowest block the query covers: 1 (the first indexed block) for
+	/// get_transactions_by_block, and the indexer's oldest retained block
+	/// (today always 0) for get_transactions_by_address.
 	Oldest_block BlockHeight
 }
 
@@ -1996,9 +1942,11 @@ type TransactionRefPage struct {
 type IndexerQueryOutcome int32
 const (
 	IndexerQueryOk IndexerQueryOutcome = 0
-	/// The indexer's database is not open (still starting up, or shut
-	/// down).  Transient from the cluster's point of view: retry, or ask
-	/// a healthy node.
+	/// The indexer cannot serve the query yet: its database is not open
+	/// (still starting up, or shut down), or, for block queries, no block
+	/// is indexed yet or the block projection is still being built.
+	/// Transient from the cluster's point of view: retry, or ask a healthy
+	/// node.
 	IndexerQueryNotReady IndexerQueryOutcome = 1
 	/// Unrecoverable backend failure (corrupt record, storage error).
 	/// Details are in the indexer's logs.
@@ -2252,9 +2200,9 @@ const KCoordinatorMaxBytesSCPEnvelopeMessage = 5_000_000
 /// enforced at the coordinator.
 const KCoordinatorMaxBytesSCPQuorumSet = 1_000_000
 
-/// kMaxBytesSignedTransaction is a currently assumed (but not enforced) bound on the
-/// maximum size of a signed transaction submitted through the wallet.
-/// This bound is used by the coordinator to calculate how many unvetted transactions it can buffer
+/// kMaxBytesSignedTransaction is the maximum encoded size of a signed transaction;
+/// the auth server rejects larger ones.
+/// This bound is also used by the coordinator to calculate how many unvetted transactions it can buffer
 /// before submitting them to the mempool without violating kMempoolCoordinatorRpcMaxBytes.
 const KMaxBytesSignedTransaction = 2_000_000
 
@@ -2375,10 +2323,11 @@ const (
 /// One configuration parameter and the value in force for it.
 ///
 /// Serves both uses of that pairing: `NetworkConfigV0` states a chain's
-/// configuration as a list of these, and consensus carries one per parameter
-/// being changed in `ConsensusValue::upgrades`, where everything a block does
-/// not name keeps the value it already has. Each arm carries its own type, so
-/// a future parameter need not be an `unsigned int`.
+/// configuration as a list of these, and is meant to carry one per parameter
+/// being changed by a consensus upgrade, where everything a block does not
+/// name keeps the value it already has. No upgrade mechanism exists yet:
+/// `ConsensusValue::upgrades` is opaque, and hogd leaves it empty. Each arm
+/// carries its own type, so a future parameter need not be an `unsigned int`.
 ///
 /// There is no `default` arm on purpose: a node that cannot name a parameter
 /// cannot know what value is in force for it, so an unrecognized id must fail
@@ -2445,8 +2394,9 @@ type NetworkConfigV0 struct {
 
 /// The consensus-critical execution parameters a block executes under.
 ///
-/// The protocol blesses no value for any parameter: a chain states its
-/// configuration at genesis, so there is nothing a node silently inherits.
+/// A chain states its configuration at genesis. A parameter the
+/// configuration does not state takes the value its [`ConfigParam`] arm
+/// documents (see [`NetworkConfigV0`]).
 ///
 /// One version, because `v0` states its parameters as a list: a new parameter
 /// is an id and a [`ConfigParam`] arm, not a new arm here. The discriminant is
@@ -2534,9 +2484,9 @@ type BlockAnchor struct {
 /// Opaque pagination cursor authored by the server.  Clients pass
 /// back whatever they received in the previous response's `cursor`
 /// field to continue pagination.  The encoding is a server-side
-/// implementation detail and may change between versions; the first
-/// byte is a format-version tag so stale cursors fail cleanly rather
-/// than being silently misinterpreted.
+/// implementation detail and may change between versions; it begins
+/// with a server-defined version word so stale cursors fail cleanly
+/// rather than being silently misinterpreted.
 type PaginationCursor = []byte
 
 type ParallelBatch struct {
@@ -2771,8 +2721,9 @@ type DbTip struct {
 	/// ProposalHeader::config_hash through ConfigHashPreimage.
 	Default_wallet DeployedContractHash
 	/// The execution parameters in force for the block that follows this tip.
-	/// Set at genesis from GenesisConfiguration::network_config; carried forward
-	/// verbatim by every commit that does not apply a [`ConfigUpgrade`].
+	/// Set at genesis from GenesisConfiguration::network_config and carried
+	/// forward verbatim by every commit: no mechanism changes it after genesis
+	/// yet (see [`ConfigParam`]).
 	Network_config NetworkConfig
 }
 
@@ -2950,7 +2901,7 @@ const (
 	SchedulerValidationUnknownParentBlock SchedulerValidationOutcome = 6
 	// Proposal batch metadata is malformed or fails to decode (e.g.
 	// segment token/byte counts are inconsistent, XDR deserialization
-	// fails, or tx_hashes/tx_nondeterministic counts do not match).
+	// fails, or signed_hash/nondeterministic_data counts do not match).
 	SchedulerValidationMalformed SchedulerValidationOutcome = 7
 )
 
@@ -3915,7 +3866,7 @@ type SyscallErrorCode int32
 const (
 	/// No error
 	KSyscallErrorCodeNone SyscallErrorCode = 0
-	/// Out of bounds pointer to wasm memory passed to syscall
+	/// Out of bounds pointer to contract memory passed to syscall
 	KSyscallErrorCodeFault SyscallErrorCode = 1
 	/// System call for supplied number is not supported
 	KSyscallErrorCodeNoSyscall SyscallErrorCode = 2
@@ -3926,10 +3877,10 @@ const (
 	/// Attempt made to deploy a contract twice (same nonce and contract hash, from
 	/// same address)
 	KSyscallErrorCodeContractAlreadyDeployed SyscallErrorCode = 5
-	/// No return buffer is available.  Either the most recent subcall failed, or
+	/// No return buffer is available.  Either the most recent subcall faulted, or
 	/// there have been no subcalls within this call frame.
 	KSyscallErrorCodeNoReturnBufferAvailable SyscallErrorCode = 6
-	/// Invalid input to a syscall, such as subtracting below 0 on an nnint64
+	/// Invalid input to a syscall, such as subtracting below 0 on an nnint
 	/// or a bytestring that is too long
 	KSyscallErrorCodeInvalidSyscallInput SyscallErrorCode = 7
 	/// Accessing a storage key that does not exist in the current view
@@ -4067,13 +4018,12 @@ type Transaction struct {
 	Invocation Invocation
 	/// Uniqueness and replay protection data.
 	Uniquifier Uniquifier
-	/// New contracts to deploy before execution begins.
+	/// Contracts made available for deployment during this transaction.
 	///
-	/// These contracts become available on-chain before the root invocation
-	/// executes, allowing the transaction to deploy and immediately use contracts.
-	/// Contracts already deployed on-chain do not need to be included here.
-	///
-	/// Deployed via the DeployContract syscall during transaction execution.
+	/// Attaching a contract does not deploy it: nothing reaches the chain
+	/// unless a frame deploys it with the DeployContract syscall, which can then
+	/// be invoked for the rest of the transaction. Contracts whose code is
+	/// already on-chain do not need to be included here.
 	Contracts_to_deploy []Contract
 	/// Authorization claim specifying required signatures.
 	///
@@ -4090,8 +4040,9 @@ type DecoratedSignature struct {
 	/// The KeyID of the public key that created this signature.
 	///
 	/// This is matched against the auth claims to determine if the signature
-	/// satisfies the transaction's authorization requirements. See [`AuthClaim`]
-	/// in auth_claim.x for details on how keys are registered and weighted.
+	/// satisfies the transaction's authorization requirements. Keys are
+	/// registered and weighted in [`AddressAuthData`] (address_auth.x); see
+	/// [`AuthClaim`] in auth_claim.x for how a claim selects them.
 	Public_key_id uint32
 	/// The cryptographic signature itself.
 	///
@@ -4103,7 +4054,7 @@ type DecoratedSignature struct {
 /// know a transaction by.
 ///
 /// This is the SHA-256 hash of the XDR-encoded [`Transaction`] -- the same
-/// object the signatures are over. It deliberately covers neither the
+/// encoding the signatures cover (see [`SignedTransaction`]). It deliberately covers neither the
 /// signatures wrapped around it by [`SignedTransaction`] nor the
 /// nondeterministic data attached to it by [`ProposedTransaction`]:
 ///
@@ -4141,16 +4092,19 @@ type SignedTransactionHash = SHA256Hash
 /// A transaction with cryptographic signatures.
 ///
 /// This is the form in which transactions are transmitted and stored.
-/// Before execution, the signatures are verified against the auth claims.
+/// Before execution, the signatures are verified against the auth claim.
 ///
-/// The signatures are over the [`Transaction`] object.
+/// Each signature is over
+/// `cxs(DomainSeparator("Transaction")) || network_hash || xdr(tx)`: the
+/// domain separator keeps it from being reinterpreted as a signature over
+/// another object, and the network hash binds it to one network.
 type SignedTransaction struct {
 	/// The transaction to execute.
 	Tx Transaction
 	/// Signatures that authorize this transaction.
 	///
 	/// These signatures must satisfy the auth_claim in the transaction.
-	/// The signatures are over the [`Transaction`] object.
+	/// See [`SignedTransaction`] for the message they sign.
 	Signatures []DecoratedSignature
 	/// The public key a `kPubkeySignature` auth claim names by hash.
 	///
@@ -4193,7 +4147,8 @@ type NondeterministicProposalData struct {
 	/// A bitstring of nondeterministic decisions made during execution.
 	///
 	/// This includes:
-	/// - Two-phase commit conflict resolution results from try_invoke frames (one boolean per frame)
+	/// - Two-phase commit conflict resolution results from try_invoke frames (one boolean
+	///   per try_invoke frame that succeeds and attempts lock acquisition)
 	/// - Other nondeterministic outcomes that must be consistent across validators
 	///
 	/// Each bit represents a binary decision point encountered during execution.
@@ -4271,7 +4226,7 @@ type Protocol = uint32
 type TimePoint = uint64
 
 /// Typedef representing a length of memory in bytes, within
-/// a wasm runtime.  This is primarily used as an argument to syscalls,
+/// a contract's memory.  This is primarily used as an argument to syscalls,
 /// and should not be directly used by most contracts.
 type RuntimeMemoryLength = uint32
 
@@ -4420,13 +4375,13 @@ const (
 	FreeNativeTokenBalance StorageKeyType = 1
 	/// Address authorization data.
 	///
-	/// Stores [`AddressAuthData`] - the authorization configuration including
-	/// public keys, weights, gas permissions, and nonce rules.
+	/// Stores [`AddressAuthData`] - the authorization configuration: public
+	/// keys, their weights, and the required weight.
 	AuthData StorageKeyType = 2
 	/// Address metadata.
 	///
-	/// Stores [`AddressMetadata`] - metadata about the contract deployed at
-	/// this address (hash, size, type).
+	/// Stores [`DeployedContractHash`] - metadata about the contract deployed
+	/// at this address (hash, size, type).
 	Metadata StorageKeyType = 3
 	/// Replay cache for nonce tracking.
 	///
@@ -9523,35 +9478,6 @@ func (v *ContractDeploymentHashPreimage) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scontract_hash", name), XDR_SHA256Hash(&v.Contract_hash))
 }
 func XDR_ContractDeploymentHashPreimage(v *ContractDeploymentHashPreimage) *ContractDeploymentHashPreimage { return v }
-type XdrType_Identifier struct {
-	XdrString
-}
-func XDR_Identifier(v *Identifier) XdrType_Identifier {
-	return XdrType_Identifier{XdrString{v, 0xffffffff}}
-}
-func (XdrType_Identifier) XdrTypeName() string { return "Identifier" }
-func (v XdrType_Identifier) XdrUnwrap() XdrType { return v.XdrString }
-type XdrType_SemVer struct {
-	XdrString
-}
-func XDR_SemVer(v *SemVer) XdrType_SemVer {
-	return XdrType_SemVer{XdrString{v, 0xffffffff}}
-}
-func (XdrType_SemVer) XdrTypeName() string { return "SemVer" }
-func (v XdrType_SemVer) XdrUnwrap() XdrType { return v.XdrString }
-type XdrType_ContractInterfaceIDPreimage = *ContractInterfaceIDPreimage
-func (v *ContractInterfaceIDPreimage) XdrPointer() interface{} { return v }
-func (ContractInterfaceIDPreimage) XdrTypeName() string { return "ContractInterfaceIDPreimage" }
-func (v ContractInterfaceIDPreimage) XdrValue() interface{} { return v }
-func (v *ContractInterfaceIDPreimage) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *ContractInterfaceIDPreimage) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sname", name), XDR_Identifier(&v.Name))
-	x.Marshal(x.Sprintf("%svers", name), XDR_SemVer(&v.Vers))
-}
-func XDR_ContractInterfaceIDPreimage(v *ContractInterfaceIDPreimage) *ContractInterfaceIDPreimage { return v }
 type _XdrArray_8_opaque [8]byte
 func (v *_XdrArray_8_opaque) GetByteSlice() []byte { return v[:] }
 func (v *_XdrArray_8_opaque) XdrTypeName() string { return "opaque[]" }
@@ -9588,18 +9514,6 @@ func (v *DeployedContractHash) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%scontract_type", name), XDR_ContractType(&v.Contract_type))
 }
 func XDR_DeployedContractHash(v *DeployedContractHash) *DeployedContractHash { return v }
-type XdrType_AddressMetadata = *AddressMetadata
-func (v *AddressMetadata) XdrPointer() interface{} { return v }
-func (AddressMetadata) XdrTypeName() string { return "AddressMetadata" }
-func (v AddressMetadata) XdrValue() interface{} { return v }
-func (v *AddressMetadata) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
-func (v *AddressMetadata) XdrRecurse(x XDR, name string) {
-	if name != "" {
-		name = x.Sprintf("%s.", name)
-	}
-	x.Marshal(x.Sprintf("%sdeployed_contract", name), XDR_DeployedContractHash(&v.Deployed_contract))
-}
-func XDR_AddressMetadata(v *AddressMetadata) *AddressMetadata { return v }
 
 type xdrProc_Coordscheduler_null struct {
 	Arg *XdrVoid
@@ -19831,7 +19745,8 @@ func (_ ConfigParam) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigParam
 }
 /// Concurrently open incremental SHA-256 buffers permitted per invocation
-/// frame (`SHA256Update`, `SHA256Copy`, `SHA256Finalize`).
+/// frame (`SHA256Update`, `SHA256Copy`, `SHA256Finalize`). 32 is the value
+/// in force for a configuration that does not state one.
 func (u *ConfigParam) Max_sha256_buffers() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxSHA256Buffers:
@@ -19851,7 +19766,8 @@ func (u *ConfigParam) Max_sha256_buffers() *uint32 {
 /// invoke rather than only the savepoint-pushing ones that
 /// `kConfigParamMaxSavepointDepth` bounds. Each open frame holds a live contract
 /// runtime, so this is what stops a recursive call chain from growing until
-/// the executor runs out of room for it.
+/// the executor runs out of room for it. 16 is the value in force for a
+/// configuration that does not state one.
 func (u *ConfigParam) Max_cross_invoke_depth() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxCrossInvokeDepth:
@@ -19873,7 +19789,8 @@ func (u *ConfigParam) Max_cross_invoke_depth() *uint32 {
 /// deploy: the executor holds every attached contract for the whole
 /// transaction, and the ones deployed are a subset chosen during execution.
 /// Attaching the same contract twice is rejected outright, so the count is
-/// over distinct contracts either way.
+/// over distinct contracts either way. 4 is the value in force for a
+/// configuration that does not state one.
 ///
 /// Together with `kConfigParamMaxContractSizeBytes` this is what bounds the
 /// transaction's final commit batch, which the executor sends to storage as
@@ -19944,11 +19861,13 @@ func (u *ConfigParam) Max_contract_size_bytes() *uint32 {
 		return nil
 	}
 }
-/// Storage savepoints one transaction may have open at once: one per
-/// `TryInvoke` frame still executing, plus the one the root commit takes.
-/// A `TryInvoke` past the limit fails as the guest would see any other
-/// refused call. `kMaxSavepointDepth` is the value in force for a
-/// configuration that does not state one.
+/// Storage savepoints one transaction may hold at once: one per successful
+/// `TryInvoke` whose writes are still held (finished siblings included),
+/// plus the one the root commit takes. A `TryInvoke` whose child would go
+/// past the limit still runs, then fails deterministically, as one that
+/// loses a lock conflict does, and its writes are discarded.
+/// `kMaxSavepointDepth` (1024) is the value in force for a configuration
+/// that does not state one.
 ///
 /// Every open savepoint is a live nested VM on one executor thread, so a
 /// chain must keep this within what its executors' stacks hold; hogd
@@ -20009,8 +19928,8 @@ func (u *ConfigParam) Max_auth_token_depth() *uint32 {
 }
 /// Bytes of code (`code_size` in the artifact header) an RV32 artifact may
 /// carry to be admitted as an attached contract.
-/// `kDefaultMaxRv32CodeBytes` is the value in force for a configuration
-/// that does not state one.
+/// `kDefaultMaxRv32CodeBytes` (262144) is the value in force for a
+/// configuration that does not state one.
 ///
 /// Checked where a contract is attached, not where a deployed one is
 /// instantiated, so lowering it leaves deployed contracts runnable. The
@@ -20033,8 +19952,8 @@ func (u *ConfigParam) Max_rv32_code_bytes() *uint32 {
 }
 /// Bytes of guest data memory (`memory_bytes` in the artifact header) an
 /// RV32 artifact may declare to be admitted as an attached contract.
-/// `kDefaultMaxRv32MemoryBytes` is the value in force for a configuration
-/// that does not state one.
+/// `kDefaultMaxRv32MemoryBytes` (65536) is the value in force for a
+/// configuration that does not state one.
 ///
 /// Checked at attachment like `kConfigParamMaxRv32CodeBytes`. Every
 /// invocation provisions and seeds the declared memory outside gas, so a
@@ -20067,7 +19986,8 @@ func (u *ConfigParam) Max_rv32_memory_bytes() *uint32 {
 ///
 /// Neither wire type bounds its list, and no value was in force before this
 /// parameter: a list was limited only by the memory holding it. A
-/// configuration omitting this one is not continuing an older rule.
+/// configuration omitting this one is not continuing an older rule: the
+/// value in force is 64.
 func (u *ConfigParam) Max_auth_tokens() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxAuthTokens:
@@ -20096,7 +20016,8 @@ func (u *ConfigParam) Max_auth_tokens() *uint32 {
 /// The executor holds a frame's calldata for the life of that frame and
 /// every open frame holds its own, so a chain must keep this within what
 /// `kConfigParamMaxCrossInvokeDepth` frames of it leave room for. No value
-/// was in force before this parameter.
+/// was in force before this parameter; for a configuration that does not
+/// state one, the value in force is 65536.
 func (u *ConfigParam) Max_calldata_len() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxCalldataLen:
@@ -20123,7 +20044,8 @@ func (u *ConfigParam) Max_calldata_len() *uint32 {
 ///
 /// `ReturnBuffer` bounded itself at 1024 bytes before this parameter, so a
 /// configuration omitting this one is continuing an older rule rather than
-/// lifting it. The executor states the value it continues at.
+/// lifting it: the value in force for a configuration that does not state
+/// one is 1024.
 func (u *ConfigParam) Max_return_buffer_len() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxReturnBufferLen:
@@ -29204,7 +29126,7 @@ func (u *StorageItem) Bytestring() *Bytestring {
 ///
 /// This can be stored at any [`StorageKey`] of type `ContractData`.
 /// This type is also used to store the free native token balance at
-/// storage key `FreeNativeTokenBalance`.
+/// storage key type `FreeNativeTokenBalance`.
 func (u *StorageItem) Nnint() *Int128_xdr {
 	switch u.Type {
 	case KItemTypeNonnegativeInt:
@@ -29241,7 +29163,7 @@ func (u *StorageItem) Queue_entries() *[]QueueEntry {
 /// A set of [`Uniquifier`]s that have been used by the current address.
 /// Transactions can only insert a Uniquifier, not read the whole set.
 ///
-/// This is the type stored at storage key `ReplayCache`.
+/// This is the type stored at storage key type `ReplayCache`.
 /// It cannot be stored at any other storage key.
 func (u *StorageItem) Active_uniquifiers() *[]Uniquifier {
 	switch u.Type {
@@ -29260,7 +29182,7 @@ func (u *StorageItem) Active_uniquifiers() *[]Uniquifier {
 }
 /// The authorization data for the current address.
 ///
-/// This is the type stored at storage key `AddressAuthData`.
+/// This is the type stored at storage key type `AuthData`.
 /// It cannot be stored at any other storage key.
 func (u *StorageItem) Auth_data() *AddressAuthData {
 	switch u.Type {
@@ -29279,7 +29201,7 @@ func (u *StorageItem) Auth_data() *AddressAuthData {
 }
 /// The hash of the deployed contract for the current address.
 ///
-/// This is the type stored at storage key `AddressMetadata`.
+/// This is the type stored at storage key type `Metadata`.
 /// It cannot be stored at any other storage key.
 func (u *StorageItem) Deployed_contract_hash() *DeployedContractHash {
 	switch u.Type {
