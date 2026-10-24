@@ -862,7 +862,7 @@ type ContractDeploymentHashPreimage struct {
 /// `SHA256("ERC20::1::transfer")[0..8]`.
 ///
 /// Interface IDs use the same prefix under a domain tag,
-/// `SHA256("groundhog-interface::" || name || "::" || major)[0..8]`, so they
+/// `SHA256("thruput-interface::" || name || "::" || major)[0..8]`, so they
 /// never coincide with an entrypoint ID.
 type ContractEntrypointID = [8]byte
 
