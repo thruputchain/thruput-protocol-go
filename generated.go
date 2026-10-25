@@ -4252,6 +4252,9 @@ type MlDsa65Signature = [3309]byte
 /// Represents an ML-DSA-65 (FIPS 204) public key.
 type MlDsa65PublicKey = [1952]byte
 
+/// Represents a 4032-byte ML-DSA-65 (FIPS 204) secret key.
+type MlDsa65SecretKey = [4032]byte
+
 /// Represents the cryptographic scheme used for a signature or public key.
 type CryptographicScheme int32
 const (
@@ -4263,9 +4266,10 @@ const (
 
 /// Union of a Signature type over the various cryptographic schemes.
 ///
-/// The ML-DSA arms of Signature and PublicKey are boxed (heap allocated) in
-/// both C++ and Rust, so that Ed25519 signatures and keys, which are most of
-/// them, do not each take the size of the largest ML-DSA value in memory.
+/// The ML-DSA arms of Signature, PublicKey and SecretKey are boxed (heap
+/// allocated) in both C++ and Rust, so that Ed25519 signatures and keys, which
+/// are most of them, do not each take the size of the largest ML-DSA value in
+/// memory.
 type Signature struct {
 	// The union discriminant Scheme selects among the following arms:
 	//   Ed25519:
@@ -4295,12 +4299,12 @@ type PublicKey struct {
 type PublicKeyHash = [32]byte
 
 /// Union of a SecretKey type over the various cryptographic schemes.
-///
-/// There is no ML-DSA variant: nodes never sign with ML-DSA.
 type SecretKey struct {
 	// The union discriminant Scheme selects among the following arms:
 	//   Ed25519:
 	//      Ed25519() *Ed25519SecretKey
+	//   MlDsa65:
+	//      Mldsa65() *MlDsa65SecretKey
 	Scheme CryptographicScheme
 	_u interface{}
 }
@@ -31775,6 +31779,28 @@ func XDR_MlDsa65PublicKey(v *MlDsa65PublicKey) XdrType_MlDsa65PublicKey {
 }
 func (XdrType_MlDsa65PublicKey) XdrTypeName() string { return "MlDsa65PublicKey" }
 func (v XdrType_MlDsa65PublicKey) XdrUnwrap() XdrType { return v._XdrArray_1952_opaque }
+type _XdrArray_4032_opaque [4032]byte
+func (v *_XdrArray_4032_opaque) GetByteSlice() []byte { return v[:] }
+func (v *_XdrArray_4032_opaque) XdrTypeName() string { return "opaque[]" }
+func (v *_XdrArray_4032_opaque) XdrValue() interface{} { return v[:] }
+func (v *_XdrArray_4032_opaque) XdrPointer() interface{} { return (*[4032]byte)(v) }
+func (v *_XdrArray_4032_opaque) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *_XdrArray_4032_opaque) String() string { return fmt.Sprintf("%x", v[:]) }
+func (v *_XdrArray_4032_opaque) Scan(ss fmt.ScanState, c rune) error {
+	return XdrArrayOpaqueScan(v[:], ss, c)
+}
+func (_XdrArray_4032_opaque) XdrArraySize() uint32 {
+	const bound uint32 = 4032 // Force error if not const or doesn't fit
+	return bound
+}
+type XdrType_MlDsa65SecretKey struct {
+	*_XdrArray_4032_opaque
+}
+func XDR_MlDsa65SecretKey(v *MlDsa65SecretKey) XdrType_MlDsa65SecretKey {
+	return XdrType_MlDsa65SecretKey{(*_XdrArray_4032_opaque)(v)}
+}
+func (XdrType_MlDsa65SecretKey) XdrTypeName() string { return "MlDsa65SecretKey" }
+func (v XdrType_MlDsa65SecretKey) XdrUnwrap() XdrType { return v._XdrArray_4032_opaque }
 var _XdrNames_CryptographicScheme = map[int32]string{
 	int32(Ed25519): "Ed25519",
 	int32(MlDsa65): "MlDsa65",
@@ -32007,6 +32033,7 @@ func (XdrType_PublicKeyHash) XdrTypeName() string { return "PublicKeyHash" }
 func (v XdrType_PublicKeyHash) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 var _XdrTags_SecretKey = map[int32]bool{
 	XdrToI32(Ed25519): true,
+	XdrToI32(MlDsa65): true,
 }
 func (_ SecretKey) XdrValidTags() map[int32]bool {
 	return _XdrTags_SecretKey
@@ -32026,9 +32053,25 @@ func (u *SecretKey) Ed25519() *Ed25519SecretKey {
 		return nil
 	}
 }
+// #[rust(box_ptr)], #[cpp(box)]
+func (u *SecretKey) Mldsa65() *MlDsa65SecretKey {
+	switch u.Scheme {
+	case MlDsa65:
+		if v, ok := u._u.(*MlDsa65SecretKey); ok {
+			return v
+		} else {
+			var zero MlDsa65SecretKey
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("SecretKey.Mldsa65 accessed when Scheme == %v", u.Scheme)
+		return nil
+	}
+}
 func (u SecretKey) XdrValid() bool {
 	switch u.Scheme {
-	case Ed25519:
+	case Ed25519,MlDsa65:
 		return true
 	}
 	return false
@@ -32043,6 +32086,8 @@ func (u *SecretKey) XdrUnionBody() XdrType {
 	switch u.Scheme {
 	case Ed25519:
 		return XDR_Ed25519SecretKey(u.Ed25519())
+	case MlDsa65:
+		return XDR_MlDsa65SecretKey(u.Mldsa65())
 	}
 	return nil
 }
@@ -32050,6 +32095,8 @@ func (u *SecretKey) XdrUnionBodyName() string {
 	switch u.Scheme {
 	case Ed25519:
 		return "Ed25519"
+	case MlDsa65:
+		return "Mldsa65"
 	}
 	return ""
 }
@@ -32066,6 +32113,9 @@ func (u *SecretKey) XdrRecurse(x XDR, name string) {
 	switch u.Scheme {
 	case Ed25519:
 		x.Marshal(x.Sprintf("%sed25519", name), XDR_Ed25519SecretKey(u.Ed25519()))
+		return
+	case MlDsa65:
+		x.Marshal(x.Sprintf("%smldsa65", name), XDR_MlDsa65SecretKey(u.Mldsa65()))
 		return
 	}
 	XdrPanic("invalid Scheme (%v) in SecretKey", u.Scheme)
