@@ -314,6 +314,7 @@ type IntroAuthResult struct {
 type MempoolAuth1 interface {
 	Mempoolauth_intro_auth(context.Context, AuthCard) (IntroAuthResult, error)
 	Mempoolauth_auth_data_changed_chunk(context.Context, KeyChangeChunk) error
+	Mempoolauth_get_auth_info(context.Context, ProtocolCommit) (IntroAuthResult, error)
 }
 
 // #[rust(const=u32)]
@@ -6201,6 +6202,53 @@ func (p *xdrSrvProc_Mempoolauth_auth_data_changed_chunk) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Mempoolauth_auth_data_changed_chunk{} // XXX
 
+type xdrProc_Mempoolauth_get_auth_info struct {
+	Arg *ProtocolCommit
+	Res *IntroAuthResult
+}
+func (xdrProc_Mempoolauth_get_auth_info) Prog() uint32 { return 2326297258 }
+func (xdrProc_Mempoolauth_get_auth_info) Vers() uint32 { return 1 }
+func (xdrProc_Mempoolauth_get_auth_info) Proc() uint32 { return 3 }
+func (xdrProc_Mempoolauth_get_auth_info) ProgName() string { return "MempoolAuth" }
+func (xdrProc_Mempoolauth_get_auth_info) VersName() string { return "MempoolAuth1" }
+func (xdrProc_Mempoolauth_get_auth_info) ProcName() string { return "mempoolauth_get_auth_info" }
+func (p *xdrProc_Mempoolauth_get_auth_info) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(ProtocolCommit)
+	}
+	return XDR_ProtocolCommit(p.Arg)
+}
+func (p *xdrProc_Mempoolauth_get_auth_info) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(IntroAuthResult)
+	}
+	return XDR_IntroAuthResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Mempoolauth_get_auth_info{} // XXX
+
+type xdrSrvProc_Mempoolauth_get_auth_info struct {
+	xdrProc_Mempoolauth_get_auth_info
+	Srv MempoolAuth1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Mempoolauth_get_auth_info) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) MempoolAuth1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Mempoolauth_get_auth_info) Do() {
+	r, err := p.Srv.Mempoolauth_get_auth_info(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Mempoolauth_get_auth_info{} // XXX
+
 func init() {
 	XdrCatalog[2326297258<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -6208,6 +6256,8 @@ func init() {
 			return &xdrProc_Mempoolauth_intro_auth{}
 		case 2:
 			return &xdrProc_Mempoolauth_auth_data_changed_chunk{}
+		case 3:
+			return &xdrProc_Mempoolauth_get_auth_info{}
 		}
 		return nil
 	}
@@ -6226,6 +6276,8 @@ func (s MempoolAuth1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Mempoolauth_intro_auth{ Srv: s.Srv }
 	case 2:  // mempoolauth_auth_data_changed_chunk
 		return &xdrSrvProc_Mempoolauth_auth_data_changed_chunk{ Srv: s.Srv }
+	case 3:  // mempoolauth_get_auth_info
+		return &xdrSrvProc_Mempoolauth_get_auth_info{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -6256,6 +6308,14 @@ func (c MempoolAuth1_Client) Mempoolauth_auth_data_changed_chunk(ctx context.Con
 		return err
 	}
 	return nil
+}
+func (c MempoolAuth1_Client) Mempoolauth_get_auth_info(ctx context.Context, a1 ProtocolCommit) (r IntroAuthResult, _ error) {
+	var proc xdrProc_Mempoolauth_get_auth_info
+	proc.Arg = &a1
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
 }
 type XdrType_AuthTokenPayload struct {
 	XdrVecOpaque
