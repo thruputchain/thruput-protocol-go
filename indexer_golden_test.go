@@ -19,6 +19,8 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	value.Prev_hash[31] = 0x2f
 	value.Proposal_header.Network_hash[0] = 0x30
 	value.Proposal_header.Network_hash[31] = 0x4f
+	value.Proposal_header.Config_hash[0] = 0x70
+	value.Proposal_header.Config_hash[31] = 0x8f
 	value.Proposal_header.Proposer[0] = 0x50
 	value.Proposal_header.Proposer[31] = 0x6f
 	value.Proposal_header.Block_timepoint = 0x0102030405060708
@@ -31,6 +33,7 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	event.Exec_result = ExecResultTxRootFrameReverted
 	event.Root_output.Status_code = Abort
 	*event.Root_output.Abort_buffer() = []byte{0xfa, 0xce, 0xb0, 0x0c, 0x01}
+	event.Gas_consumed = 0x0f0e0d0c0b0a0908
 	var emitted TxEmittedEvent
 	emitted.Contract_address[0] = 0x41
 	emitted.Contract_address[31] = 0x60
@@ -81,8 +84,8 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 		Segment_bytes:  []uint32{uint32(len(nondeterministicBytes))},
 		Xdr:            nondeterministicBytes,
 	}
-	value.Proposal_header.Txs_hash = goldenHash("27598ad0dd4cd1086c482fa514032f6a7dfa80b64d321eabd1f62230c38d6c05")
-	value.Proposal_header.Events_hash = goldenHash("ee0de519ec7a425065d237c05b6d3ef5aac59231a4a2251e221917064a04b86c")
+	value.Proposal_header.Txs_hash = goldenHash("cd70edd1d81090195ba2f433aaf7f54454ad1c497be6d16361c2fcadbaac2587")
+	value.Proposal_header.Events_hash = goldenHash("285d63c4908a92247c98f3077f3edbc84c2e39c4cb975431f48e4714c9e1b6dc")
 	value.Proposal_txs_hash = goldenHash("10326f5184cf53e2ebe46ebecf03650fbf5dd5afb20a245829eb7ad3247a0aa5")
 	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
 		panic("proposal tx compatibility hash mismatch")
@@ -151,9 +154,10 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	// more bytes for the absent key at the end of the one transaction body.
 	// The digest moved again, at the same length, when ProposalTxs began
 	// naming transactions by SignedTransactionHash, which changed the
-	// fixture's Proposal_txs_hash.
+	// fixture's Proposal_txs_hash. Full-key Merkle leaves changed both roots
+	// again; Config_hash and Gas_consumed now match the hogd fixture too.
 	const expectedByteLength = 588
-	const expectedDigest = "7f68008e8dbf78b4054ab30555a735bd50a9ee696572c1423bf7b4170697eb8f"
+	const expectedDigest = "0b7f7125e715a913839e4cb34edc793c9083824fc3eeca8a6ed0c19b1cd8efaa"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}

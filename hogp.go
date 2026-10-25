@@ -1,11 +1,11 @@
 package proto
 
-const ProtocolGitCommit string = "6705996afff00a07c2eb699233a7a928fd77f715"
+const ProtocolGitCommit string = "294121108d508687fb8ad8a669f94612d3a1e5de"
 
 // hogProtocol is the token peers exchange to check they share a protocol
 // revision. build.sh emits it at its final width, so this conversion cannot
 // fail.
-var hogProtocol = ProtocolCommit([]byte("hogp/6705996afff00a0"))
+var hogProtocol = ProtocolCommit([]byte("hogp/294121108d50868"))
 
 // HogProtocol returns the token peers exchange to check they share a protocol
 // revision, in the fixed-width form the wire carries. Callers needing text

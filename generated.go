@@ -4340,10 +4340,20 @@ type StorageLongHash = [2048]byte
 // #[rust(newtype)]
 type StorageShortHash = SHA256Hash
 
-// #[rust(newtype)]
+/// Merkle Patricia trie root over TransactionHash keys with empty values.
+/// Leaves retain the full key, including digits consumed by ancestor branches
+/// and extensions. Moving a leaf during a split or collapse does not change
+/// its encoding. Extension paths remain relative to their parent branch.
+///
+/// A leaf hashes: 0x02 || uint64_le(key_nibble_count) || packed_key || 0x01 ||
+/// SHA256(value). Key digits are packed high nibble first, with a zero low
+/// nibble when the digit count is odd. For TransactionHash, the count is 64
+/// and packed_key is all 32 bytes. This replaces the former suffix-only leaf
+/// encoding and changes nonempty transaction and event roots and their proofs.
 type TxsHash = SHA256Hash
 
-// #[rust(newtype)]
+/// Merkle Patricia trie root using the full-key leaf encoding above. Keys and
+/// values are specified by TxEventLog.
 type EventsHash = SHA256Hash
 
 /// Hash of proposal header
