@@ -60,10 +60,9 @@ const KDefaultNewAddressKeyID = 0
 ///
 /// # TODO
 ///
-/// (geoff) and (dobog): The initialization workflow (when upgrading
-/// an address from just a pk to a full contract) should explicitly set the
-/// auth data with sensible defaults, so that the default is NOT to accidentally
-/// lock the address.
+/// The initialization workflow (when upgrading an address from just a pk to
+/// a full contract) should explicitly set the auth data with sensible
+/// defaults, so that the default is NOT to accidentally lock the address.
 type AddressAuthData struct {
 	/// Array of up to `kMaxSigners` public keys.
 	///
@@ -76,7 +75,7 @@ type AddressAuthData struct {
 	///
 	/// # TODO
 	///
-	/// (geoff): this can be removed once hog_db has a way to track this directly
+	/// This can be removed once the database has a way to track this directly
 	/// on each db item.
 	Last_written_height BlockHeight
 }
@@ -120,7 +119,7 @@ const (
 	/// The runtime checks whether the signing keys' weights sum to at least the
 	/// larger of the auth data's required weight and the claim's own
 	/// `required_weight`.
-	// TODO(geoff): consider surfacing the data about which keys signed in a syscall.
+	// TODO: consider surfacing the data about which keys signed in a syscall.
 	KSourceAddressAuthData AuthClaimType = 0
 	/// Requires a signature from a specific public key.
 	///
@@ -201,7 +200,7 @@ const (
 	// This can happen if a query is made for an old block height,
 	// or if (concurrent with the query) a block commits and updates to the auth data begin to stream in.
 	// The verification can be retried in either case.
-	// TODO(geoff): We could switch this around, to retry at the higher block height.
+	// TODO: We could switch this around, to retry at the higher block height.
 	KAuthStaleBlockHeight AuthErrorCode = 2
 	// Either an internal auth error or forwarded from an internal DB error
 	KAuthInternal AuthErrorCode = 3
@@ -222,9 +221,9 @@ type KeyChange struct {
 type KeyChangeBatch = []KeyChange
 
 // A committed block's auth-data changes travel as a run of chunks, each a
-// KeyChangeChunk, from hog_db to the auth server and on from the auth server
+// KeyChangeChunk, from the db to the auth server and on from the auth server
 // to the mempool, because the one-record form grew with the number of
-// accounts whose auth data a block changed (hogd#3146). The sender chooses
+// accounts whose auth data a block changed. The sender chooses
 // the chunk size; the wire bounds a chunk only by the link's record cap. The
 // chunks of a run may be sent concurrently and over several connections, so
 // they can arrive in any order, and a sender may have the runs of several
@@ -626,7 +625,7 @@ type Upgrade = []byte // bound 128
 /// The block commitment externalized by consensus.
 ///
 /// `ConsensusValue` is the small value that systems use to identify
-/// a finalized Groundhog block without the full transaction payload.
+/// a finalized Thruput block without the full transaction payload.
 /// Its XDR hash is the block identity (`ConsensusValueHash`), so every
 /// field is consensus-critical.
 ///
@@ -704,7 +703,7 @@ const (
 
 /// A contract that can be deployed to an address and invoked.
 ///
-/// Contracts are the fundamental unit of code execution in Groundhog.
+/// Contracts are the fundamental unit of code execution in Thruput.
 /// Once deployed to a `ContractAddress`, they can be invoked by transactions
 /// to execute their methods (entrypoints).
 ///
@@ -736,7 +735,7 @@ type Contract struct {
 /// Under XDR encoding, this struct serializes as the concatenation of its
 /// fields: `deployer_address || nonce || contract_hash`.
 ///
-/// This is Groundhog's analogue of Ethereum's `CREATE2` opcode, allowing
+/// This is Thruput's analogue of Ethereum's `CREATE2` opcode, allowing
 /// deterministic address derivation. The deployer controls the nonce to
 /// create addresses at will.
 ///
@@ -992,7 +991,7 @@ type TxFailureCause struct {
 
 /// Best-effort diagnostic for a transaction the proposer excluded from a
 /// proposal: the executing block height of the failed attempt plus why it
-/// failed -- the first conflicting storage op hog_db reported during
+/// failed -- the first conflicting storage op the database reported during
 /// two-phase commit, or the first contract attachment the executor refused.
 /// Fixed-size by construction; the wire and caches carry exactly one
 /// diagnostic per failure to bound memory end to end.
@@ -2200,7 +2199,7 @@ const (
 /// configuration as a list of these, and is meant to carry one per parameter
 /// being changed by a consensus upgrade, where everything a block does not
 /// name keeps the value it already has. No upgrade mechanism exists yet:
-/// `ConsensusValue::upgrades` is opaque, and hogd leaves it empty. Each arm
+/// `ConsensusValue::upgrades` is opaque, and the node leaves it empty. Each arm
 /// carries its own type, so a future parameter need not be an `unsigned int`.
 ///
 /// There is no `default` arm on purpose: a node that cannot name a parameter
@@ -2296,7 +2295,7 @@ type ConfigHashPreimage struct {
 	/// It selects executing code, so a node running under a different one from
 	/// its peers executes a different chain. Nothing else commits to it: a
 	/// node's copy travels in the tip, which implementations are free to keep
-	/// outside the state the storage hash covers, and hogd does. Committing to
+	/// outside the state the storage hash covers, and some do. Committing to
 	/// it here is what binds the value a node executes under to the one
 	/// consensus agreed, rather than to whatever its own storage returns.
 	Default_wallet DeployedContractHash
@@ -2474,15 +2473,13 @@ type QueueEntry = []byte // bound KQueueEntryMaxLen
 /// family as gas, not an RPC artifact. Because it is a tx-observable count
 /// checked against this protocol constant, the limit is consensus-uniform
 /// (every node agrees on "<= cap reads") and independent of any RPC buffer size.
-/// (Full rationale — incl. why an RPC-message-size bound would be unsafe — in
-/// the PR.)
 const KMaxConcurrentRcqReadsPerTx = 16384
 
 /// Maximum number of entries in a single RetrocausalQueue block.
 /// Each entry is at most 256 bytes. With XDR serialization overhead (4 bytes
-/// per entry length prefix, 12 bytes framing), ramdb key overhead (73 bytes),
-/// and ItemHeader (24 bytes), 250 entries of 256 bytes fits within ramdb's
-/// 64 KiB item limit (kBigItemThreshold). See issue #1437.
+/// per entry length prefix, 12 bytes framing), storage key overhead (73 bytes),
+/// and item header (24 bytes), 250 entries of 256 bytes fits within the
+/// storage engine's 64 KiB item limit.
 const KRetrocausalQueueBlockEntriesMaxLen = 250
 
 // A block in a retrocausal queue, containing a list of entries and a block
@@ -2532,7 +2529,7 @@ type RetrocausalQueueDelta struct {
 	Consume *RetrocausalQueueConsumeDelta
 	Insert RetrocausalQueueInsertDelta
 	// Concurrent entries observed (e.g. via peek) but not consumed.
-	// HogDb validates that each entry was actually inserted by a concurrent
+	// The db validates that each entry was actually inserted by a concurrent
 	// transaction. Unlike current_block_consumed, these do not decrement the
 	// insert balance — they only require that a matching insert exists.
 	//
@@ -2542,7 +2539,7 @@ type RetrocausalQueueDelta struct {
 	// validator replays a proposed block, the executor rebuilds this per-queue
 	// array from the proposer-supplied observation list, and a dishonest proposer
 	// can pack a whole transaction's observations into a single queue. The bogus
-	// entries are caught afterward (HogDb matches each observed entry to a real
+	// entries are caught afterward (the db matches each observed entry to a real
 	// insert), but the array must be built before that check runs -- so it has to
 	// hold a full transaction's worth. Capping it at the per-block size would make
 	// that rebuild overflow and crash the validator instead of cleanly rejecting.
@@ -2607,7 +2604,7 @@ type TransactionID = uint64
 // These are some of the error codes I suspect we will need, but these
 // are not organized in any particular manner.
 //
-// TODO(geoff): This probably should get moved to a different file?
+// TODO: This probably should get moved to a different file?
 type RPCError int32
 const (
 	KRPCNone RPCError = 0
@@ -2866,11 +2863,11 @@ type SchedulerTransactionErrorSource int32
 const (
 	// There is no error to report.
 	SchedulerTransactionErrorNone SchedulerTransactionErrorSource = 0
-	// The error was triggered by the authentication subsystem (hog-auth).
+	// The error was triggered by the authentication subsystem.
 	SchedulerTransactionErrorAuth SchedulerTransactionErrorSource = 1
-	// The error was triggered by the mempool (hog-mempool).
+	// The error was triggered by the mempool.
 	SchedulerTransactionErrorScheduler SchedulerTransactionErrorSource = 2
-	// The error was triggered by an executor (hog-exec).
+	// The error was triggered by an executor.
 	SchedulerTransactionErrorExecutor SchedulerTransactionErrorSource = 3
 )
 
@@ -2959,11 +2956,11 @@ type Delta struct {
 
 // One slice of the native-token balance deltas a committed block finalized.
 //
-// hog_db publishes a block's deltas as a run of chunk_count chunks, all for
-// the same block, after the block is committed. hog_db chooses the chunk
+// The db publishes a block's deltas as a run of chunk_count chunks, all for
+// the same block, after the block is committed. The db chooses the chunk
 // size; the wire bounds a chunk only by the link's record cap. The chunks of
 // a run may be sent concurrently and over several connections, so they can
-// arrive in any order; hog_db starts the next block's run only after every
+// arrive in any order; the db starts the next block's run only after every
 // chunk of this one is acknowledged, so the mempool never has more than one
 // block's run in flight. An address appears in at most one chunk of a block's
 // run (a shard holds one balance per address) and every delta is nonzero. The
@@ -3492,7 +3489,7 @@ type Bytestring = []byte // bound KBytestringCeilingLen
 /// [`StorageDelta`]s are modifications that are applied to these StorageItem objects.
 ///
 /// Contracts do not generally directly load these values, but can access them via the typed
-/// system call interface provided by the Groundhog runtime.
+/// system call interface provided by the Thruput runtime.
 /// For example, a contract can call `BytestringGet`, which will return either a Bytestring value or
 /// an error if the storage key does not exist or contains a different type.
 type StorageItem struct {
@@ -3651,7 +3648,7 @@ type StorageDeltaFlagSet = uint32
 /// The combined unit of storage modification sent to the database from the executor.
 /// A delta with a set of flags, applied to a specific entry in the database.
 type FlaggedStorageDelta struct {
-	// TODO(geoff): The addrkey field is likely repetitive when sending
+	// TODO: The addrkey field is likely repetitive when sending
 	// many deltas to the database.
 	// possibly we can readjust this data structure, if raw bandwidth becomes
 	// important.
@@ -3805,7 +3802,7 @@ type Uniquifier struct {
 	Nonce uint64
 }
 
-/// A complete transaction that can be executed on the Groundhog blockchain.
+/// A complete transaction that can be executed on the Thruput blockchain.
 ///
 /// Transactions are the fundamental unit of state modification. Each transaction:
 /// - Invokes a single contract method (which may make subinvocations)
@@ -3937,7 +3934,7 @@ type SignedTransactionHashBatch = []SignedTransactionHash
 
 /// Nondeterministic data captured during transaction execution by the proposer.
 ///
-/// Groundhog executes transactions in parallel, which introduces nondeterminism
+/// Thruput executes transactions in parallel, which introduces nondeterminism
 /// (e.g., from two-phase commit conflict resolution). To ensure validators can deterministically
 /// re-execute transactions, the proposer captures all nondeterministic decisions
 /// and includes them in the block proposal.
@@ -3962,7 +3959,7 @@ type NondeterministicProposalData struct {
 	Nondeterministic_bit_count uint32
 	/// Sequence of retrocausal queue entries observed during execution.
 	///
-	/// TODO(geoff): Update this documentation once retrocausal queue handling
+	/// TODO: Update this documentation once retrocausal queue handling
 	/// is finalized. This field captures the queue entries consumed during
 	/// execution to ensure deterministic replay.
 	Observed_queue_entry_sequence []QueueEntry // bound KMaxConcurrentRcqReadsPerTx
@@ -4031,7 +4028,7 @@ type TimePoint = uint64
 /// and should not be directly used by most contracts.
 type RuntimeMemoryLength = uint32
 
-// TODO(geoff): consider using a smaller type for GasAmount
+// TODO: consider using a smaller type for GasAmount
 /// Represents a quantity of gas.  Alias of u64.
 type GasAmount = uint64
 
@@ -4138,7 +4135,7 @@ type NetworkHash = SHA256Hash
 /// SHA-256 of the XDR-encoded ConfigHashPreimage.
 type ConfigHash = SHA256Hash
 
-/// Hash of the groundhog database contents.
+/// Hash of the Thruput database contents.
 /// Format is a 2048-byte LtHash16 hash.
 type StorageLongHash = [2048]byte
 
@@ -4155,7 +4152,7 @@ type EventsHash = SHA256Hash
 type ProposalHeaderHash = SHA256Hash
 
 /// Represents a 256-bit contract address.
-/// In the groundhog storage model, each contract is deployed at a
+/// In the Thruput storage model, each contract is deployed at a
 /// 32-byte unique `ContractAddress`.
 type ContractAddress = [32]byte
 
@@ -17827,8 +17824,8 @@ func (u *ConfigParam) Max_cross_invoke_depth() *uint32 {
 /// Together with `kConfigParamMaxContractSizeBytes` this is what bounds the
 /// transaction's final commit batch, which the executor sends to storage as
 /// a single message. A chain must set the pair low enough that the largest
-/// batch it admits still fits that message; hogd rejects a genesis that
-/// does not.
+/// batch it admits still fits that message; the node rejects a genesis
+/// that does not.
 func (u *ConfigParam) Max_new_contracts_per_tx() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxNewContractsPerTx:
@@ -17877,7 +17874,7 @@ func (u *ConfigParam) Max_bytestring_len() *uint32 {
 /// contract it thereby admits, that every attached contract still fits a
 /// transaction (`kMaxBytesSignedTransaction`), and that the commit batch
 /// `kConfigParamMaxNewContractsPerTx` bounds fits one storage message.
-/// hogd rejects a genesis that does not.
+/// The node rejects a genesis that does not.
 func (u *ConfigParam) Max_contract_size_bytes() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxContractSizeBytes:
@@ -17902,8 +17899,8 @@ func (u *ConfigParam) Max_contract_size_bytes() *uint32 {
 /// that does not state one.
 ///
 /// Every open savepoint is a live nested VM on one executor thread, so a
-/// chain must keep this within what its executors' stacks hold; hogd
-/// rejects a genesis above its build ceiling.
+/// chain must keep this within what its executors' stacks hold; the
+/// node rejects a genesis above its build ceiling.
 func (u *ConfigParam) Max_savepoint_depth() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxSavepointDepth:
@@ -17965,8 +17962,8 @@ func (u *ConfigParam) Max_auth_token_depth() *uint32 {
 ///
 /// Checked where a contract is attached, not where a deployed one is
 /// instantiated, so lowering it leaves deployed contracts runnable. The
-/// artifact format itself does not bound the field; hogd rejects a genesis
-/// above what its VM can translate.
+/// artifact format itself does not bound the field; the node rejects a
+/// genesis above what its VM can translate.
 func (u *ConfigParam) Max_rv32_code_bytes() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxRv32CodeBytes:
@@ -17989,8 +17986,8 @@ func (u *ConfigParam) Max_rv32_code_bytes() *uint32 {
 ///
 /// Checked at attachment like `kConfigParamMaxRv32CodeBytes`. Every
 /// invocation provisions and seeds the declared memory outside gas, so a
-/// chain raising this accepts that per-call cost; hogd rejects a genesis
-/// above what its VM provisions.
+/// chain raising this accepts that per-call cost; the node rejects a
+/// genesis above what its VM provisions.
 func (u *ConfigParam) Max_rv32_memory_bytes() *uint32 {
 	switch u.Param {
 	case KConfigParamMaxRv32MemoryBytes:
@@ -27772,7 +27769,7 @@ func (u *StorageDelta) Bytestring() *Bytestring {
 ///     to the value of the item at the start of the block (if it is a nonnegative integer) or 0 otherwise.
 ///     If that implicit set_value is not the same as the supplied `set_value`, the deltas will conflict.
 ///   - At the end of a block, the value will be `set_value` plus the sum of all `add_values` supplied by this
-///     delta and other deltas from the same block.  Groundhog maintains the property that this expression
+///     delta and other deltas from the same block.  Thruput maintains the property that this expression
 ///     does not overflow a 128-bit integer, and that that value is always at least `min(set_value, 0)`.
 func (u *StorageDelta) Nnint() *NonnegativeInt128SetAddArgs {
 	switch u.Type {
@@ -27819,7 +27816,7 @@ func (u *StorageDelta) Nnint_add() *Int128_xdr {
 ///
 /// Conflicts:
 ///   - Insertions do not conflict with each other.
-///     TODO(geoff): we may impose limits on the number of entries that can be inserted in one block.
+///     TODO: we may impose limits on the number of entries that can be inserted in one block.
 ///   - Consuming entries conflicts with other consumption deltas in the same block.
 func (u *StorageDelta) Retrocausal_queue() *RetrocausalQueueDelta {
 	switch u.Type {
