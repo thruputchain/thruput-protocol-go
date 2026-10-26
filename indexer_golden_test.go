@@ -3,6 +3,7 @@ package proto
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"testing"
 
@@ -19,6 +20,8 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	value.Prev_hash[31] = 0x2f
 	value.Proposal_header.Network_hash[0] = 0x30
 	value.Proposal_header.Network_hash[31] = 0x4f
+	value.Proposal_header.Config_hash[0] = 0x70
+	value.Proposal_header.Config_hash[31] = 0x8f
 	value.Proposal_header.Proposer[0] = 0x50
 	value.Proposal_header.Proposer[31] = 0x6f
 	value.Proposal_header.Block_timepoint = 0x0102030405060708
@@ -29,6 +32,7 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 
 	var event TxEventLog
 	event.Exec_result = ExecResultTxRootFrameReverted
+	event.Gas_consumed = 0x0f0e0d0c0b0a0908
 	event.Root_output.Status_code = Abort
 	*event.Root_output.Abort_buffer() = []byte{0xfa, 0xce, 0xb0, 0x0c, 0x01}
 	var emitted TxEmittedEvent
@@ -81,14 +85,42 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 		Segment_bytes:  []uint32{uint32(len(nondeterministicBytes))},
 		Xdr:            nondeterministicBytes,
 	}
-	value.Proposal_header.Txs_hash = goldenHash("27598ad0dd4cd1086c482fa514032f6a7dfa80b64d321eabd1f62230c38d6c05")
-	value.Proposal_header.Events_hash = goldenHash("ee0de519ec7a425065d237c05b6d3ef5aac59231a4a2251e221917064a04b86c")
+	value.Proposal_header.Txs_hash = goldenSingleEntryRoot(txHash, nil)
+	eventBytes := marshalGoldenXdr(XDR_TxEventLog(&payload.Event_logs[0]))
+	value.Proposal_header.Events_hash = goldenSingleEntryRoot(txHash,
+		append(eventBytes[sha256.Size:], nondeterministicBytes...))
 	value.Proposal_txs_hash = goldenHash("10326f5184cf53e2ebe46ebecf03650fbf5dd5afb20a245829eb7ad3247a0aa5")
 	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
 		panic("proposal tx compatibility hash mismatch")
 	}
 
 	return payload
+}
+
+// Reproduces the fixed shape of a one-entry hogd MerkleTriePrefix. The leaf
+// commits directly to its complete 32-byte key and raw value in one SHA-256.
+func goldenSingleEntryRoot(key TransactionHash, value []byte) SHA256Hash {
+	leaf := []byte{2}
+	leaf = binary.LittleEndian.AppendUint64(leaf, 64)
+	leaf = append(leaf, key[:]...)
+	leaf = binary.LittleEndian.AppendUint64(leaf, uint64(len(value)))
+	leaf = append(leaf, value...)
+
+	hashBranch := func(children [16]SHA256Hash) SHA256Hash {
+		encoding := []byte{0, 0}
+		for _, child := range children {
+			encoding = append(encoding, child[:]...)
+		}
+		return sha256.Sum256(encoding)
+	}
+	emptyRoot := hashBranch([16]SHA256Hash{})
+	var inner, outer [16]SHA256Hash
+	inner[key[0]&15] = sha256.Sum256(leaf)
+	for i := range outer {
+		outer[i] = emptyRoot
+	}
+	outer[key[0]>>4] = hashBranch(inner)
+	return hashBranch(outer)
 }
 
 func marshalGoldenXdr(value xdr.XdrType) []byte {
@@ -151,9 +183,10 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	// more bytes for the absent key at the end of the one transaction body.
 	// The digest moved again, at the same length, when ProposalTxs began
 	// naming transactions by SignedTransactionHash, which changed the
-	// fixture's Proposal_txs_hash.
+	// fixture's Proposal_txs_hash. Config_hash, Gas_consumed, and direct
+	// key/value commitments now match hogd's committed payload fixture.
 	const expectedByteLength = 588
-	const expectedDigest = "7f68008e8dbf78b4054ab30555a735bd50a9ee696572c1423bf7b4170697eb8f"
+	const expectedDigest = "87b210f3526d9271844760e180b96fbb17a391b60149c3883b817bbe2d866daa"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}
