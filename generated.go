@@ -3692,18 +3692,16 @@ type Blank_rpc_v1 interface {
 
 /// Opaque encoded call arguments passed to a contract invocation.
 ///
-/// Contracts can encode calldata arbitrarily, but the SDK default uses
-/// XDR serialization per RFC 4506 (<https://datatracker.ietf.org/doc/html/rfc4506>).
-/// The SDK typically encodes a tuple or struct of the method's parameters.
-///
-/// Note: "TXS" refers to "traditional XDR serialization". A more compact
-/// encoding is planned but not yet enabled.
+/// Contracts can encode calldata arbitrarily, but the SDKs encode a tuple or
+/// struct of the method's parameters in CXS (compact XDR serialization), a
+/// variant of RFC 4506 XDR without 4-byte padding and with variable-length
+/// integers, lengths and discriminants.
 type Calldata = []byte
 
 /// Opaque encoded return value from a contract invocation.
 ///
 /// Like Calldata, contracts can encode return values arbitrarily, but the
-/// SDK default uses XDR serialization per RFC 4506 (<https://datatracker.ietf.org/doc/html/rfc4506>).
+/// SDKs use CXS.
 ///
 /// Unbounded here, as `Calldata` is: what a chain permits is stated by
 /// `kConfigParamMaxReturnBufferLen` and enforced where the Return syscall
@@ -3939,11 +3937,18 @@ type NondeterministicProposalData struct {
 	/// Since nondeterministic_bits.size() returns the rounded-up length in bytes,
 	/// this field tracks the exact bit count to avoid trailing garbage bits.
 	Nondeterministic_bit_count uint32
-	/// Sequence of retrocausal queue entries observed during execution.
+	/// Retrocausal queue entries inserted by concurrent transactions in the same
+	/// block that this transaction observed, so validators replay the same reads.
 	///
-	/// TODO: Update this documentation once retrocausal queue handling
-	/// is finalized. This field captures the queue entries consumed during
-	/// execution to ensure deterministic replay.
+	/// An entry is recorded when a peek or consume reads a concurrent entry.
+	/// Reads of entries from past blocks or inserted by this transaction itself
+	/// record nothing. Entries appear in the order they were first observed
+	/// during execution, interleaved across queues; within one queue they are
+	/// that queue's concurrent entries in index order, starting at 0. Each
+	/// (queue, index) is recorded once however many times it is read, so
+	/// repeated peeks, or a peek followed by a consume, add a single entry.
+	/// Whether each concurrent read found an entry is recorded separately, one
+	/// bit per read, in nondeterministic_bits.
 	Observed_queue_entry_sequence []QueueEntry // bound KMaxConcurrentRcqReadsPerTx
 }
 
