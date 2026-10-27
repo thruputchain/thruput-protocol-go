@@ -679,8 +679,8 @@ type ContractBlob struct {
 
 /// The execution environment for a contract.
 ///
-/// Discriminant 0 is retired. It selected the Wasmi runtime, which was
-/// removed once RV32 became the only deployable execution environment.
+/// Discriminant 0 is retired. It selected an earlier contract runtime, which
+/// was removed once RV32 became the only deployable execution environment.
 /// Do not reuse the value: old encodings that carry it must fail to parse
 /// rather than silently decode as a live contract type.
 type ContractType int32
@@ -3289,10 +3289,10 @@ type SCValType int32
 const (
 	SCV_BOOL SCValType = 0
 	SCV_VOID SCValType = 1
-	// 32 bits is the smallest type in WASM or XDR; no need for u8/u16.
+	// 32 bits is the smallest integer type in XDR; no need for u8/u16.
 	SCV_U32 SCValType = 3
 	SCV_I32 SCValType = 4
-	// 64 bits is naturally supported by both WASM and XDR also.
+	// 64 bits is natively supported by XDR as well.
 	SCV_U64 SCValType = 5
 	SCV_I64 SCValType = 6
 	// Time-related u64 subtypes with their own functions and formatting.
