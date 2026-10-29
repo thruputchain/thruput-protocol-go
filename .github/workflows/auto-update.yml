@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # The retained repository write key pushes branches and triggers CI.
-      # The protocol source is read with a separate Contents-only App token.
+      # The protocol source is public and read anonymously over HTTPS.
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
@@ -26,23 +26,8 @@ jobs:
         with:
           ssh-key: ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
 
-      - name: Generate protocol read token
-        id: protocol-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ vars.PROTOCOL_SYNCHRONIZER_APP_ID }}
-          private-key: ${{ secrets.PROTOCOL_SYNCHRONIZER_SECRET_KEY }}
-          owner: thruputchain
-          repositories: thruput-protocol
-          permission-contents: read
-
       - name: Update protocol submodule to latest main
-        env:
-          GH_TOKEN: ${{ steps.protocol-token.outputs.token }}
         run: |
-          git config --global \
-            url."https://x-access-token:${GH_TOKEN}@github.com/thruputchain/thruput-protocol.git".insteadOf \
-            "git@github.com:thruputchain/thruput-protocol.git"
           git submodule update --init protocol
           git -C protocol fetch origin main
           git -C protocol checkout origin/main
@@ -79,7 +64,7 @@ jobs:
 
       # The `gh` commands below must NOT use GITHUB_TOKEN, for the same reason
       # the push above does not: a merge performed by it starts no workflow
-      # runs, so notify-consumers never fires and groundhog-go falls behind.
+      # runs, so notify-consumers never fires and thruput-go falls behind.
       # A deploy key cannot stand in here -- it authenticates git, not the API.
       # PROTOCOL_GO_AUTO_UPDATE_PAT is scoped to this repository alone and
       # needs only Contents: write and Pull requests: write.
@@ -96,7 +81,7 @@ jobs:
           git checkout -b "$BRANCH"
           git add -A
           # commit.sh writes "bump to protocol@<short-sha>", the same message
-          # the manual bump-groundhog-go path produces.
+          # the manual bump-thruput-go path produces.
           ./commit.sh
           git push -f -u origin "$BRANCH"
 
