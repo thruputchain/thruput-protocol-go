@@ -14,17 +14,13 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      # The retained repository write key pushes branches and triggers CI.
-      # The protocol source is public and read anonymously over HTTPS.
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
-        with:
-          ssh-private-key: ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
-
+      # Credentials are not persisted: only the push below needs to write, and
+      # it authenticates for that one command. The protocol source is public
+      # and read anonymously over HTTPS.
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ssh-key: ${{ secrets.PROTOCOL_GO_TO_SELF_WRITE_KEY }}
+          persist-credentials: false
 
       - name: Update protocol submodule to latest main
         run: |
@@ -62,12 +58,12 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # The `gh` commands below must NOT use GITHUB_TOKEN, for the same reason
-      # the push above does not: a merge performed by it starts no workflow
-      # runs, so notify-consumers never fires and thruput-go falls behind.
-      # A deploy key cannot stand in here -- it authenticates git, not the API.
-      # PROTOCOL_GO_AUTO_UPDATE_PAT is scoped to this repository alone and
-      # needs only Contents: write and Pull requests: write.
+      # The push and the `gh` commands below must NOT use GITHUB_TOKEN: a push
+      # or merge performed by it starts no workflow runs, so CI would never
+      # report on the bump and notify-consumers would never fire, leaving
+      # thruput-go behind. PROTOCOL_GO_AUTO_UPDATE_PAT is scoped to this
+      # repository alone and needs only Contents: write (the push) and Pull
+      # requests: write (the PR and its auto-merge).
       - name: Commit and open PR
         if: steps.diff.outputs.changed == 'true'
         run: |
@@ -76,20 +72,24 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin git@github.com:thruputchain/thruput-protocol-go.git
 
           git checkout -b "$BRANCH"
           git add -A
           # commit.sh writes "bump to protocol@<short-sha>", the same message
           # the manual bump-thruput-go path produces.
           ./commit.sh
-          git push -f -u origin "$BRANCH"
+          # The token goes in this one command's URL; it is not written to git
+          # config, and Actions masks it in the log.
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/thruputchain/thruput-protocol-go.git" "HEAD:refs/heads/${BRANCH}"
 
           EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url')
           if [ -n "$EXISTING_PR" ]; then
             echo "Updated existing PR: $EXISTING_PR"
           else
+            # --head because the push above set no upstream for gh to infer
+            # the branch from.
             gh pr create \
+              --head "$BRANCH" \
               --title "Auto-update protocol to ${PROTOCOL_SHA}" \
               --body "Automated protocol submodule bump and regeneration.
 
