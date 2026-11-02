@@ -17,20 +17,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Keep checkout before the agent, with credentials disabled: the
-      # protocol key's URL prefix can also match this repository.
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
-        with:
-          ssh-private-key: ${{ secrets.PROTOCOL_DEPLOY_SECRET_KEY }}
-
-      # .gitmodules pins protocol by an SSH URL, and build.sh reads
-      # protocol/*.x, so the submodule is not optional here.
+      # build.sh reads protocol/*.x, so the submodule is not optional here.
+      # thruput-protocol is public and pinned by an HTTPS URL, so this needs
+      # no credentials and runs the same for pull requests from forks.
       - name: Check out the protocol submodule
         run: git submodule update --init protocol
 
