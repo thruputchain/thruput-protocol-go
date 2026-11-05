@@ -1068,6 +1068,19 @@ type DbGatewayConfigResult struct {
 	_u interface{}
 }
 
+/// Complete canonical XDR Contract bytes, keyed by SHA256 of these bytes.
+/// A miss means unavailable here, not proof that the hash never existed.
+/// Content availability is not proof of deployment or transaction commitment.
+type DbGatewayContractResult struct {
+	// The union discriminant Error selects among the following arms:
+	//   KRPCNone:
+	//      Contract_xdr() *[]byte
+	//   default:
+	//      void
+	Error RPCError
+	_u interface{}
+}
+
 type DbGatewayIntroOutcome int32
 const (
 	DbGatewayIntroSuccess DbGatewayIntroOutcome = 0
@@ -1078,6 +1091,7 @@ type DbGateway1 interface {
 	Dbgateway_intro(context.Context, ProtocolCommit) (DbGatewayIntroOutcome, error)
 	Dbgateway_get_items(context.Context, AddressAndKeyBatch) (DbGatewayResult, error)
 	Dbgateway_get_config(context.Context, ) (DbGatewayConfigResult, error)
+	Dbgateway_get_contract(context.Context, SHA256Hash) (DbGatewayContractResult, error)
 }
 
 type DbSchedResult int32
@@ -9595,6 +9609,68 @@ func (u *DbGatewayConfigResult) XdrRecurse(x XDR, name string) {
 	}
 }
 func XDR_DbGatewayConfigResult(v *DbGatewayConfigResult) *DbGatewayConfigResult { return v}
+func (_ DbGatewayContractResult) XdrValidTags() map[int32]bool {
+	return nil
+}
+func (u *DbGatewayContractResult) Contract_xdr() *[]byte {
+	switch u.Error {
+	case KRPCNone:
+		if v, ok := u._u.(*[]byte); ok {
+			return v
+		} else {
+			var zero []byte
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("DbGatewayContractResult.Contract_xdr accessed when Error == %v", u.Error)
+		return nil
+	}
+}
+func (u DbGatewayContractResult) XdrValid() bool {
+	return true
+}
+func (u *DbGatewayContractResult) XdrUnionTag() XdrNum32 {
+	return XDR_RPCError(&u.Error)
+}
+func (u *DbGatewayContractResult) XdrUnionTagName() string {
+	return "Error"
+}
+func (u *DbGatewayContractResult) XdrUnionBody() XdrType {
+	switch u.Error {
+	case KRPCNone:
+		return XdrVecOpaque{u.Contract_xdr(), 0xffffffff}
+	default:
+		return nil
+	}
+}
+func (u *DbGatewayContractResult) XdrUnionBodyName() string {
+	switch u.Error {
+	case KRPCNone:
+		return "Contract_xdr"
+	default:
+		return ""
+	}
+}
+type XdrType_DbGatewayContractResult = *DbGatewayContractResult
+func (v *DbGatewayContractResult) XdrPointer() interface{} { return v }
+func (DbGatewayContractResult) XdrTypeName() string { return "DbGatewayContractResult" }
+func (v DbGatewayContractResult) XdrValue() interface{} { return v }
+func (v *DbGatewayContractResult) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (u *DbGatewayContractResult) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	XDR_RPCError(&u.Error).XdrMarshal(x, x.Sprintf("%serror", name))
+	switch u.Error {
+	case KRPCNone:
+		x.Marshal(x.Sprintf("%scontract_xdr", name), XdrVecOpaque{u.Contract_xdr(), 0xffffffff})
+		return
+	default:
+		return
+	}
+}
+func XDR_DbGatewayContractResult(v *DbGatewayContractResult) *DbGatewayContractResult { return v}
 var _XdrNames_DbGatewayIntroOutcome = map[int32]string{
 	int32(DbGatewayIntroSuccess): "DbGatewayIntroSuccess",
 	int32(DbGatewayIntroMismatchedProtocol): "DbGatewayIntroMismatchedProtocol",
@@ -9779,6 +9855,53 @@ func (p *xdrSrvProc_Dbgateway_get_config) Do() {
 }
 var _ XdrSrvProc = &xdrSrvProc_Dbgateway_get_config{} // XXX
 
+type xdrProc_Dbgateway_get_contract struct {
+	Arg *SHA256Hash
+	Res *DbGatewayContractResult
+}
+func (xdrProc_Dbgateway_get_contract) Prog() uint32 { return 1145194327 }
+func (xdrProc_Dbgateway_get_contract) Vers() uint32 { return 1 }
+func (xdrProc_Dbgateway_get_contract) Proc() uint32 { return 3 }
+func (xdrProc_Dbgateway_get_contract) ProgName() string { return "DbGateway" }
+func (xdrProc_Dbgateway_get_contract) VersName() string { return "DbGateway1" }
+func (xdrProc_Dbgateway_get_contract) ProcName() string { return "dbgateway_get_contract" }
+func (p *xdrProc_Dbgateway_get_contract) GetArg() XdrType {
+	if p.Arg == nil {
+		p.Arg = new(SHA256Hash)
+	}
+	return XDR_SHA256Hash(p.Arg)
+}
+func (p *xdrProc_Dbgateway_get_contract) GetRes() XdrType {
+	if p.Res == nil {
+		p.Res = new(DbGatewayContractResult)
+	}
+	return XDR_DbGatewayContractResult(p.Res)
+}
+var _ XdrProc = &xdrProc_Dbgateway_get_contract{} // XXX
+
+type xdrSrvProc_Dbgateway_get_contract struct {
+	xdrProc_Dbgateway_get_contract
+	Srv DbGateway1
+	Ctx context.Context
+}
+func (p *xdrSrvProc_Dbgateway_get_contract) SetContext(ctx context.Context) {
+	if wc, ok := p.Srv.(interface {
+		WithContext(context.Context) DbGateway1
+	}); ok {
+		p.Srv = wc.WithContext(ctx)
+	}
+	p.Ctx = ctx
+}
+func (p *xdrSrvProc_Dbgateway_get_contract) Do() {
+	r, err := p.Srv.Dbgateway_get_contract(p.Ctx, *p.Arg)
+	p.Res = &r
+
+	if err != nil {
+		panic(err)
+	}
+}
+var _ XdrSrvProc = &xdrSrvProc_Dbgateway_get_contract{} // XXX
+
 func init() {
 	XdrCatalog[1145194327<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
@@ -9788,6 +9911,8 @@ func init() {
 			return &xdrProc_Dbgateway_get_items{}
 		case 2:
 			return &xdrProc_Dbgateway_get_config{}
+		case 3:
+			return &xdrProc_Dbgateway_get_contract{}
 		}
 		return nil
 	}
@@ -9808,6 +9933,8 @@ func (s DbGateway1_Server) GetProc(p uint32) XdrSrvProc {
 		return &xdrSrvProc_Dbgateway_get_items{ Srv: s.Srv }
 	case 2:  // dbgateway_get_config
 		return &xdrSrvProc_Dbgateway_get_config{ Srv: s.Srv }
+	case 3:  // dbgateway_get_contract
+		return &xdrSrvProc_Dbgateway_get_contract{ Srv: s.Srv }
 	default:
 		return nil
 	}
@@ -9841,6 +9968,14 @@ func (c DbGateway1_Client) Dbgateway_get_items(ctx context.Context, a1 AddressAn
 }
 func (c DbGateway1_Client) Dbgateway_get_config(ctx context.Context, ) (r DbGatewayConfigResult, _ error) {
 	var proc xdrProc_Dbgateway_get_config
+	if err := c.Send.SendCall(ctx, &proc); err != nil {
+		return r, err
+	}
+	return *proc.Res, nil
+}
+func (c DbGateway1_Client) Dbgateway_get_contract(ctx context.Context, a1 SHA256Hash) (r DbGatewayContractResult, _ error) {
+	var proc xdrProc_Dbgateway_get_contract
+	proc.Arg = &a1
 	if err := c.Send.SendCall(ctx, &proc); err != nil {
 		return r, err
 	}
