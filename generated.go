@@ -677,6 +677,40 @@ type ContractBlob struct {
 	Data []byte
 }
 
+/// What an RV32 artifact extension carries. Values are permanent: a value is
+/// never reused.
+type Rv32ArtifactExtensionKind int32
+const (
+	/// The body is an `Rv32ContractSpecExtension`.
+	KRv32ExtensionContractSpec Rv32ArtifactExtensionKind = 1
+)
+
+/// One extension in a v6 RV32 artifact: data after initial memory that the
+/// runtime never loads into guest memory.
+///
+/// `kind` is an `Rv32ArtifactExtensionKind`, typed as `unsigned int` so a
+/// decoder accepts kinds it does not know. Zero is reserved. The chain stores
+/// `body` without interpreting it.
+type Rv32ArtifactExtension struct {
+	Kind uint32
+	Body []byte
+}
+
+/// The extension list that ends a v6 RV32 artifact, running from the end of
+/// initial memory exactly to the end of the artifact.
+///
+/// Kinds are strictly ascending, so there is at most one extension of each
+/// kind and exactly one encoding of any set of extensions. The chain checks
+/// only this framing; adding a kind needs no runtime change.
+type Rv32ArtifactExtensions = []Rv32ArtifactExtension
+
+/// The body of a `kRv32ExtensionContractSpec` extension.
+type Rv32ContractSpecExtension struct {
+	/// Schema of `spec`. 1: `spec` is an XDR `ContractSpec` (contract_spec.x).
+	Schema_version uint32
+	Spec []byte
+}
+
 /// The execution environment for a contract.
 ///
 /// Discriminant 0 is retired. It selected an earlier contract runtime, which
@@ -8412,6 +8446,142 @@ func (v *ContractBlob) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sdata", name), XdrVecOpaque{&v.Data, 0xffffffff})
 }
 func XDR_ContractBlob(v *ContractBlob) *ContractBlob { return v }
+var _XdrNames_Rv32ArtifactExtensionKind = map[int32]string{
+	int32(KRv32ExtensionContractSpec): "kRv32ExtensionContractSpec",
+}
+var _XdrValues_Rv32ArtifactExtensionKind = map[string]int32{
+	"kRv32ExtensionContractSpec": int32(KRv32ExtensionContractSpec),
+}
+func (Rv32ArtifactExtensionKind) XdrEnumNames() map[int32]string {
+	return _XdrNames_Rv32ArtifactExtensionKind
+}
+func (v Rv32ArtifactExtensionKind) String() string {
+	if s, ok := _XdrNames_Rv32ArtifactExtensionKind[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("Rv32ArtifactExtensionKind#%d", v)
+}
+func (v *Rv32ArtifactExtensionKind) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_Rv32ArtifactExtensionKind[stok]; ok {
+			*v = Rv32ArtifactExtensionKind(val)
+			return nil
+		} else if stok == "Rv32ArtifactExtensionKind" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid Rv32ArtifactExtensionKind.", stok))
+	}
+}
+func (v Rv32ArtifactExtensionKind) GetU32() uint32 { return uint32(v) }
+func (v *Rv32ArtifactExtensionKind) SetU32(n uint32) { *v = Rv32ArtifactExtensionKind(n) }
+func (v *Rv32ArtifactExtensionKind) XdrPointer() interface{} { return v }
+func (Rv32ArtifactExtensionKind) XdrTypeName() string { return "Rv32ArtifactExtensionKind" }
+func (v Rv32ArtifactExtensionKind) XdrValue() interface{} { return v }
+func (v *Rv32ArtifactExtensionKind) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_Rv32ArtifactExtensionKind = *Rv32ArtifactExtensionKind
+func XDR_Rv32ArtifactExtensionKind(v *Rv32ArtifactExtensionKind) *Rv32ArtifactExtensionKind { return v }
+func (v *Rv32ArtifactExtensionKind) XdrInitialize() {
+	switch Rv32ArtifactExtensionKind(0) {
+	case KRv32ExtensionContractSpec:
+	default:
+		if *v == Rv32ArtifactExtensionKind(0) { *v = KRv32ExtensionContractSpec }
+	}
+}
+type XdrType_Rv32ArtifactExtension = *Rv32ArtifactExtension
+func (v *Rv32ArtifactExtension) XdrPointer() interface{} { return v }
+func (Rv32ArtifactExtension) XdrTypeName() string { return "Rv32ArtifactExtension" }
+func (v Rv32ArtifactExtension) XdrValue() interface{} { return v }
+func (v *Rv32ArtifactExtension) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Rv32ArtifactExtension) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%skind", name), XDR_uint32(&v.Kind))
+	x.Marshal(x.Sprintf("%sbody", name), XdrVecOpaque{&v.Body, 0xffffffff})
+}
+func XDR_Rv32ArtifactExtension(v *Rv32ArtifactExtension) *Rv32ArtifactExtension { return v }
+type _XdrVec_unbounded_Rv32ArtifactExtension []Rv32ArtifactExtension
+func (_XdrVec_unbounded_Rv32ArtifactExtension) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_Rv32ArtifactExtension) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_Rv32ArtifactExtension length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_Rv32ArtifactExtension length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_Rv32ArtifactExtension) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]Rv32ArtifactExtension, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_Rv32ArtifactExtension(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_Rv32ArtifactExtension) XdrTypeName() string { return "Rv32ArtifactExtension<>" }
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrPointer() interface{} { return (*[]Rv32ArtifactExtension)(v) }
+func (v _XdrVec_unbounded_Rv32ArtifactExtension) XdrValue() interface{} { return ([]Rv32ArtifactExtension)(v) }
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_Rv32ArtifactExtensions struct {
+	*_XdrVec_unbounded_Rv32ArtifactExtension
+}
+func XDR_Rv32ArtifactExtensions(v *Rv32ArtifactExtensions) XdrType_Rv32ArtifactExtensions {
+	return XdrType_Rv32ArtifactExtensions{(*_XdrVec_unbounded_Rv32ArtifactExtension)(v)}
+}
+func (XdrType_Rv32ArtifactExtensions) XdrTypeName() string { return "Rv32ArtifactExtensions" }
+func (v XdrType_Rv32ArtifactExtensions) XdrUnwrap() XdrType { return v._XdrVec_unbounded_Rv32ArtifactExtension }
+type XdrType_Rv32ContractSpecExtension = *Rv32ContractSpecExtension
+func (v *Rv32ContractSpecExtension) XdrPointer() interface{} { return v }
+func (Rv32ContractSpecExtension) XdrTypeName() string { return "Rv32ContractSpecExtension" }
+func (v Rv32ContractSpecExtension) XdrValue() interface{} { return v }
+func (v *Rv32ContractSpecExtension) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Rv32ContractSpecExtension) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sschema_version", name), XDR_uint32(&v.Schema_version))
+	x.Marshal(x.Sprintf("%sspec", name), XdrVecOpaque{&v.Spec, 0xffffffff})
+}
+func XDR_Rv32ContractSpecExtension(v *Rv32ContractSpecExtension) *Rv32ContractSpecExtension { return v }
 var _XdrNames_ContractType = map[int32]string{
 	int32(KNative): "kNative",
 	int32(KMockTest): "kMockTest",
