@@ -677,6 +677,40 @@ type ContractBlob struct {
 	Data []byte
 }
 
+/// What an RV32 artifact extension carries. Values are permanent: a value is
+/// never reused.
+type Rv32ArtifactExtensionKind int32
+const (
+	/// The body is an `Rv32ContractSpecExtension`.
+	KRv32ExtensionContractSpec Rv32ArtifactExtensionKind = 1
+)
+
+/// One extension in a v6 RV32 artifact: data after initial memory that the
+/// runtime never loads into guest memory.
+///
+/// `kind` is an `Rv32ArtifactExtensionKind`, typed as `unsigned int` so a
+/// decoder accepts kinds it does not know. Zero is reserved. The chain stores
+/// `body` without interpreting it.
+type Rv32ArtifactExtension struct {
+	Kind uint32
+	Body []byte
+}
+
+/// The extension list that ends a v6 RV32 artifact, running from the end of
+/// initial memory exactly to the end of the artifact.
+///
+/// Kinds are strictly ascending, so there is at most one extension of each
+/// kind and exactly one encoding of any set of extensions. The chain checks
+/// only this framing; adding a kind needs no runtime change.
+type Rv32ArtifactExtensions = []Rv32ArtifactExtension
+
+/// The body of a `kRv32ExtensionContractSpec` extension.
+type Rv32ContractSpecExtension struct {
+	/// Schema of `spec`. 1: `spec` is an XDR `ContractSpec` (contract_spec.x).
+	Schema_version uint32
+	Spec []byte
+}
+
 /// The execution environment for a contract.
 ///
 /// Discriminant 0 is retired. It selected an earlier contract runtime, which
@@ -940,7 +974,10 @@ const (
 	/// header size, or its length disagrees with the section sizes the header
 	/// declares.
 	ContractRejectMalformedArtifact ContractRejectCode = 4
-	/// The artifact's format version is not the one this node reads.
+	/// The artifact's format version is not one this node reads, or is outside
+	/// the range the chain's configuration admits
+	/// (`kConfigParamMinRv32ArtifactVersion`,
+	/// `kConfigParamMaxRv32ArtifactVersion`).
 	ContractRejectUnsupportedFormat ContractRejectCode = 5
 	/// The artifact's VM profile, flags, entry ABI, or syscall ABI is not one
 	/// this node runs.
@@ -2187,6 +2224,8 @@ const (
 	KConfigParamMaxCalldataLen ConfigParamID = 11
 	KConfigParamMaxReturnBufferLen ConfigParamID = 12
 	KConfigParamMaxTxGas ConfigParamID = 13
+	KConfigParamMinRv32ArtifactVersion ConfigParamID = 14
+	KConfigParamMaxRv32ArtifactVersion ConfigParamID = 15
 )
 
 /// One configuration parameter and the value in force for it.
@@ -2231,6 +2270,10 @@ type ConfigParam struct {
 	//      Max_return_buffer_len() *uint32
 	//   KConfigParamMaxTxGas:
 	//      Max_tx_gas() *GasAmount
+	//   KConfigParamMinRv32ArtifactVersion:
+	//      Min_rv32_artifact_version() *uint32
+	//   KConfigParamMaxRv32ArtifactVersion:
+	//      Max_rv32_artifact_version() *uint32
 	Param ConfigParamID
 	_u interface{}
 }
@@ -8412,6 +8455,142 @@ func (v *ContractBlob) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sdata", name), XdrVecOpaque{&v.Data, 0xffffffff})
 }
 func XDR_ContractBlob(v *ContractBlob) *ContractBlob { return v }
+var _XdrNames_Rv32ArtifactExtensionKind = map[int32]string{
+	int32(KRv32ExtensionContractSpec): "kRv32ExtensionContractSpec",
+}
+var _XdrValues_Rv32ArtifactExtensionKind = map[string]int32{
+	"kRv32ExtensionContractSpec": int32(KRv32ExtensionContractSpec),
+}
+func (Rv32ArtifactExtensionKind) XdrEnumNames() map[int32]string {
+	return _XdrNames_Rv32ArtifactExtensionKind
+}
+func (v Rv32ArtifactExtensionKind) String() string {
+	if s, ok := _XdrNames_Rv32ArtifactExtensionKind[int32(v)]; ok {
+		return s
+	}
+	return fmt.Sprintf("Rv32ArtifactExtensionKind#%d", v)
+}
+func (v *Rv32ArtifactExtensionKind) Scan(ss fmt.ScanState, _ rune) error {
+	if tok, err := ss.Token(true, XdrSymChar); err != nil {
+		return err
+	} else {
+		stok := string(tok)
+		if val, ok := _XdrValues_Rv32ArtifactExtensionKind[stok]; ok {
+			*v = Rv32ArtifactExtensionKind(val)
+			return nil
+		} else if stok == "Rv32ArtifactExtensionKind" {
+			if n, err := fmt.Fscanf(ss, "#%d", (*int32)(v));
+				n == 1 && err == nil {
+				return nil
+			}
+		}
+		return XdrError(fmt.Sprintf("%s is not a valid Rv32ArtifactExtensionKind.", stok))
+	}
+}
+func (v Rv32ArtifactExtensionKind) GetU32() uint32 { return uint32(v) }
+func (v *Rv32ArtifactExtensionKind) SetU32(n uint32) { *v = Rv32ArtifactExtensionKind(n) }
+func (v *Rv32ArtifactExtensionKind) XdrPointer() interface{} { return v }
+func (Rv32ArtifactExtensionKind) XdrTypeName() string { return "Rv32ArtifactExtensionKind" }
+func (v Rv32ArtifactExtensionKind) XdrValue() interface{} { return v }
+func (v *Rv32ArtifactExtensionKind) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_Rv32ArtifactExtensionKind = *Rv32ArtifactExtensionKind
+func XDR_Rv32ArtifactExtensionKind(v *Rv32ArtifactExtensionKind) *Rv32ArtifactExtensionKind { return v }
+func (v *Rv32ArtifactExtensionKind) XdrInitialize() {
+	switch Rv32ArtifactExtensionKind(0) {
+	case KRv32ExtensionContractSpec:
+	default:
+		if *v == Rv32ArtifactExtensionKind(0) { *v = KRv32ExtensionContractSpec }
+	}
+}
+type XdrType_Rv32ArtifactExtension = *Rv32ArtifactExtension
+func (v *Rv32ArtifactExtension) XdrPointer() interface{} { return v }
+func (Rv32ArtifactExtension) XdrTypeName() string { return "Rv32ArtifactExtension" }
+func (v Rv32ArtifactExtension) XdrValue() interface{} { return v }
+func (v *Rv32ArtifactExtension) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Rv32ArtifactExtension) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%skind", name), XDR_uint32(&v.Kind))
+	x.Marshal(x.Sprintf("%sbody", name), XdrVecOpaque{&v.Body, 0xffffffff})
+}
+func XDR_Rv32ArtifactExtension(v *Rv32ArtifactExtension) *Rv32ArtifactExtension { return v }
+type _XdrVec_unbounded_Rv32ArtifactExtension []Rv32ArtifactExtension
+func (_XdrVec_unbounded_Rv32ArtifactExtension) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_Rv32ArtifactExtension) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_Rv32ArtifactExtension length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_Rv32ArtifactExtension length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_Rv32ArtifactExtension) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]Rv32ArtifactExtension, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_Rv32ArtifactExtension(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_Rv32ArtifactExtension) XdrTypeName() string { return "Rv32ArtifactExtension<>" }
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrPointer() interface{} { return (*[]Rv32ArtifactExtension)(v) }
+func (v _XdrVec_unbounded_Rv32ArtifactExtension) XdrValue() interface{} { return ([]Rv32ArtifactExtension)(v) }
+func (v *_XdrVec_unbounded_Rv32ArtifactExtension) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_Rv32ArtifactExtensions struct {
+	*_XdrVec_unbounded_Rv32ArtifactExtension
+}
+func XDR_Rv32ArtifactExtensions(v *Rv32ArtifactExtensions) XdrType_Rv32ArtifactExtensions {
+	return XdrType_Rv32ArtifactExtensions{(*_XdrVec_unbounded_Rv32ArtifactExtension)(v)}
+}
+func (XdrType_Rv32ArtifactExtensions) XdrTypeName() string { return "Rv32ArtifactExtensions" }
+func (v XdrType_Rv32ArtifactExtensions) XdrUnwrap() XdrType { return v._XdrVec_unbounded_Rv32ArtifactExtension }
+type XdrType_Rv32ContractSpecExtension = *Rv32ContractSpecExtension
+func (v *Rv32ContractSpecExtension) XdrPointer() interface{} { return v }
+func (Rv32ContractSpecExtension) XdrTypeName() string { return "Rv32ContractSpecExtension" }
+func (v Rv32ContractSpecExtension) XdrValue() interface{} { return v }
+func (v *Rv32ContractSpecExtension) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *Rv32ContractSpecExtension) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sschema_version", name), XDR_uint32(&v.Schema_version))
+	x.Marshal(x.Sprintf("%sspec", name), XdrVecOpaque{&v.Spec, 0xffffffff})
+}
+func XDR_Rv32ContractSpecExtension(v *Rv32ContractSpecExtension) *Rv32ContractSpecExtension { return v }
 var _XdrNames_ContractType = map[int32]string{
 	int32(KNative): "kNative",
 	int32(KMockTest): "kMockTest",
@@ -17825,6 +18004,8 @@ var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMaxCalldataLen): "kConfigParamMaxCalldataLen",
 	int32(KConfigParamMaxReturnBufferLen): "kConfigParamMaxReturnBufferLen",
 	int32(KConfigParamMaxTxGas): "kConfigParamMaxTxGas",
+	int32(KConfigParamMinRv32ArtifactVersion): "kConfigParamMinRv32ArtifactVersion",
+	int32(KConfigParamMaxRv32ArtifactVersion): "kConfigParamMaxRv32ArtifactVersion",
 }
 var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
@@ -17841,6 +18022,8 @@ var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxCalldataLen": int32(KConfigParamMaxCalldataLen),
 	"kConfigParamMaxReturnBufferLen": int32(KConfigParamMaxReturnBufferLen),
 	"kConfigParamMaxTxGas": int32(KConfigParamMaxTxGas),
+	"kConfigParamMinRv32ArtifactVersion": int32(KConfigParamMinRv32ArtifactVersion),
+	"kConfigParamMaxRv32ArtifactVersion": int32(KConfigParamMaxRv32ArtifactVersion),
 }
 func (ConfigParamID) XdrEnumNames() map[int32]string {
 	return _XdrNames_ConfigParamID
@@ -17891,6 +18074,8 @@ var _XdrTags_ConfigParam = map[int32]bool{
 	XdrToI32(KConfigParamMaxCalldataLen): true,
 	XdrToI32(KConfigParamMaxReturnBufferLen): true,
 	XdrToI32(KConfigParamMaxTxGas): true,
+	XdrToI32(KConfigParamMinRv32ArtifactVersion): true,
+	XdrToI32(KConfigParamMaxRv32ArtifactVersion): true,
 }
 func (_ ConfigParam) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigParam
@@ -18241,9 +18426,62 @@ func (u *ConfigParam) Max_tx_gas() *GasAmount {
 		return nil
 	}
 }
+/// Lowest RV32 artifact format version (`format_version` in the artifact
+/// header) admitted as an attached contract. 5 is the value in force for a
+/// configuration that does not state one, which is the oldest format
+/// admitted before this parameter.
+///
+/// Checked where a contract is attached, like
+/// `kConfigParamMaxRv32CodeBytes`, not where a deployed one is
+/// instantiated: raising it stops new deployments in an old format and
+/// leaves contracts already deployed in one runnable. Retiring a format
+/// from execution is a separate decision about stored contracts.
+///
+/// A node admits only formats it can read, so the node rejects a genesis
+/// whose range reaches below the oldest format its build reads, or whose
+/// minimum exceeds `kConfigParamMaxRv32ArtifactVersion`.
+func (u *ConfigParam) Min_rv32_artifact_version() *uint32 {
+	switch u.Param {
+	case KConfigParamMinRv32ArtifactVersion:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Min_rv32_artifact_version accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Highest RV32 artifact format version admitted as an attached contract,
+/// checked with `kConfigParamMinRv32ArtifactVersion` and inclusive like it.
+/// 6 is the value in force for a configuration that does not state one,
+/// which is the newest format admitted before this parameter.
+///
+/// This is what activates a format: a node whose build reads a newer
+/// format still refuses it until the chain's configuration admits it, so
+/// nodes on different builds agree on which contracts attach. The node
+/// rejects a genesis above the newest format its build reads.
+func (u *ConfigParam) Max_rv32_artifact_version() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxRv32ArtifactVersion:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_rv32_artifact_version accessed when Param == %v", u.Param)
+		return nil
+	}
+}
 func (u ConfigParam) XdrValid() bool {
 	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes,KConfigParamMaxAuthTokens,KConfigParamMaxCalldataLen,KConfigParamMaxReturnBufferLen,KConfigParamMaxTxGas:
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes,KConfigParamMaxAuthTokens,KConfigParamMaxCalldataLen,KConfigParamMaxReturnBufferLen,KConfigParamMaxTxGas,KConfigParamMinRv32ArtifactVersion,KConfigParamMaxRv32ArtifactVersion:
 		return true
 	}
 	return false
@@ -18284,6 +18522,10 @@ func (u *ConfigParam) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Max_return_buffer_len())
 	case KConfigParamMaxTxGas:
 		return XDR_GasAmount(u.Max_tx_gas())
+	case KConfigParamMinRv32ArtifactVersion:
+		return XDR_uint32(u.Min_rv32_artifact_version())
+	case KConfigParamMaxRv32ArtifactVersion:
+		return XDR_uint32(u.Max_rv32_artifact_version())
 	}
 	return nil
 }
@@ -18317,6 +18559,10 @@ func (u *ConfigParam) XdrUnionBodyName() string {
 		return "Max_return_buffer_len"
 	case KConfigParamMaxTxGas:
 		return "Max_tx_gas"
+	case KConfigParamMinRv32ArtifactVersion:
+		return "Min_rv32_artifact_version"
+	case KConfigParamMaxRv32ArtifactVersion:
+		return "Max_rv32_artifact_version"
 	}
 	return ""
 }
@@ -18372,6 +18618,12 @@ func (u *ConfigParam) XdrRecurse(x XDR, name string) {
 		return
 	case KConfigParamMaxTxGas:
 		x.Marshal(x.Sprintf("%smax_tx_gas", name), XDR_GasAmount(u.Max_tx_gas()))
+		return
+	case KConfigParamMinRv32ArtifactVersion:
+		x.Marshal(x.Sprintf("%smin_rv32_artifact_version", name), XDR_uint32(u.Min_rv32_artifact_version()))
+		return
+	case KConfigParamMaxRv32ArtifactVersion:
+		x.Marshal(x.Sprintf("%smax_rv32_artifact_version", name), XDR_uint32(u.Max_rv32_artifact_version()))
 		return
 	}
 	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
