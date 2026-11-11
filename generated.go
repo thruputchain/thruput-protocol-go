@@ -4079,6 +4079,9 @@ type GasAmount = uint64
 /// Represents a 512-bit Ed25519 signature.
 type Ed25519Signature = [64]byte
 
+/// Canonical compressed Ristretto255 group element.
+type Ristretto255Point = [32]byte
+
 /// Represents a 256-bit Ed25519 public key.
 type Ed25519PublicKey = [32]byte
 
@@ -29712,6 +29715,14 @@ func XDR_Ed25519Signature(v *Ed25519Signature) XdrType_Ed25519Signature {
 }
 func (XdrType_Ed25519Signature) XdrTypeName() string { return "Ed25519Signature" }
 func (v XdrType_Ed25519Signature) XdrUnwrap() XdrType { return v._XdrArray_64_opaque }
+type XdrType_Ristretto255Point struct {
+	*_XdrArray_32_opaque
+}
+func XDR_Ristretto255Point(v *Ristretto255Point) XdrType_Ristretto255Point {
+	return XdrType_Ristretto255Point{(*_XdrArray_32_opaque)(v)}
+}
+func (XdrType_Ristretto255Point) XdrTypeName() string { return "Ristretto255Point" }
+func (v XdrType_Ristretto255Point) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_Ed25519PublicKey struct {
 	*_XdrArray_32_opaque
 }
