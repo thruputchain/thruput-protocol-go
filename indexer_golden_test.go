@@ -89,7 +89,7 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	eventBytes := marshalGoldenXdr(XDR_TxEventLog(&payload.Event_logs[0]))
 	value.Proposal_header.Events_hash = goldenSingleEntryRoot(txHash,
 		append(eventBytes[sha256.Size:], nondeterministicBytes...))
-	value.Proposal_txs_hash = goldenHash("9167ec4a9bc69f64b3983b31601576b6915271545f8d2910ad19acff9aee9bbb")
+	value.Proposal_txs_hash = goldenHash("130a7db4c5adbcd1a285f2412a2b226f40115b896835f8b5bc792743e07020c2")
 	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
 		panic("proposal tx compatibility hash mismatch")
 	}
@@ -140,26 +140,49 @@ func goldenHash(encoded string) SHA256Hash {
 	return hash
 }
 
-// Reproduces hogd's hash_parallel_batch_compatibility: the hash of
-// cxs(DomainSeparator("ParallelBatch")), the hash of the batch index, and the
-// hash of each segment, in order.
-func goldenParallelBatchHash(batch ParallelBatch) SHA256Hash {
-	index := ParallelBatch{
-		Segment_tokens: batch.Segment_tokens,
-		Segment_bytes:  batch.Segment_bytes,
+// appendGoldenCxsUint32 appends n as a cxs unsigned int, in its shortest form:
+// n itself up to 62, otherwise a header byte (63, 127 or 191 for one, two or
+// four more bytes) and n in that many little-endian bytes.
+func appendGoldenCxsUint32(b []byte, n uint32) []byte {
+	switch {
+	case n <= 62:
+		return append(b, byte(n))
+	case n <= 0xff:
+		return append(b, 63, byte(n))
+	case n <= 0xffff:
+		return binary.LittleEndian.AppendUint16(append(b, 127), uint16(n))
+	default:
+		return binary.LittleEndian.AppendUint32(append(b, 191), n)
 	}
-	indexHash := sha256.Sum256(marshalGoldenXdr(XDR_ParallelBatch(&index)))
-	h := sha256.New()
-	h.Write([]byte("\x00\x0dParallelBatch"))
-	h.Write(indexHash[:])
+}
+
+// appendGoldenCxsUint32s appends ns as a cxs array of unsigned ints: its
+// length, then each element.
+func appendGoldenCxsUint32s(b []byte, ns []uint32) []byte {
+	b = appendGoldenCxsUint32(b, uint32(len(ns)))
+	for _, n := range ns {
+		b = appendGoldenCxsUint32(b, n)
+	}
+	return b
+}
+
+// Reproduces hogd's hash_parallel_batch_compatibility: the hash of
+// cxs(DomainSeparator("ParallelBatch")), cxs(segment_tokens),
+// cxs(segment_bytes), and the hash of the segment hashes in order.
+func goldenParallelBatchHash(batch ParallelBatch) SHA256Hash {
+	segmentHashes := sha256.New()
 	offset := 0
 	for _, segmentBytes := range batch.Segment_bytes {
 		end := offset + int(segmentBytes)
 		segmentHash := sha256.Sum256(batch.Xdr[offset:end])
-		h.Write(segmentHash[:])
+		segmentHashes.Write(segmentHash[:])
 		offset = end
 	}
-	return SHA256Hash(h.Sum(nil))
+	preimage := []byte("\x00\x0dParallelBatch")
+	preimage = appendGoldenCxsUint32s(preimage, batch.Segment_tokens)
+	preimage = appendGoldenCxsUint32s(preimage, batch.Segment_bytes)
+	preimage = segmentHashes.Sum(preimage)
+	return SHA256Hash(sha256.Sum256(preimage))
 }
 
 // Reproduces hogd's proposal_txs_compatibility_hash: the hash of
@@ -191,12 +214,13 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	// more bytes for the absent key at the end of the one transaction body.
 	// The digest moved again, at the same length, when ProposalTxs began
 	// naming transactions by SignedTransactionHash, which changed the
-	// fixture's Proposal_txs_hash, and again when that hash began combining
-	// its parts in order instead of by XOR (hogd#4508). Config_hash,
-	// Gas_consumed, and direct key/value commitments now match hogd's
-	// committed payload fixture.
+	// fixture's Proposal_txs_hash, again when that hash began combining its
+	// parts in order instead of by XOR (hogd#4508), and again when a batch
+	// began hashing the cxs of its counts with the hash of its segment
+	// hashes. Config_hash, Gas_consumed, and direct key/value commitments now
+	// match hogd's committed payload fixture.
 	const expectedByteLength = 588
-	const expectedDigest = "85a1355f69fa34d3c879d62a524479b83073f97408b99bdb29b1dff22107cc31"
+	const expectedDigest = "ea976a0aef83867e589632ab7a175712bf085b08d14a799c089ffe13c89bf643"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}
