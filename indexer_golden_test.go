@@ -89,7 +89,7 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	eventBytes := marshalGoldenXdr(XDR_TxEventLog(&payload.Event_logs[0]))
 	value.Proposal_header.Events_hash = goldenSingleEntryRoot(txHash,
 		append(eventBytes[sha256.Size:], nondeterministicBytes...))
-	value.Proposal_txs_hash = goldenHash("130a7db4c5adbcd1a285f2412a2b226f40115b896835f8b5bc792743e07020c2")
+	value.Proposal_txs_hash = goldenHash("b3272a20621fbfc360c332f20e77c33d97e0b614629338ef0774da4ea11d54ea")
 	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
 		panic("proposal tx compatibility hash mismatch")
 	}
@@ -167,22 +167,21 @@ func appendGoldenCxsUint32s(b []byte, ns []uint32) []byte {
 }
 
 // Reproduces hogd's hash_parallel_batch_compatibility: the hash of
-// cxs(DomainSeparator("ParallelBatch")), cxs(segment_tokens),
-// cxs(segment_bytes), and the hash of the segment hashes in order.
+// cxs(BatchCommit), whose fields are DomainSeparator("ParallelBatch"),
+// segment_tokens, segment_bytes, and the array of the segment hashes.
 func goldenParallelBatchHash(batch ParallelBatch) SHA256Hash {
-	segmentHashes := sha256.New()
+	commit := []byte("\x00\x0dParallelBatch")
+	commit = appendGoldenCxsUint32s(commit, batch.Segment_tokens)
+	commit = appendGoldenCxsUint32s(commit, batch.Segment_bytes)
+	commit = appendGoldenCxsUint32(commit, uint32(len(batch.Segment_bytes)))
 	offset := 0
 	for _, segmentBytes := range batch.Segment_bytes {
 		end := offset + int(segmentBytes)
 		segmentHash := sha256.Sum256(batch.Xdr[offset:end])
-		segmentHashes.Write(segmentHash[:])
+		commit = append(commit, segmentHash[:]...)
 		offset = end
 	}
-	preimage := []byte("\x00\x0dParallelBatch")
-	preimage = appendGoldenCxsUint32s(preimage, batch.Segment_tokens)
-	preimage = appendGoldenCxsUint32s(preimage, batch.Segment_bytes)
-	preimage = segmentHashes.Sum(preimage)
-	return SHA256Hash(sha256.Sum256(preimage))
+	return SHA256Hash(sha256.Sum256(commit))
 }
 
 // Reproduces hogd's proposal_txs_compatibility_hash: the hash of
@@ -215,12 +214,12 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	// The digest moved again, at the same length, when ProposalTxs began
 	// naming transactions by SignedTransactionHash, which changed the
 	// fixture's Proposal_txs_hash, again when that hash began combining its
-	// parts in order instead of by XOR (hogd#4508), and again when a batch
-	// began hashing the cxs of its counts with the hash of its segment
-	// hashes. Config_hash, Gas_consumed, and direct key/value commitments now
-	// match hogd's committed payload fixture.
+	// parts in order instead of by XOR (hogd#4508), and again when the hash
+	// of a batch became that of the cxs of its BatchCommit. Config_hash,
+	// Gas_consumed, and direct key/value commitments now match hogd's
+	// committed payload fixture.
 	const expectedByteLength = 588
-	const expectedDigest = "ea976a0aef83867e589632ab7a175712bf085b08d14a799c089ffe13c89bf643"
+	const expectedDigest = "6db3e48d6f25252467cb5510317e5e3069ab222ff96f73ad50f1a83f9497ff9a"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}
