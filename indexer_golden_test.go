@@ -89,7 +89,7 @@ func committedPayloadGoldenFixture() IndexerCommittedBlockPayload {
 	eventBytes := marshalGoldenXdr(XDR_TxEventLog(&payload.Event_logs[0]))
 	value.Proposal_header.Events_hash = goldenSingleEntryRoot(txHash,
 		append(eventBytes[sha256.Size:], nondeterministicBytes...))
-	value.Proposal_txs_hash = goldenHash("b3272a20621fbfc360c332f20e77c33d97e0b614629338ef0774da4ea11d54ea")
+	value.Proposal_txs_hash = goldenHash("e8bcb48610fb7e2ba7fd7396f2ac20a7ab74fd9cd89720ad1042ab2f0583d950")
 	if got := goldenProposalTxsHash(proposalTxs); got != value.Proposal_txs_hash {
 		panic("proposal tx compatibility hash mismatch")
 	}
@@ -185,18 +185,13 @@ func goldenParallelBatchHash(batch ParallelBatch) SHA256Hash {
 }
 
 // Reproduces hogd's proposal_txs_compatibility_hash: the hash of
-// cxs(DomainSeparator("ProposalTxs")), the hash of the base with both batches
-// emptied, and the hashes of the two batches, in that order.
+// cxs(ProposalTxsCommit), whose fields are DomainSeparator("ProposalTxs") and
+// the hashes of the signed_hash and nondeterministic_data batches.
 func goldenProposalTxsHash(txs ProposalTxs) ProposalTxsHash {
-	base := txs
-	base.Signed_hash = ParallelBatch{}
-	base.Nondeterministic_data = ParallelBatch{}
-	baseHash := sha256.Sum256(marshalGoldenXdr(XDR_ProposalTxs(&base)))
 	signedHash := goldenParallelBatchHash(txs.Signed_hash)
 	nondeterministicHash := goldenParallelBatchHash(txs.Nondeterministic_data)
 	h := sha256.New()
 	h.Write([]byte("\x00\x0bProposalTxs"))
-	h.Write(baseHash[:])
 	h.Write(signedHash[:])
 	h.Write(nondeterministicHash[:])
 	return ProposalTxsHash(h.Sum(nil))
@@ -215,11 +210,11 @@ func TestIndexerCommittedBlockPayloadXdrGolden(t *testing.T) {
 	// naming transactions by SignedTransactionHash, which changed the
 	// fixture's Proposal_txs_hash, again when that hash began combining its
 	// parts in order instead of by XOR (hogd#4508), and again when the hash
-	// of a batch became that of the cxs of its BatchCommit. Config_hash,
-	// Gas_consumed, and direct key/value commitments now match hogd's
-	// committed payload fixture.
+	// of a batch became SHA-256(cxs(BatchCommit)) and the ProposalTxsHash
+	// SHA-256(cxs(ProposalTxsCommit)). Config_hash, Gas_consumed, and direct
+	// key/value commitments now match hogd's committed payload fixture.
 	const expectedByteLength = 588
-	const expectedDigest = "6db3e48d6f25252467cb5510317e5e3069ab222ff96f73ad50f1a83f9497ff9a"
+	const expectedDigest = "05ea4bffdfc40d3cc4629a0469c550401e0f81c2a41a168854bd8f9cd5435d3c"
 	if encoded.Len() != expectedByteLength || hex.EncodeToString(digest[:]) != expectedDigest {
 		t.Fatalf("golden mismatch: length=%d digest=%x", encoded.Len(), digest)
 	}
