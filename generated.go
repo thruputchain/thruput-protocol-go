@@ -2226,6 +2226,7 @@ const (
 	KConfigParamMaxTxGas ConfigParamID = 13
 	KConfigParamMinRv32ArtifactVersion ConfigParamID = 14
 	KConfigParamMaxRv32ArtifactVersion ConfigParamID = 15
+	KConfigParamMaxSubtransactionOutputBytes ConfigParamID = 16
 )
 
 /// One configuration parameter and the value in force for it.
@@ -2274,6 +2275,8 @@ type ConfigParam struct {
 	//      Min_rv32_artifact_version() *uint32
 	//   KConfigParamMaxRv32ArtifactVersion:
 	//      Max_rv32_artifact_version() *uint32
+	//   KConfigParamMaxSubtransactionOutputBytes:
+	//      Max_subtransaction_output_bytes() *uint32
 	Param ConfigParamID
 	_u interface{}
 }
@@ -18009,6 +18012,7 @@ var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMaxTxGas): "kConfigParamMaxTxGas",
 	int32(KConfigParamMinRv32ArtifactVersion): "kConfigParamMinRv32ArtifactVersion",
 	int32(KConfigParamMaxRv32ArtifactVersion): "kConfigParamMaxRv32ArtifactVersion",
+	int32(KConfigParamMaxSubtransactionOutputBytes): "kConfigParamMaxSubtransactionOutputBytes",
 }
 var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
@@ -18027,6 +18031,7 @@ var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxTxGas": int32(KConfigParamMaxTxGas),
 	"kConfigParamMinRv32ArtifactVersion": int32(KConfigParamMinRv32ArtifactVersion),
 	"kConfigParamMaxRv32ArtifactVersion": int32(KConfigParamMaxRv32ArtifactVersion),
+	"kConfigParamMaxSubtransactionOutputBytes": int32(KConfigParamMaxSubtransactionOutputBytes),
 }
 func (ConfigParamID) XdrEnumNames() map[int32]string {
 	return _XdrNames_ConfigParamID
@@ -18079,6 +18084,7 @@ var _XdrTags_ConfigParam = map[int32]bool{
 	XdrToI32(KConfigParamMaxTxGas): true,
 	XdrToI32(KConfigParamMinRv32ArtifactVersion): true,
 	XdrToI32(KConfigParamMaxRv32ArtifactVersion): true,
+	XdrToI32(KConfigParamMaxSubtransactionOutputBytes): true,
 }
 func (_ ConfigParam) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigParam
@@ -18482,9 +18488,61 @@ func (u *ConfigParam) Max_rv32_artifact_version() *uint32 {
 		return nil
 	}
 }
+/// Storage output one subtransaction may carry to storage, summed over its
+/// [`FlaggedStorageDelta`]s. A transaction writes one subtransaction at its
+/// root commit, holding everything the transaction writes (including the
+/// replay-cache and deployment records the executor adds), and in a
+/// proposal one more for each successful `TryInvoke` frame's lock probe,
+/// holding that frame's writes.
+///
+/// Storage output counts the values a delta carries, not any encoding of
+/// it, so a node computes the same figure however its storage link frames
+/// deltas. Each delta has a fixed charge, which covers its storage key, its
+/// flags and every fixed-size value its arm carries. On top of that:
+///
+///   - `kDeltaTypeBytestringSet` adds the bytestring's length in bytes.
+///   - `kDeltaTypeRetrocausalQueue` adds, for each entry in
+///     `insert.added_entries` and in `consume.current_block_consumed`, a
+///     fixed charge plus the entry's length in bytes.
+///     `observed_concurrent_entries` are not counted, and neither is a delta
+///     a validator adds only to carry them, for a queue the transaction did
+///     not otherwise modify: a validator rebuilds both from the proposal's
+///     recorded observations, which a proposer's batch does not carry, so
+///     counting them would give the two different figures for the same
+///     transaction. `kMaxConcurrentRcqReadsPerTx` bounds them instead.
+///   - `kDeltaTypeAuthDataChange` adds a fixed charge for each entry in
+///     `auth_data_change_signers`.
+///
+/// The node defines the fixed charges and the value in force for a
+/// configuration that does not state this parameter.
+///
+/// A root commit over the limit fails the transaction deterministically,
+/// as a fault in the root frame does: it is included, its body's effects
+/// are discarded, and its replay-cache record still commits. A `TryInvoke`
+/// lock probe over the limit fails that frame as a lock conflict does.
+///
+/// A chain must keep the limit low enough that its nodes can send the
+/// largest subtransaction it admits, together with a validator's rebuilt
+/// observations, to storage in one message; hogd rejects a genesis that
+/// does not.
+func (u *ConfigParam) Max_subtransaction_output_bytes() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxSubtransactionOutputBytes:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_subtransaction_output_bytes accessed when Param == %v", u.Param)
+		return nil
+	}
+}
 func (u ConfigParam) XdrValid() bool {
 	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes,KConfigParamMaxAuthTokens,KConfigParamMaxCalldataLen,KConfigParamMaxReturnBufferLen,KConfigParamMaxTxGas,KConfigParamMinRv32ArtifactVersion,KConfigParamMaxRv32ArtifactVersion:
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes,KConfigParamMaxAuthTokens,KConfigParamMaxCalldataLen,KConfigParamMaxReturnBufferLen,KConfigParamMaxTxGas,KConfigParamMinRv32ArtifactVersion,KConfigParamMaxRv32ArtifactVersion,KConfigParamMaxSubtransactionOutputBytes:
 		return true
 	}
 	return false
@@ -18529,6 +18587,8 @@ func (u *ConfigParam) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Min_rv32_artifact_version())
 	case KConfigParamMaxRv32ArtifactVersion:
 		return XDR_uint32(u.Max_rv32_artifact_version())
+	case KConfigParamMaxSubtransactionOutputBytes:
+		return XDR_uint32(u.Max_subtransaction_output_bytes())
 	}
 	return nil
 }
@@ -18566,6 +18626,8 @@ func (u *ConfigParam) XdrUnionBodyName() string {
 		return "Min_rv32_artifact_version"
 	case KConfigParamMaxRv32ArtifactVersion:
 		return "Max_rv32_artifact_version"
+	case KConfigParamMaxSubtransactionOutputBytes:
+		return "Max_subtransaction_output_bytes"
 	}
 	return ""
 }
@@ -18627,6 +18689,9 @@ func (u *ConfigParam) XdrRecurse(x XDR, name string) {
 		return
 	case KConfigParamMaxRv32ArtifactVersion:
 		x.Marshal(x.Sprintf("%smax_rv32_artifact_version", name), XDR_uint32(u.Max_rv32_artifact_version()))
+		return
+	case KConfigParamMaxSubtransactionOutputBytes:
+		x.Marshal(x.Sprintf("%smax_subtransaction_output_bytes", name), XDR_uint32(u.Max_subtransaction_output_bytes()))
 		return
 	}
 	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
