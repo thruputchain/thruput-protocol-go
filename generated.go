@@ -979,8 +979,10 @@ const (
 	/// (`kConfigParamMinRv32ArtifactVersion`,
 	/// `kConfigParamMaxRv32ArtifactVersion`).
 	ContractRejectUnsupportedFormat ContractRejectCode = 5
-	/// The artifact's VM profile, flags, entry ABI, or syscall ABI is not one
-	/// this node runs.
+	/// The artifact's VM profile, flags, entry ABI, or syscall API major is not
+	/// one this node runs, or the syscall API minor it declares is outside the
+	/// range the chain's configuration admits
+	/// (`kConfigParamMinSyscallApiMinor`, `kConfigParamMaxSyscallApiMinor`).
 	ContractRejectUnsupportedAbi ContractRejectCode = 6
 	/// The gas schedule (version, digest) stamped into the artifact is not one
 	/// the node accepts: the artifact was lowered by a toolchain whose gas
@@ -2227,6 +2229,8 @@ const (
 	KConfigParamMinRv32ArtifactVersion ConfigParamID = 14
 	KConfigParamMaxRv32ArtifactVersion ConfigParamID = 15
 	KConfigParamMaxSubtransactionOutputBytes ConfigParamID = 16
+	KConfigParamMinSyscallApiMinor ConfigParamID = 17
+	KConfigParamMaxSyscallApiMinor ConfigParamID = 18
 )
 
 /// One configuration parameter and the value in force for it.
@@ -2277,6 +2281,10 @@ type ConfigParam struct {
 	//      Max_rv32_artifact_version() *uint32
 	//   KConfigParamMaxSubtransactionOutputBytes:
 	//      Max_subtransaction_output_bytes() *uint32
+	//   KConfigParamMinSyscallApiMinor:
+	//      Min_syscall_api_minor() *uint32
+	//   KConfigParamMaxSyscallApiMinor:
+	//      Max_syscall_api_minor() *uint32
 	Param ConfigParamID
 	_u interface{}
 }
@@ -18013,6 +18021,8 @@ var _XdrNames_ConfigParamID = map[int32]string{
 	int32(KConfigParamMinRv32ArtifactVersion): "kConfigParamMinRv32ArtifactVersion",
 	int32(KConfigParamMaxRv32ArtifactVersion): "kConfigParamMaxRv32ArtifactVersion",
 	int32(KConfigParamMaxSubtransactionOutputBytes): "kConfigParamMaxSubtransactionOutputBytes",
+	int32(KConfigParamMinSyscallApiMinor): "kConfigParamMinSyscallApiMinor",
+	int32(KConfigParamMaxSyscallApiMinor): "kConfigParamMaxSyscallApiMinor",
 }
 var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMaxSHA256Buffers": int32(KConfigParamMaxSHA256Buffers),
@@ -18032,6 +18042,8 @@ var _XdrValues_ConfigParamID = map[string]int32{
 	"kConfigParamMinRv32ArtifactVersion": int32(KConfigParamMinRv32ArtifactVersion),
 	"kConfigParamMaxRv32ArtifactVersion": int32(KConfigParamMaxRv32ArtifactVersion),
 	"kConfigParamMaxSubtransactionOutputBytes": int32(KConfigParamMaxSubtransactionOutputBytes),
+	"kConfigParamMinSyscallApiMinor": int32(KConfigParamMinSyscallApiMinor),
+	"kConfigParamMaxSyscallApiMinor": int32(KConfigParamMaxSyscallApiMinor),
 }
 func (ConfigParamID) XdrEnumNames() map[int32]string {
 	return _XdrNames_ConfigParamID
@@ -18085,6 +18097,8 @@ var _XdrTags_ConfigParam = map[int32]bool{
 	XdrToI32(KConfigParamMinRv32ArtifactVersion): true,
 	XdrToI32(KConfigParamMaxRv32ArtifactVersion): true,
 	XdrToI32(KConfigParamMaxSubtransactionOutputBytes): true,
+	XdrToI32(KConfigParamMinSyscallApiMinor): true,
+	XdrToI32(KConfigParamMaxSyscallApiMinor): true,
 }
 func (_ ConfigParam) XdrValidTags() map[int32]bool {
 	return _XdrTags_ConfigParam
@@ -18466,8 +18480,8 @@ func (u *ConfigParam) Min_rv32_artifact_version() *uint32 {
 }
 /// Highest RV32 artifact format version admitted as an attached contract,
 /// checked with `kConfigParamMinRv32ArtifactVersion` and inclusive like it.
-/// 6 is the value in force for a configuration that does not state one,
-/// which is the newest format admitted before this parameter.
+/// The value in force for a configuration that does not state one is the
+/// newest format the node's build reads.
 ///
 /// This is what activates a format: a node whose build reads a newer
 /// format still refuses it until the chain's configuration admits it, so
@@ -18540,9 +18554,76 @@ func (u *ConfigParam) Max_subtransaction_output_bytes() *uint32 {
 		return nil
 	}
 }
+/// Lowest syscall API minor version an RV32 artifact may declare and be
+/// admitted as an attached contract. `syscalls.yaml` defines the syscall
+/// API version and its compatibility rules; an artifact in format 7 or
+/// later declares the version its guest was built against. 0 is the value
+/// in force for a configuration that does not state one, which admits every
+/// minor up to the maximum.
+///
+/// Only the minor is configurable. The major is fixed by what a node
+/// implements: an artifact declaring another major does not attach under
+/// any configuration.
+///
+/// A guest built against an older minor calls a subset of what a newer one
+/// provides, so nothing in the API requires a floor. A chain raises this to
+/// stop admitting contracts built against a syscall API it considers too
+/// old.
+///
+/// Checked where a contract is attached, like
+/// `kConfigParamMinRv32ArtifactVersion`, not where a deployed one is
+/// instantiated: raising it leaves contracts already deployed runnable. It
+/// does not apply to an artifact in format 5 or 6, which declares no minor;
+/// `kConfigParamMinRv32ArtifactVersion` is what stops those attaching.
+///
+/// The node rejects a genesis whose minimum exceeds
+/// `kConfigParamMaxSyscallApiMinor`.
+func (u *ConfigParam) Min_syscall_api_minor() *uint32 {
+	switch u.Param {
+	case KConfigParamMinSyscallApiMinor:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Min_syscall_api_minor accessed when Param == %v", u.Param)
+		return nil
+	}
+}
+/// Highest syscall API minor version an RV32 artifact may declare and be
+/// admitted as an attached contract, checked with
+/// `kConfigParamMinSyscallApiMinor` and inclusive like it. The value in
+/// force for a configuration that does not state one is the newest minor
+/// the node's build implements.
+///
+/// This is what activates the syscalls a minor adds: a guest built against
+/// minor n may call anything introduced up to n, and a node whose build
+/// implements a newer minor still refuses an artifact declaring it until
+/// the chain's configuration admits it, so nodes on different builds agree
+/// on which contracts attach. A chain that relies on that MUST state this
+/// parameter. The node rejects a genesis above the newest minor its build
+/// implements.
+func (u *ConfigParam) Max_syscall_api_minor() *uint32 {
+	switch u.Param {
+	case KConfigParamMaxSyscallApiMinor:
+		if v, ok := u._u.(*uint32); ok {
+			return v
+		} else {
+			var zero uint32
+			u._u = &zero
+			return &zero
+		}
+	default:
+		XdrPanic("ConfigParam.Max_syscall_api_minor accessed when Param == %v", u.Param)
+		return nil
+	}
+}
 func (u ConfigParam) XdrValid() bool {
 	switch u.Param {
-	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes,KConfigParamMaxAuthTokens,KConfigParamMaxCalldataLen,KConfigParamMaxReturnBufferLen,KConfigParamMaxTxGas,KConfigParamMinRv32ArtifactVersion,KConfigParamMaxRv32ArtifactVersion,KConfigParamMaxSubtransactionOutputBytes:
+	case KConfigParamMaxSHA256Buffers,KConfigParamMaxCrossInvokeDepth,KConfigParamMaxNewContractsPerTx,KConfigParamMaxBytestringLen,KConfigParamMaxContractSizeBytes,KConfigParamMaxSavepointDepth,KConfigParamMaxSHA256BufferBytes,KConfigParamMaxAuthTokenDepth,KConfigParamMaxRv32CodeBytes,KConfigParamMaxRv32MemoryBytes,KConfigParamMaxAuthTokens,KConfigParamMaxCalldataLen,KConfigParamMaxReturnBufferLen,KConfigParamMaxTxGas,KConfigParamMinRv32ArtifactVersion,KConfigParamMaxRv32ArtifactVersion,KConfigParamMaxSubtransactionOutputBytes,KConfigParamMinSyscallApiMinor,KConfigParamMaxSyscallApiMinor:
 		return true
 	}
 	return false
@@ -18589,6 +18670,10 @@ func (u *ConfigParam) XdrUnionBody() XdrType {
 		return XDR_uint32(u.Max_rv32_artifact_version())
 	case KConfigParamMaxSubtransactionOutputBytes:
 		return XDR_uint32(u.Max_subtransaction_output_bytes())
+	case KConfigParamMinSyscallApiMinor:
+		return XDR_uint32(u.Min_syscall_api_minor())
+	case KConfigParamMaxSyscallApiMinor:
+		return XDR_uint32(u.Max_syscall_api_minor())
 	}
 	return nil
 }
@@ -18628,6 +18713,10 @@ func (u *ConfigParam) XdrUnionBodyName() string {
 		return "Max_rv32_artifact_version"
 	case KConfigParamMaxSubtransactionOutputBytes:
 		return "Max_subtransaction_output_bytes"
+	case KConfigParamMinSyscallApiMinor:
+		return "Min_syscall_api_minor"
+	case KConfigParamMaxSyscallApiMinor:
+		return "Max_syscall_api_minor"
 	}
 	return ""
 }
@@ -18692,6 +18781,12 @@ func (u *ConfigParam) XdrRecurse(x XDR, name string) {
 		return
 	case KConfigParamMaxSubtransactionOutputBytes:
 		x.Marshal(x.Sprintf("%smax_subtransaction_output_bytes", name), XDR_uint32(u.Max_subtransaction_output_bytes()))
+		return
+	case KConfigParamMinSyscallApiMinor:
+		x.Marshal(x.Sprintf("%smin_syscall_api_minor", name), XDR_uint32(u.Min_syscall_api_minor()))
+		return
+	case KConfigParamMaxSyscallApiMinor:
+		x.Marshal(x.Sprintf("%smax_syscall_api_minor", name), XDR_uint32(u.Max_syscall_api_minor()))
 		return
 	}
 	XdrPanic("invalid Param (%v) in ConfigParam", u.Param)
