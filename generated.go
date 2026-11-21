@@ -4093,6 +4093,10 @@ type Ed25519Signature = [64]byte
 /// Canonical compressed Ristretto255 group element.
 type Ristretto255Point = [32]byte
 
+/// An unsigned 256-bit integer as a syscall passes it: 32 bytes, least
+/// significant byte first.
+type U256Le = [32]byte
+
 /// Represents a 256-bit Ed25519 public key.
 type Ed25519PublicKey = [32]byte
 
@@ -29883,6 +29887,14 @@ func XDR_Ristretto255Point(v *Ristretto255Point) XdrType_Ristretto255Point {
 }
 func (XdrType_Ristretto255Point) XdrTypeName() string { return "Ristretto255Point" }
 func (v XdrType_Ristretto255Point) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+type XdrType_U256Le struct {
+	*_XdrArray_32_opaque
+}
+func XDR_U256Le(v *U256Le) XdrType_U256Le {
+	return XdrType_U256Le{(*_XdrArray_32_opaque)(v)}
+}
+func (XdrType_U256Le) XdrTypeName() string { return "U256Le" }
+func (v XdrType_U256Le) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_Ed25519PublicKey struct {
 	*_XdrArray_32_opaque
 }
