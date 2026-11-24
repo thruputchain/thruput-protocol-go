@@ -4078,6 +4078,10 @@ type Protocol = uint32
 /// January 1, 1970 UTC
 type TimePoint = uint64
 
+/// uint64_t, a length of time in nanoseconds: the difference between
+/// two TimePoints, in the unit of TimePoint.
+type TimeSpan = uint64
+
 /// Typedef representing a length of memory in bytes, within
 /// a contract's memory.  This is primarily used as an argument to syscalls,
 /// and should not be directly used by most contracts.
@@ -29841,6 +29845,14 @@ func XDR_TimePoint(v *TimePoint) XdrType_TimePoint {
 }
 func (XdrType_TimePoint) XdrTypeName() string { return "TimePoint" }
 func (v XdrType_TimePoint) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+type XdrType_TimeSpan struct {
+	XdrType_uint64
+}
+func XDR_TimeSpan(v *TimeSpan) XdrType_TimeSpan {
+	return XdrType_TimeSpan{XDR_uint64(v)}
+}
+func (XdrType_TimeSpan) XdrTypeName() string { return "TimeSpan" }
+func (v XdrType_TimeSpan) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type XdrType_RuntimeMemoryLength struct {
 	XdrType_uint32
 }
