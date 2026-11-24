@@ -4078,6 +4078,10 @@ type Protocol = uint32
 /// January 1, 1970 UTC
 type TimePoint = uint64
 
+/// uint64_t, a length of time in nanoseconds: the difference between
+/// two TimePoints, in the unit of TimePoint.
+type TimeSpan = uint64
+
 /// Typedef representing a length of memory in bytes, within
 /// a contract's memory.  This is primarily used as an argument to syscalls,
 /// and should not be directly used by most contracts.
@@ -4092,6 +4096,10 @@ type Ed25519Signature = [64]byte
 
 /// Canonical compressed Ristretto255 group element.
 type Ristretto255Point = [32]byte
+
+/// An unsigned 256-bit integer as a syscall passes it: 32 bytes, least
+/// significant byte first.
+type U256Le = [32]byte
 
 /// Represents a 256-bit Ed25519 public key.
 type Ed25519PublicKey = [32]byte
@@ -29837,6 +29845,14 @@ func XDR_TimePoint(v *TimePoint) XdrType_TimePoint {
 }
 func (XdrType_TimePoint) XdrTypeName() string { return "TimePoint" }
 func (v XdrType_TimePoint) XdrUnwrap() XdrType { return v.XdrType_uint64 }
+type XdrType_TimeSpan struct {
+	XdrType_uint64
+}
+func XDR_TimeSpan(v *TimeSpan) XdrType_TimeSpan {
+	return XdrType_TimeSpan{XDR_uint64(v)}
+}
+func (XdrType_TimeSpan) XdrTypeName() string { return "TimeSpan" }
+func (v XdrType_TimeSpan) XdrUnwrap() XdrType { return v.XdrType_uint64 }
 type XdrType_RuntimeMemoryLength struct {
 	XdrType_uint32
 }
@@ -29883,6 +29899,14 @@ func XDR_Ristretto255Point(v *Ristretto255Point) XdrType_Ristretto255Point {
 }
 func (XdrType_Ristretto255Point) XdrTypeName() string { return "Ristretto255Point" }
 func (v XdrType_Ristretto255Point) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
+type XdrType_U256Le struct {
+	*_XdrArray_32_opaque
+}
+func XDR_U256Le(v *U256Le) XdrType_U256Le {
+	return XdrType_U256Le{(*_XdrArray_32_opaque)(v)}
+}
+func (XdrType_U256Le) XdrTypeName() string { return "U256Le" }
+func (v XdrType_U256Le) XdrUnwrap() XdrType { return v._XdrArray_32_opaque }
 type XdrType_Ed25519PublicKey struct {
 	*_XdrArray_32_opaque
 }
@@ -30852,7 +30876,7 @@ type xdrProc_Wallet_null struct {
 	Arg *XdrVoid
 	Res *XdrVoid
 }
-func (xdrProc_Wallet_null) Prog() uint32 { return 2326297255 }
+func (xdrProc_Wallet_null) Prog() uint32 { return 2326297254 }
 func (xdrProc_Wallet_null) Vers() uint32 { return 1 }
 func (xdrProc_Wallet_null) Proc() uint32 { return 0 }
 func (xdrProc_Wallet_null) ProgName() string { return "Wallet" }
@@ -30897,7 +30921,7 @@ type xdrProc_Wallet_submit struct {
 	Arg *WalletSubmit
 	Res *WalletAck
 }
-func (xdrProc_Wallet_submit) Prog() uint32 { return 2326297255 }
+func (xdrProc_Wallet_submit) Prog() uint32 { return 2326297254 }
 func (xdrProc_Wallet_submit) Vers() uint32 { return 1 }
 func (xdrProc_Wallet_submit) Proc() uint32 { return 10 }
 func (xdrProc_Wallet_submit) ProgName() string { return "Wallet" }
@@ -30941,7 +30965,7 @@ func (p *xdrSrvProc_Wallet_submit) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Wallet_submit{} // XXX
 
 func init() {
-	XdrCatalog[2326297255<<32|1] = func(p uint32) XdrProc {
+	XdrCatalog[2326297254<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
 			return &xdrProc_Wallet_null{}
@@ -30955,7 +30979,7 @@ func init() {
 type Wallet1_Server struct {
 	Srv Wallet1
 }
-func (Wallet1_Server) Prog() uint32 { return 2326297255 }
+func (Wallet1_Server) Prog() uint32 { return 2326297254 }
 func (Wallet1_Server) Vers() uint32 { return 1 }
 func (Wallet1_Server) ProgName() string { return "Wallet" }
 func (Wallet1_Server) VersName() string { return "Wallet1" }
