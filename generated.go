@@ -30876,7 +30876,7 @@ type xdrProc_Wallet_null struct {
 	Arg *XdrVoid
 	Res *XdrVoid
 }
-func (xdrProc_Wallet_null) Prog() uint32 { return 2326297255 }
+func (xdrProc_Wallet_null) Prog() uint32 { return 2326297254 }
 func (xdrProc_Wallet_null) Vers() uint32 { return 1 }
 func (xdrProc_Wallet_null) Proc() uint32 { return 0 }
 func (xdrProc_Wallet_null) ProgName() string { return "Wallet" }
@@ -30921,7 +30921,7 @@ type xdrProc_Wallet_submit struct {
 	Arg *WalletSubmit
 	Res *WalletAck
 }
-func (xdrProc_Wallet_submit) Prog() uint32 { return 2326297255 }
+func (xdrProc_Wallet_submit) Prog() uint32 { return 2326297254 }
 func (xdrProc_Wallet_submit) Vers() uint32 { return 1 }
 func (xdrProc_Wallet_submit) Proc() uint32 { return 10 }
 func (xdrProc_Wallet_submit) ProgName() string { return "Wallet" }
@@ -30965,7 +30965,7 @@ func (p *xdrSrvProc_Wallet_submit) Do() {
 var _ XdrSrvProc = &xdrSrvProc_Wallet_submit{} // XXX
 
 func init() {
-	XdrCatalog[2326297255<<32|1] = func(p uint32) XdrProc {
+	XdrCatalog[2326297254<<32|1] = func(p uint32) XdrProc {
 		switch(p) {
 		case 0:
 			return &xdrProc_Wallet_null{}
@@ -30979,7 +30979,7 @@ func init() {
 type Wallet1_Server struct {
 	Srv Wallet1
 }
-func (Wallet1_Server) Prog() uint32 { return 2326297255 }
+func (Wallet1_Server) Prog() uint32 { return 2326297254 }
 func (Wallet1_Server) Vers() uint32 { return 1 }
 func (Wallet1_Server) ProgName() string { return "Wallet" }
 func (Wallet1_Server) VersName() string { return "Wallet1" }
