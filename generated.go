@@ -2412,10 +2412,58 @@ type BlockAnchor struct {
 /// rather than being silently misinterpreted.
 type PaginationCursor = []byte
 
+/// A sequence of XDR-encoded items, cut into segments that can be encoded,
+/// decoded and hashed in parallel.
+///
+/// `xdr` holds the segments back to back. Segment `i` is the XDR encoding of
+/// `segment_tokens[i]` items, one after another, and takes the next
+/// `segment_bytes[i]` bytes of `xdr`. The two arrays have the same length,
+/// the number of segments, and `segment_bytes` adds up to the length of
+/// `xdr`.
+///
+/// The hash that commits to a batch is
+/// `sha256(cxs(DomainSeparator("ParallelBatch")) || cxs(BatchCommit))`, of the
+/// [`BatchCommit`] made from the batch.
 type ParallelBatch struct {
+	/// The number of items in each segment.
 	Segment_tokens []uint32
+	/// The number of bytes of `xdr` in each segment.
 	Segment_bytes []uint32
+	/// The segments, back to back.
 	Xdr []byte
+}
+
+/// The preimage of the hash that commits to a [`ParallelBatch`]. As for the
+/// other hashes that use a `DomainSeparator` (see preimage.x), the separator
+/// comes before it:
+///
+/// ```text
+/// sha256(cxs(DomainSeparator("ParallelBatch")) || cxs(BatchCommit))
+/// ```
+///
+/// `DomainSeparator("ParallelBatch")` has an `ext` of 0 and the bytes of the
+/// name as its `domain_separator`. That `ext` belongs to the separator, which
+/// every use of the type shares, and is not the version of this hash: the
+/// `ext` of this struct is.
+///
+/// The struct holds the batch's two count arrays and, in place of the batch's
+/// bytes, the hash of each segment. Only the segment hashes read the bytes,
+/// and they can be computed in parallel. The three arrays have the same
+/// length, the number of segments.
+///
+/// Does not travel on network: a node makes it from a batch to hash it.
+type BatchCommit struct {
+	/// The version of this preimage, whose only value today is 0. A revision
+	/// that changes what the hash of a batch commits to gives it a new value.
+	Ext ExtensionPoint
+	/// The batch's `segment_tokens`.
+	Segment_tokens []uint32
+	/// The batch's `segment_bytes`.
+	Segment_bytes []uint32
+	/// `segment_hashes[i]` is the SHA-256 of the bytes of segment `i`: the
+	/// `segment_bytes[i]` bytes of the batch's `xdr` that follow the segments
+	/// before it.
+	Segment_hashes []SHA256Hash
 }
 
 // #[rust(newtype)]
@@ -2463,10 +2511,46 @@ type ProposalTxs struct {
 
 /// Compatibility commitment over `ProposalTxs`.
 ///
-/// This is not SHA-256 of the complete canonical XDR. It XORs the hash of a
-/// base value with empty batches, the hashes of each raw batch segment, and
-/// the XDR hash of each batch index with its raw bytes removed.
+/// This is not SHA-256 of the complete canonical XDR, so that the segments of
+/// the two batches can hash in parallel. It is
+///
+/// ```text
+/// sha256(cxs(DomainSeparator("ProposalTxs")) || cxs(ProposalTxsCommit))
+/// ```
+///
+/// of the [`ProposalTxsCommit`] made from the `ProposalTxs`.
 type ProposalTxsHash = SHA256Hash
+
+/// The preimage of [`ProposalTxsHash`], the hash that commits to a
+/// [`ProposalTxs`]. As for the other hashes that use a `DomainSeparator` (see
+/// preimage.x), the separator comes before it:
+///
+/// ```text
+/// sha256(cxs(DomainSeparator("ProposalTxs")) || cxs(ProposalTxsCommit))
+/// ```
+///
+/// `DomainSeparator("ProposalTxs")` has an `ext` of 0 and the bytes of the
+/// name as its `domain_separator`. That `ext` belongs to the separator, which
+/// every use of the type shares, and is not the version of this hash: the
+/// `ext` of this struct is.
+///
+/// The struct holds, in place of each of the two batches, the hash that
+/// commits to that batch, given at [`BatchCommit`] in parallel.x. Those two
+/// hashes are all it takes from the batches of the `ProposalTxs`.
+///
+/// Does not travel on network: a node makes it from a `ProposalTxs` to hash
+/// it.
+type ProposalTxsCommit struct {
+	/// The version of this preimage, whose only value today is 0. It follows
+	/// the `ext` of the `ProposalTxs`: a revision that gives that `ext` a
+	/// second value gives this one the matching value, so that the hash
+	/// commits to the version of the `ProposalTxs`.
+	Ext ExtensionPoint
+	/// The hash that commits to the `signed_hash` batch.
+	Signed_hash_hash SHA256Hash
+	/// The hash that commits to the `nondeterministic_data` batch.
+	Nondeterministic_data_hash SHA256Hash
+}
 
 /// A candidate block: header plus the transaction metadata needed to
 /// re-execute it.
@@ -3515,9 +3599,6 @@ const (
 	KItemTypeReplayCacheData StorageItemType = 3
 	KItemTypeAuthData StorageItemType = 4
 	KItemTypeDeployedContractHash StorageItemType = 5
-	// #[doc(hidden)]
-	// This will be removed when we get rid of the old db interface.
-	KItemTypeDeleted StorageItemType = -1
 )
 
 /// The largest bytestring the wire format admits, and so the ceiling on
@@ -19222,6 +19303,76 @@ func (v *ParallelBatch) XdrRecurse(x XDR, name string) {
 	x.Marshal(x.Sprintf("%sxdr", name), XdrVecOpaque{&v.Xdr, 0xffffffff})
 }
 func XDR_ParallelBatch(v *ParallelBatch) *ParallelBatch { return v }
+type _XdrVec_unbounded_SHA256Hash []SHA256Hash
+func (_XdrVec_unbounded_SHA256Hash) XdrBound() uint32 {
+	const bound uint32 = 4294967295 // Force error if not const or doesn't fit
+	return bound
+}
+func (_XdrVec_unbounded_SHA256Hash) XdrCheckLen(length uint32) {
+	if length > uint32(4294967295) {
+		XdrPanic("_XdrVec_unbounded_SHA256Hash length %d exceeds bound 4294967295", length)
+	} else if int(length) < 0 {
+		XdrPanic("_XdrVec_unbounded_SHA256Hash length %d exceeds max int", length)
+	}
+}
+func (v _XdrVec_unbounded_SHA256Hash) GetVecLen() uint32 { return uint32(len(v)) }
+func (v *_XdrVec_unbounded_SHA256Hash) SetVecLen(length uint32) {
+	v.XdrCheckLen(length)
+	if int(length) <= cap(*v) {
+		if int(length) != len(*v) {
+			*v = (*v)[:int(length)]
+		}
+		return
+	}
+	newcap := 2*cap(*v)
+	if newcap < int(length) { // also catches overflow where 2*cap < 0
+		newcap = int(length)
+	} else if bound := uint(4294967295); uint(newcap) > bound {
+		if int(bound) < 0 {
+			bound = ^uint(0) >> 1
+		}
+		newcap = int(bound)
+	}
+	nv := make([]SHA256Hash, int(length), newcap)
+	copy(nv, *v)
+	*v = nv
+}
+func (v *_XdrVec_unbounded_SHA256Hash) XdrMarshalN(x XDR, name string, n uint32) {
+	v.XdrCheckLen(n)
+	for i := 0; i < int(n); i++ {
+		if (i >= len(*v)) {
+			v.SetVecLen(uint32(i+1))
+		}
+		XDR_SHA256Hash(&(*v)[i]).XdrMarshal(x, x.Sprintf("%s[%d]", name, i))
+	}
+	if int(n) < len(*v) {
+		*v = (*v)[:int(n)]
+	}
+}
+func (v *_XdrVec_unbounded_SHA256Hash) XdrRecurse(x XDR, name string) {
+	size := XdrSize{ Size: uint32(len(*v)), Bound: 4294967295 }
+	x.Marshal(name, &size)
+	v.XdrMarshalN(x, name, size.Size)
+}
+func (_XdrVec_unbounded_SHA256Hash) XdrTypeName() string { return "SHA256Hash<>" }
+func (v *_XdrVec_unbounded_SHA256Hash) XdrPointer() interface{} { return (*[]SHA256Hash)(v) }
+func (v _XdrVec_unbounded_SHA256Hash) XdrValue() interface{} { return ([]SHA256Hash)(v) }
+func (v *_XdrVec_unbounded_SHA256Hash) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+type XdrType_BatchCommit = *BatchCommit
+func (v *BatchCommit) XdrPointer() interface{} { return v }
+func (BatchCommit) XdrTypeName() string { return "BatchCommit" }
+func (v BatchCommit) XdrValue() interface{} { return v }
+func (v *BatchCommit) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *BatchCommit) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
+	x.Marshal(x.Sprintf("%ssegment_tokens", name), (*_XdrVec_unbounded_uint32)(&v.Segment_tokens))
+	x.Marshal(x.Sprintf("%ssegment_bytes", name), (*_XdrVec_unbounded_uint32)(&v.Segment_bytes))
+	x.Marshal(x.Sprintf("%ssegment_hashes", name), (*_XdrVec_unbounded_SHA256Hash)(&v.Segment_hashes))
+}
+func XDR_BatchCommit(v *BatchCommit) *BatchCommit { return v }
 type XdrType_ParallelSignedTransactionBatch struct {
 	XdrType_ParallelBatch
 }
@@ -19323,6 +19474,20 @@ func XDR_ProposalTxsHash(v *ProposalTxsHash) XdrType_ProposalTxsHash {
 }
 func (XdrType_ProposalTxsHash) XdrTypeName() string { return "ProposalTxsHash" }
 func (v XdrType_ProposalTxsHash) XdrUnwrap() XdrType { return v.XdrType_SHA256Hash }
+type XdrType_ProposalTxsCommit = *ProposalTxsCommit
+func (v *ProposalTxsCommit) XdrPointer() interface{} { return v }
+func (ProposalTxsCommit) XdrTypeName() string { return "ProposalTxsCommit" }
+func (v ProposalTxsCommit) XdrValue() interface{} { return v }
+func (v *ProposalTxsCommit) XdrMarshal(x XDR, name string) { x.Marshal(name, v) }
+func (v *ProposalTxsCommit) XdrRecurse(x XDR, name string) {
+	if name != "" {
+		name = x.Sprintf("%s.", name)
+	}
+	x.Marshal(x.Sprintf("%sext", name), XDR_ExtensionPoint(&v.Ext))
+	x.Marshal(x.Sprintf("%ssigned_hash_hash", name), XDR_SHA256Hash(&v.Signed_hash_hash))
+	x.Marshal(x.Sprintf("%snondeterministic_data_hash", name), XDR_SHA256Hash(&v.Nondeterministic_data_hash))
+}
+func XDR_ProposalTxsCommit(v *ProposalTxsCommit) *ProposalTxsCommit { return v }
 type XdrType_Proposal = *Proposal
 func (v *Proposal) XdrPointer() interface{} { return v }
 func (Proposal) XdrTypeName() string { return "Proposal" }
@@ -27561,7 +27726,6 @@ var _XdrNames_StorageItemType = map[int32]string{
 	int32(KItemTypeReplayCacheData): "kItemTypeReplayCacheData",
 	int32(KItemTypeAuthData): "kItemTypeAuthData",
 	int32(KItemTypeDeployedContractHash): "kItemTypeDeployedContractHash",
-	int32(KItemTypeDeleted): "kItemTypeDeleted",
 }
 var _XdrValues_StorageItemType = map[string]int32{
 	"kItemTypeBytestring": int32(KItemTypeBytestring),
@@ -27570,7 +27734,6 @@ var _XdrValues_StorageItemType = map[string]int32{
 	"kItemTypeReplayCacheData": int32(KItemTypeReplayCacheData),
 	"kItemTypeAuthData": int32(KItemTypeAuthData),
 	"kItemTypeDeployedContractHash": int32(KItemTypeDeployedContractHash),
-	"kItemTypeDeleted": int32(KItemTypeDeleted),
 }
 func (StorageItemType) XdrEnumNames() map[int32]string {
 	return _XdrNames_StorageItemType
